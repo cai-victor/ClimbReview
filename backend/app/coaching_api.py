@@ -202,8 +202,11 @@ def register_coaching(app: FastAPI, get_settings) -> None:
             for candidate in output["candidates"]:
                 candidate["id"] = _candidate_id(public["id"], candidate)
             if output["candidates"]:
-                connection.execute("INSERT INTO candidate_ids(run_id, detail) VALUES (?,?) ON CONFLICT(run_id) DO UPDATE SET detail=excluded.detail",
-                                   (job["id"], json.dumps([{"id": c["id"]} for c in output["candidates"]])))
+                try:
+                    connection.execute("INSERT INTO candidate_ids(run_id, detail) VALUES (?,?) ON CONFLICT(run_id) DO UPDATE SET detail=excluded.detail",
+                                       (job["id"], json.dumps([{"id": c["id"]} for c in output["candidates"]])))
+                except db.sqlite3.IntegrityError as error:          # the run was deleted while this request was running
+                    raise HTTPException(404, "Analysis not found.") from error
             rows = {r["cue_id"]: dict(r) for r in connection.execute("SELECT * FROM coaching_feedback WHERE run_id=?", (job["id"],))}
             blank = {"decision": "unreviewed", "trial_outcome": "not_tried", "note": ""}
             for candidate in output["candidates"]:
@@ -230,8 +233,8 @@ def register_coaching(app: FastAPI, get_settings) -> None:
                 if job:
                     directory = settings.run_dir(row["id"], job["id"])
                     output = compute(connection, job, row, directory, None)
-                    if output.get("available"):
-                        files = read_files(directory)
+                    files = read_files(directory)
+                    if output.get("available") and files is not None:     # files can vanish if the attempt is deleted meanwhile
                         item["run_id"] = job["id"]
                         item["metrics"] = _metrics(files, output)
                 attempts.append(item)

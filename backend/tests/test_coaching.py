@@ -248,8 +248,8 @@ def test_candidates_refuse_without_required_marks():
 
 
 def test_feet_may_start_from_the_ground_but_a_hand_cannot_move_first():
-    holds = [hold(0.45, 0.60, role="start", use="hand", hid="a"), hold(0.55, 0.60, role="start", use="hand", hid="b"), hold(0.5, 0.56, use="foot", hid="c"),
-             hold(0.5, 0.54, use="both", hid="f"), hold(0.5, 0.50, role="finish", use="hand", hid="h")]
+    holds = [hold(0.45, 0.60, role="start", use="hand", hid="a"), hold(0.55, 0.60, role="start", use="hand", hid="b"), hold(0.5, 0.66, use="foot", hid="c"),
+             hold(0.5, 0.56, use="hand", hid="f"), hold(0.5, 0.50, role="finish", use="hand", hid="h")]
     result = beta.candidate_sequences(holds, W, H, L, BODY)
     assert result["status"] == "ready"
     candidate = result["candidates"][0]
