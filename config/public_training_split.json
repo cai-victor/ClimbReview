@@ -89,10 +89,31 @@
    "event_id": "ifsc_euros_2020_lead",
    "group_id": "elena_krasovskaia",
    "split": "train"
+  },
+  "pub19_chiba_gym": {
+   "event_id": "additional_search_2026",
+   "group_id": "unknown_chiba_2025",
+   "split": "test"
+  },
+  "pub20_neoliet_1": {
+   "event_id": "additional_search_2026",
+   "group_id": "unknown_neoliet_essen",
+   "split": "train"
+  },
+  "pub21_neoliet_2": {
+   "event_id": "additional_search_2026",
+   "group_id": "unknown_neoliet_essen",
+   "split": "train"
+  },
+  "pub22_raboutou_q1": {
+   "event_id": "additional_search_2026",
+   "group_id": "brooke_raboutou",
+   "split": "train"
   }
  },
  "groups": {
   "anna_stoehr": "test",
+  "brooke_raboutou": "train",
   "dmitrii_sherafutdinov": "train",
   "elena_krasovskaia": "train",
   "evgeniya_malamid": "train",
@@ -103,8 +124,10 @@
   "rustam_gelmanov": "train",
   "sean_mccoll": "train",
   "sergei_luzhetskii": "test",
+  "unknown_chiba_2025": "test",
   "unknown_finale_m_6666": "test",
   "unknown_finale_w_6604": "train",
+  "unknown_neoliet_essen": "train",
   "unknown_quali_m_6488": "train",
   "unknown_quali_w_6518": "train"
  },
