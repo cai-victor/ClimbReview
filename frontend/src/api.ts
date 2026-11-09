@@ -69,6 +69,7 @@ export const api = {
   getAttempt: (id: string) => request<Attempt>(`/api/attempts/${id}`),
   patchAttempt: (id: string, body: Partial<Attempt>) => request<Attempt>(`/api/attempts/${id}`, jsonInit("PATCH", body)),
   deleteAttempt: (id: string) => request<void>(`/api/attempts/${id}`, { method: "DELETE" }),
+  cancelImport: (id: string) => request<Attempt>(`/api/attempts/${id}/cancel-import`, { method: "POST" }),
   retryImport: (id: string) => request<Attempt>(`/api/attempts/${id}/retry-import`, { method: "POST" }),
   queueAnalysis: (id: string) => request<Job>(`/api/attempts/${id}/analyses`, { method: "POST" }),
   cancelJob: (id: string) => request<Job>(`/api/analyses/${id}/cancel`, { method: "POST" }),

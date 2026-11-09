@@ -60,6 +60,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
       const context = surface.getContext("2d")!;
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.clearRect(0, 0, surface.width, surface.height);
+      surface.dataset.sampleT = "";
       if (!showSkeleton || !element.videoWidth) return;
       // The displayed picture is letterboxed inside the element; map onto its content rectangle.
       const scale = Math.min(width / element.videoWidth, height / element.videoHeight);
@@ -67,6 +68,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
       const offsetX = (width - contentW) / 2, offsetY = (height - contentH) / 2;
       const sample = samples.length ? nearest(samples, ms) : null;
       if (!sample) return;
+      surface.dataset.sampleT = String(sample.t); // lets verification compare the drawn pose time with media time
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       const at = (name: string): [number, number] | null => {
         const joint = sample.joints[name];

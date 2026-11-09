@@ -230,6 +230,37 @@ def test_cancel_running_analysis_leaves_no_results(env, tmp_path, monkeypatch):
     assert client.post(f"/api/attempts/{attempt['id']}/analyses").status_code == 201
 
 
+def test_cancel_queued_import_then_retry(env, tmp_path):
+    settings, client, worker = env
+    attempt = upload(client, noise_clip(tmp_path / "n.mp4")).json()
+    state = client.post(f"/api/attempts/{attempt['id']}/cancel-import").json()
+    assert state["status"] == "failed" and "cancelled" in state["error"]
+    assert state["import_job"]["status"] == "cancelled"
+    assert worker.process_one() is False
+    assert client.post(f"/api/attempts/{attempt['id']}/cancel-import").status_code == 409
+    assert client.post(f"/api/attempts/{attempt['id']}/retry-import").status_code == 200
+    worker.process_one()
+    assert client.get(f"/api/attempts/{attempt['id']}").json()["status"] == "ready"
+
+
+def test_cancel_running_import_stops_ffmpeg_and_cleans_up(env, tmp_path, monkeypatch):
+    settings, client, worker = env
+    attempt = upload(client, noise_clip(tmp_path / "n.mp4", 300)).json()
+    original = worker._check
+
+    def cancel_first(job_id):
+        client.post(f"/api/attempts/{attempt['id']}/cancel-import")
+        original(job_id)
+
+    monkeypatch.setattr(worker, "_check", cancel_first)
+    worker.process_one()
+    state = client.get(f"/api/attempts/{attempt['id']}").json()
+    assert state["status"] == "failed" and "cancelled" in state["error"] and state["import_job"]["status"] == "cancelled"
+    directory = settings.attempt_dir(attempt["id"])
+    assert not (directory / "canonical.mp4").exists() and not (directory / "canonical.partial.mp4").exists()
+    assert (directory / "source.mp4").exists()  # the uploaded video is kept for a retry
+
+
 def test_worker_failure_keeps_attempt_and_records_error(env, tmp_path):
     settings, client, worker = env
     attempt = imported(env, noise_clip(tmp_path / "n.mp4"))

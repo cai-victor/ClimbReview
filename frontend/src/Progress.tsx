@@ -20,10 +20,9 @@ export function Progress({ job, title, onChange }: { job: Job; title: string; on
           <p className="muted">{done} of {total} frames sampled ({percent(fraction)})</p>
         </>
       )}
-      {job.kind === "analysis" && (
-        <button className="button" disabled={job.cancel_requested}
-          onClick={() => api.cancelJob(job.id).then(onChange).catch((e) => setError(e.message))}>Cancel</button>
-      )}
+      <button className="button" disabled={job.cancel_requested} data-testid="cancel-job"
+        onClick={() => (job.kind === "import" ? api.cancelImport(job.attempt_id) : api.cancelJob(job.id))
+          .then(onChange).catch((e) => setError(e.message))}>Cancel</button>
       {error && <p className="error" role="alert">{error}</p>}
     </section>
   );

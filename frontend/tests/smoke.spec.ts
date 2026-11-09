@@ -47,8 +47,56 @@ test("import, analyze, review, annotate, refresh, export, delete", async ({ page
   });
   expect(painted).toBe(true);
 
+  // Continuous playback: the drawn pose must follow media time frame after frame.
+  const playback = await page.evaluate(async () => {
+    const video = document.querySelector("[data-testid=review-video]") as HTMLVideoElement;
+    const canvas = document.querySelector("[data-testid=overlay-canvas]") as HTMLCanvasElement;
+    video.muted = true;
+    video.currentTime = 12;
+    await new Promise((resolve) => video.addEventListener("seeked", resolve, { once: true }));
+    await video.play();
+    const drift: number[] = [], drawn = new Set<string>(), images = new Set<string>();
+    const begin = performance.now();
+    let frames = 0;
+    await new Promise<void>((resolve) => {
+      const step = () => {
+        frames += 1;
+        const t = canvas.dataset.sampleT;
+        if (t) { drawn.add(t); drift.push(Math.abs(Number(t) - video.currentTime * 1000)); }
+        if (frames % 6 === 0) images.add(canvas.toDataURL("image/png").slice(-400));
+        if (performance.now() - begin > 4000) resolve(); else requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+    const end = video.currentTime;
+    video.pause();
+    return { frames, advanced: end - 12, drawn: drawn.size, images: images.size, maxDrift: Math.max(...drift) };
+  });
+  expect(playback.advanced).toBeGreaterThan(2);
+  expect(playback.drawn).toBeGreaterThan(10);
+  expect(playback.images).toBeGreaterThan(3);
+  expect(playback.maxDrift).toBeLessThanOrEqual(120); // 60 ms draw rule plus one display frame of timer lag
+
   if (events > 0) {
     await page.getByTestId("timeline-event").first().click();
+    await page.getByText("Loop selected event").click();
+    const loop = await page.evaluate(async () => {
+      const video = document.querySelector("[data-testid=review-video]") as HTMLVideoElement;
+      video.muted = true;
+      await video.play();
+      let previous = video.currentTime, wrapped = false, highest = 0;
+      const begin = performance.now();
+      while (performance.now() - begin < 8000 && !wrapped) {
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        if (video.currentTime < previous - 0.3) wrapped = true;
+        previous = video.currentTime;
+        highest = Math.max(highest, previous);
+      }
+      video.pause();
+      return { wrapped, highest };
+    });
+    expect(loop.wrapped).toBe(true);
+    await page.getByText("Loop selected event").click();
     const card = page.locator(".event-card.selected");
     await expect(card).toBeVisible();
     await card.getByText("Cannot tell").click();

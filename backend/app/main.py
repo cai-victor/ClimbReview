@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import db, report
+from .worker import IMPORT_CANCELLED_MESSAGE
 from .settings import PROJECT_ROOT, InvalidIdError, Settings, load_pipeline_config, load_settings, require_id
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov"}
@@ -214,6 +215,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 raise HTTPException(409, "Only a failed import can be retried.")
             connection.execute("UPDATE attempts SET status='importing', error=NULL WHERE id=?", (attempt_id,))
             new_job(connection, attempt_id, "import", "queued")
+            return public_attempt(connection, attempt_row(connection, attempt_id))
+
+    @app.post("/api/attempts/{attempt_id}/cancel-import")
+    def cancel_import(attempt_id: str, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
+        with db.session(settings.database) as connection:
+            attempt_row(connection, attempt_id)
+            job = db.row(connection.execute(
+                "SELECT * FROM jobs WHERE attempt_id=? AND kind='import' AND status IN ('queued','running') ORDER BY created_at DESC LIMIT 1",
+                (attempt_id,)).fetchone())
+            if job is None:
+                raise HTTPException(409, "No import is active for this attempt.")
+            if job["status"] == "queued":
+                connection.execute("UPDATE jobs SET status='cancelled', error='Cancelled.', finished_at=? WHERE id=? AND status='queued'",
+                                   (db.now(), job["id"]))
+                connection.execute("UPDATE attempts SET status='failed', error=? WHERE id=?", (IMPORT_CANCELLED_MESSAGE, attempt_id))
+            else:
+                connection.execute("UPDATE jobs SET cancel_requested=1 WHERE id=?", (job["id"],))
             return public_attempt(connection, attempt_row(connection, attempt_id))
 
     @app.get("/api/attempts/{attempt_id}/video")

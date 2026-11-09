@@ -167,13 +167,14 @@ def score_group(
     }
 
 
-def load_predictions(run_dir: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    events = json.loads((run_dir / "events.json").read_text())
+def load_predictions(run_dir: Path, events_file: str = "events.json") -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    events = json.loads((run_dir / events_file).read_text())
     return events["events"], events["detectors"]
 
 
 def evaluate(
     manifest: list[dict[str, str]], annotations: list[dict[str, Any]], split: str, threshold: float, root: Path,
+    events_file: str = "events.json",
 ) -> dict[str, Any]:
     """Pooled and per-clip metrics for one split. Refuses a split with no clips."""
     clips = [row for row in manifest if row["split"] == split]
@@ -187,7 +188,7 @@ def evaluate(
     for clip in clips:
         clip_id = clip["clip_id"]
         duration = int(clip["video_duration_ms"])
-        events, detector_state = load_predictions((root / clip["run_dir"]))
+        events, detector_state = load_predictions(root / clip["run_dir"], events_file)
         references = [a for a in annotations if a["clip_id"] == clip_id and a["event_type"] != "unscorable"]
         for key in EVENT_KEYS:
             all_predictions = [Interval(clip_id, key, e["start_ms"], e["end_ms"]) for e in events
@@ -210,7 +211,7 @@ def evaluate(
         score = score_group(group["predictions"], group["references"], threshold, group["scorable"], group["excluded"])
         results[key] = {**score, "clips_with_detector_unavailable": group["unavailable_clips"]}
     return {
-        "split": split, "tiou_threshold": threshold, "clips": [c["clip_id"] for c in clips],
+        "split": split, "tiou_threshold": threshold, "events_file": events_file, "clips": [c["clip_id"] for c in clips],
         "annotators": sorted({a["annotator_id"] for a in annotations}),
         "pooled": results, "per_clip": per_clip,
         "note": "Human labels are a reference standard. Coverage and F1 are not probabilities for individual events.",

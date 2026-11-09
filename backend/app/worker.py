@@ -25,6 +25,9 @@ from .analysis.quality import explain_gaps, overlay_samples
 from .settings import PROJECT_ROOT, Settings, load_pipeline_config, load_settings
 
 
+IMPORT_CANCELLED_MESSAGE = "Import was cancelled. Retry the import to continue, or delete this attempt."
+
+
 class JobCancelled(Exception):
     pass
 
@@ -80,7 +83,8 @@ class Worker:
         self._update(job["id"], status=status, error=message, error_detail=detail, finished_at=db.now())
         if job["kind"] == "import":
             with db.session(self.settings.database) as connection:
-                connection.execute("UPDATE attempts SET status='failed', error=? WHERE id=?", (message, job["attempt_id"]))
+                attempt_error = IMPORT_CANCELLED_MESSAGE if status == "cancelled" else message
+                connection.execute("UPDATE attempts SET status='failed', error=? WHERE id=?", (attempt_error, job["attempt_id"]))
             directory = self.settings.attempt_dir(job["attempt_id"])
             (directory / "canonical.mp4").unlink(missing_ok=True)
             (directory / "canonical.partial.mp4").unlink(missing_ok=True)
