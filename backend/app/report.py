@@ -77,9 +77,9 @@ def _percent(value: float | None) -> str:
 
 
 def full_export(attempt: dict[str, Any], run: dict[str, Any], result: dict[str, Any], events: list[dict[str, Any]],
-                reflection: dict[str, Any]) -> dict[str, Any]:
-    return {"schema_version": "1.0", "attempt": attempt, "analysis_run": run, "result": result,
-            "summary": summarize(result, events), "events": events, "reflection": reflection}
+                reflection: dict[str, Any], coaching: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {"schema_version": "1.1", "attempt": attempt, "analysis_run": run, "result": result,
+            "summary": summarize(result, events), "events": events, "reflection": reflection, "coaching": coaching}
 
 
 LABELS = {"low_movement": "Low visible movement", "wrist_motion": "Wrist movement", "foot_motion": "Foot movement"}
@@ -128,6 +128,20 @@ def html_report(export: dict[str, Any]) -> str:
             parts.append("<h2>Where tracking prevents a conclusion</h2><ul>" + "".join(f"<li>{e(n['text'])}" for n in digest["limits"]) + "</ul>")
         if digest["prompts"]:
             parts.append("<h2>Questions for reflection</h2><ul>" + "".join(f"<li>{e(p)}" for p in digest["prompts"]) + "</ul>")
+    coaching = export.get("coaching") or {}
+    if coaching.get("available"):
+        parts.append(f"<h2>Performance opportunities</h2><p class=note>{e(coaching['disclaimer'])}</p>")
+        if not coaching["cards"]:
+            parts.append("<p>No suggestion met its rules in this attempt. That is not a judgment of the climb.</p>")
+        for card in coaching["cards"]:
+            decision = card["feedback"]["decision"].replace("_", " ")
+            parts.append(f"<div class=event><h3>{_clock(card['start_ms'])} to {_clock(card['end_ms'])}: {e(card['title'])}</h3>"
+                         f"<p><b>{e(card['status_label'])}.</b> {e(card['moment'])}</p><p><b>Try this:</b> {e(card['try_this'])}</p>"
+                         f"<p><b>Why it could matter:</b> {e(card['why'])}</p><p><b>Keep your way if:</b> {e(card['keep_if'])}</p>"
+                         f"<p>Your decision: {e(decision)}.</p></div>")
+        reviewed = [p for p in coaching["placements"] if p["review"]["status"] != "unreviewed"]
+        if reviewed:
+            parts.append("<h3>Foot placements you confirmed</h3><ul>" + "".join(f"<li>{_clock(p['landing_ms'])}: {e(p['limb'].replace('_', ' '))}, {e(p['review']['status'].replace('_', ' '))}" for p in reviewed) + "</ul>")
     parts.append("<h2>Events</h2>")
     if not export["events"]:
         parts.append("<p>No events were detected. This does not indicate good or bad climbing.</p>")

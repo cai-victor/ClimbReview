@@ -244,7 +244,29 @@ def route():
 
 def test_candidates_refuse_without_required_marks():
     result = beta.candidate_sequences([hold(0.5, 0.5)], W, H, L, BODY)
-    assert result["status"] == "setup_needed" and len(result["needs"]) == 3 and result["candidates"] == []
+    assert result["status"] == "setup_needed" and len(result["needs"]) == 2 and result["candidates"] == []
+
+
+def test_feet_may_start_from_the_ground_but_a_hand_cannot_move_first():
+    holds = [hold(0.45, 0.60, role="start", use="hand", hid="a"), hold(0.55, 0.60, role="start", use="hand", hid="b"), hold(0.5, 0.56, use="foot", hid="c"),
+             hold(0.5, 0.54, use="both", hid="f"), hold(0.5, 0.50, role="finish", use="hand", hid="h")]
+    result = beta.candidate_sequences(holds, W, H, L, BODY)
+    assert result["status"] == "ready"
+    candidate = result["candidates"][0]
+    assert candidate["feet_start_off_wall"] and candidate["steps"][0]["limb"].endswith("foot") and candidate["steps"][0]["from_hold"] == beta.OFF_WALL
+    assert any("from the ground" in a for a in result["assumptions"])
+
+
+def test_a_foot_is_never_proposed_above_both_hands():
+    result = beta.candidate_sequences(route(), W, H, L, BODY)
+    points = beta.hold_points(route(), W, H, L)
+    for candidate in result["candidates"]:
+        hands = [candidate["start"]["left_hand"], candidate["start"]["right_hand"]]
+        for step in candidate["steps"]:
+            if step["limb"].endswith("hand"):
+                hands["left_hand right_hand".split().index(step["limb"])] = step["to_hold"]
+            else:
+                assert points[step["to_hold"]][1] > min(points[hands[0]][1], points[hands[1]][1])
 
 
 def test_candidates_need_a_body_scale():
@@ -278,10 +300,11 @@ def test_unset_use_is_disclosed_as_an_assumption():
     assert any("no hand or foot use" in a for a in beta.candidate_sequences(holds, W, H, L, BODY)["assumptions"])
 
 
-def test_alternative_foot_setup_requires_a_real_gain():
+def test_alternative_foot_setup_requires_a_real_gain(monkeypatch):
+    monkeypatch.setattr(beta, "body_model", lambda *args: BODY)   # the synthetic poses are not body-proportioned
     # Reach ends high; a higher marked foothold adds margin, a lower one does not.
-    feet = {"left_foot": [(0.45, 0.90)] * 80, "right_foot": [(0.55, 0.78)] * 80}
-    wrist = [(0.56, 0.72) if i < 38 else (0.56, 0.64) for i in range(80)]
+    feet = {"left_foot": [(0.45, 0.86)] * 80, "right_foot": [(0.55, 0.74)] * 80}
+    wrist = [(0.56, 0.66) if i < 38 else (0.56, 0.60) for i in range(80)]
     ser = series(overrides={**feet, "right_wrist": wrist})
     samples = [sample(i * 100) for i in range(80)]
     higher = build([event("wrist_motion", "right", 3000, 3800)], ser=ser, samples=samples, context=holds_ctx([hold(0.5, 0.76, use="foot", hid="up")]))

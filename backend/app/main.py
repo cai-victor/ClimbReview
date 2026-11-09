@@ -346,7 +346,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if format == "csv":
             return PlainTextResponse(report.events_csv(events), media_type="text/csv",
                                      headers={"Content-Disposition": f'attachment; filename="climbreview_events_{short}.csv"'})
-        bundle = report.full_export(attempt, public_job(job), result, events, reflection)
+        with db.session(settings.database) as connection:
+            raw_attempt = attempt_row(connection, job["attempt_id"])
+            coaching = app.state.coaching_for(connection, job, raw_attempt, directory)
+        bundle = report.full_export(attempt, public_job(job), result, events, reflection, coaching)
         if format == "json":
             return JSONResponse(bundle, headers={"Content-Disposition": f'attachment; filename="climbreview_analysis_{short}.json"'})
         return HTMLResponse(report.html_report(bundle),

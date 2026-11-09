@@ -139,6 +139,7 @@ function BetaFigure({ map, candidate, stepIndex, width, height }: { map: HoldMap
       <img src={map.frame_url} alt={`Reference frame at ${clock(map.reference_frame_ms)} with marked holds`} />
       <svg viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
         {candidate?.steps.map((step, index) => {
+          if (step.from_hold < 0) return null;
           const [x1, y1] = point(step.from_hold), [x2, y2] = point(step.to_hold);
           const foot = step.limb.endsWith("foot"), left = step.limb.startsWith("left");
           return <line key={index} x1={x1} y1={y1} x2={x2} y2={y2} stroke={left ? "#f28c28" : "#2ab7f5"} strokeWidth={index === stepIndex ? stroke * 2 : stroke} strokeDasharray={foot ? `${stroke * 3} ${stroke * 2}` : undefined} opacity={index === stepIndex ? 1 : 0.55} />;
@@ -181,10 +182,10 @@ export function BetaPanel({ attempt, runId, reloadKey, onFeedback }: { attempt: 
             {result.candidates.map((item, index) => <button key={item.id} role="tab" aria-selected={index === active} className={`button small ${index === active ? "active" : ""}`} data-testid="beta-candidate" onClick={() => { setActive(index); setStep(0); }}>{item.label}</button>)}
           </div>
           <p className="small-text">{candidate.move_count} moves, {candidate.total_distance_L.toFixed(1)} L of limb travel, largest single move {candidate.largest_move_L.toFixed(2)} L. Tightest 2D reach margin {candidate.tightest_margin_L.toFixed(2)} L{candidate.tight_moves ? `, with ${candidate.tight_moves} tight move${candidate.tight_moves > 1 ? "s" : ""}` : ""}.</p>
-          <p className="small-text"><strong>Start:</strong> {Object.entries(candidate.start).map(([limb, hold]) => `${LIMB_WORD[limb]} ${holdName(hold)}`).join(", ")}</p>
+          <p className="small-text"><strong>Start:</strong> {Object.entries(candidate.start).map(([limb, hold]) => `${LIMB_WORD[limb]} ${hold < 0 ? "from the ground" : holdName(hold)}`).join(", ")}</p>
           <ol className="phase-list" data-testid="beta-steps">
             {candidate.steps.map((item, index) => (
-              <li key={index}><button className={`link ${index === step ? "strong" : ""}`} onClick={() => setStep(index)}>{LIMB_WORD[item.limb]} to {holdName(item.to_hold)}</button> <span className="muted small-text">{item.distance_L.toFixed(2)} L move, {item.margin_L.toFixed(2)} L margin{item.tight ? ", tight" : ""}</span></li>
+              <li key={index}><button className={`link ${index === step ? "strong" : ""}`} onClick={() => setStep(index)}>{LIMB_WORD[item.limb]} to {holdName(item.to_hold)}</button> <span className="muted small-text">{item.from_hold < 0 ? "first placement" : `${item.distance_L.toFixed(2)} L move`}, {item.margin_L.toFixed(2)} L margin{item.tight ? ", tight" : ""}</span></li>
             ))}
           </ol>
           <DecisionBar key={candidate.id} feedback={candidate.feedback} onChange={save} testid="beta" />

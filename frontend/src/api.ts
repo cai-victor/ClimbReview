@@ -175,7 +175,7 @@ export interface Coaching {
   sources: Record<string, { title: string; url: string }>;
 }
 export interface BetaStep { limb: string; from_hold: number; to_hold: number; distance_L: number; margin_L: number; tight: boolean }
-export interface BetaCandidate { id: string; profile: string; label: string; start: Record<string, number>; start_margin_L: number; steps: BetaStep[]; move_count: number; total_distance_L: number; largest_move_L: number; tightest_margin_L: number; tight_moves: number; feedback: Feedback }
+export interface BetaCandidate { id: string; profile: string; label: string; start: Record<string, number>; feet_start_off_wall: boolean; start_margin_L: number; steps: BetaStep[]; move_count: number; total_distance_L: number; largest_move_L: number; tightest_margin_L: number; tight_moves: number; feedback: Feedback }
 export interface BetaResult { status: "ready" | "setup_needed" | "no_candidate" | "no_map"; needs: string[]; candidates: BetaCandidate[]; hold_map: HoldMapSummary | null; assumptions?: string[]; note?: string }
 export interface ComparisonResult {
   status: "needs_labels" | "no_match" | "ready"; meaning: string;

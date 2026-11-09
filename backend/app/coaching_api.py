@@ -254,4 +254,5 @@ def register_coaching(app: FastAPI, get_settings) -> None:
                 "reaches_evaluated": tally["reaches_evaluated"], "reaches_with_foot_setup": tally["with_foot_setup_before"] if covered else None,
                 "suggestion_counts": kinds if covered else None}
 
+    app.state.coaching_for = lambda connection, job, attempt, directory: merge_reviews(connection, job["id"], compute(connection, job, attempt, directory, None))
     app.include_router(router)

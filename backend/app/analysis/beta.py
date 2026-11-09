@@ -21,13 +21,15 @@ FOOT_USES = {"", "foot", "both"}
 TORSO_ANGLES = np.radians([-40, -20, 0, 20, 40])
 COMFORT_MARGIN_L = 0.3            # moves with less 2D slack than this are called tight
 MIN_FEASIBLE_MARGIN_L = 0.0
-BEAM_WIDTH = 40
+OFF_WALL = -1                     # a foot not yet on any marked hold, for problems that start from the ground
+MAX_STATES = 30000
 MAX_MOVES = 14
 ASSUMPTIONS = [
     "Distances are in the picture plane. Wall angle and depth are not known.",
     "Hold shape, size, friction, and pull direction are not known.",
     "Balance, body rotation, flagging, and dynamic moves are not modeled.",
     "Reach lengths come from this climber's tracked limb lengths in this video.",
+    "A foot higher than both hands is never proposed, although a heel hook could use one.",
 ]
 
 
@@ -113,8 +115,8 @@ def setup_needed(holds: Sequence[dict[str, Any]]) -> list[str]:
         needs.append("Mark at least one start hold for the hands.")
     if not any(h.get("role") == "finish" and h.get("use", "") in HAND_USES for h in holds):
         needs.append("Mark the finish hold.")
-    if sum(h.get("use", "") in FOOT_USES for h in holds) < 2:
-        needs.append("Mark at least two holds your feet could use.")
+    if not any(h.get("use", "") in FOOT_USES and h.get("role") != "finish" for h in holds):
+        needs.append("Mark at least one hold your feet could use.")
     return needs
 
 
@@ -141,66 +143,81 @@ def _start_states(holds, points, body, cache) -> list[tuple[int, int, int, int]]
             margin = _margin(state, points, body, cache)
             if margin >= MIN_FEASIBLE_MARGIN_L:
                 options.append((margin, state))
-    return [state for _, state in sorted(options, reverse=True)[:4]]
+    if options:
+        return [state for _, state in sorted(options, reverse=True)[:4]]
+    return [(left, right, OFF_WALL, OFF_WALL)]
 
 
 def _margin(state: tuple[int, int, int, int], points: np.ndarray, body: Body, cache: dict) -> float:
     if state not in cache:
-        cache[state] = reach_margin(points[list(state[:2])], points[list(state[2:])], body, refine=False)
+        cache[state] = reach_margin(points[list(state[:2])], points[[f for f in state[2:] if f != OFF_WALL]], body, refine=False)
     return cache[state]
 
 
+def _feet_below_hands(state: tuple[int, int, int, int], points: np.ndarray) -> bool:
+    """Excludes a foot higher than both hands, which a heel hook might use but this plain model should not suggest."""
+    top_hand = min(points[state[0]][1], points[state[1]][1])
+    return all(points[foot][1] > top_hand for foot in state[2:] if foot != OFF_WALL)
+
+
 def _search(holds, points, body, profile, cache) -> list[tuple[int, int, int, int]] | None:
+    """Lowest-cost feasible sequence for this profile, by shortest-path search over limb placements."""
     finish = {i for i, h in enumerate(holds) if h.get("role") == "finish" and h.get("use", "") in HAND_USES}
-    finish_y = min(points[i][1] for i in finish)
     hand_ok = [i for i, h in enumerate(holds) if h.get("use", "") in HAND_USES]
-    foot_ok = [i for i, h in enumerate(holds) if h.get("use", "") in FOOT_USES]
-    frontier = [(0.0, 0.0, [state]) for state in _start_states(holds, points, body, cache)]
-    best: tuple[float, list] | None = None
-    for _ in range(MAX_MOVES):
-        expanded: list[tuple[float, float, list]] = []
-        for _, cost, path in frontier:
-            state = path[-1]
-            for limb in range(4):
-                for target in (hand_ok if limb < 2 else foot_ok):
-                    if target == state[limb]:
-                        continue
-                    next_state = tuple(target if i == limb else v for i, v in enumerate(state))
-                    if next_state in path:
-                        continue
-                    margin = _margin(next_state, points, body, cache)
-                    if margin < MIN_FEASIBLE_MARGIN_L:
-                        continue
-                    distance = float(np.linalg.norm(points[target] - points[state[limb]]))
-                    step = profile["move"] + profile["distance"] * distance + profile["tight"] * max(0.0, COMFORT_MARGIN_L - margin)
-                    total = cost + step
-                    new_path = [*path, next_state]
-                    if limb < 2 and target in finish:
-                        if best is None or total < best[0]:
-                            best = (total, new_path)
-                        continue
-                    remaining = min(float(points[next_state[0]][1]), float(points[next_state[1]][1])) - finish_y
-                    expanded.append((total + max(0.0, remaining) * (profile["distance"] + 0.5), total, new_path))
-        if not expanded:
-            break
-        frontier = heapq.nsmallest(BEAM_WIDTH, expanded, key=lambda item: item[0])
-        if best is not None and frontier[0][0] >= best[0]:
-            break
-    return None if best is None else best[1]
+    foot_ok = [i for i, h in enumerate(holds) if h.get("use", "") in FOOT_USES and h.get("role") != "finish"]
+    costs: dict[tuple[int, int, int, int], float] = {}
+    parents: dict[tuple[int, int, int, int], tuple[int, int, int, int] | None] = {}
+    moves_used: dict[tuple[int, int, int, int], int] = {}
+    queue: list[tuple[float, tuple[int, int, int, int]]] = []
+    for state in _start_states(holds, points, body, cache):
+        costs[state], parents[state], moves_used[state] = 0.0, None, 0
+        heapq.heappush(queue, (0.0, state))
+    expanded = 0
+    while queue and expanded < MAX_STATES:
+        cost, state = heapq.heappop(queue)
+        if cost > costs[state]:
+            continue
+        expanded += 1
+        if state[0] in finish or state[1] in finish:
+            path = [state]
+            while parents[path[-1]] is not None:
+                path.append(parents[path[-1]])
+            return path[::-1]
+        if moves_used[state] >= MAX_MOVES:
+            continue
+        for limb in range(4):
+            if limb < 2 and state[2] == OFF_WALL and state[3] == OFF_WALL:
+                continue                    # a hand may not leave until at least one foot is on a marked hold
+            for target in (hand_ok if limb < 2 else foot_ok):
+                if target == state[limb]:
+                    continue
+                next_state = tuple(target if i == limb else v for i, v in enumerate(state))
+                if not _feet_below_hands(next_state, points):
+                    continue
+                margin = _margin(next_state, points, body, cache)
+                if margin < MIN_FEASIBLE_MARGIN_L:
+                    continue
+                distance = 0.0 if state[limb] == OFF_WALL else float(np.linalg.norm(points[target] - points[state[limb]]))
+                total = cost + profile["move"] + profile["distance"] * distance + profile["tight"] * max(0.0, COMFORT_MARGIN_L - margin)
+                if total < costs.get(next_state, np.inf):
+                    costs[next_state], parents[next_state], moves_used[next_state] = total, state, moves_used[state] + 1
+                    heapq.heappush(queue, (total, next_state))
+    return None
 
 
 def _describe(path, holds, points, body, profile_key) -> dict[str, Any]:
     steps, margins = [], []
-    first = reach_margin(points[list(path[0][:2])], points[list(path[0][2:])], body)
+    placed = lambda state: points[[f for f in state[2:] if f != OFF_WALL]]
+    first = reach_margin(points[list(path[0][:2])], placed(path[0]), body)
     for before, after in zip(path, path[1:]):
         limb = next(i for i in range(4) if before[i] != after[i])
-        margin = reach_margin(points[list(after[:2])], points[list(after[2:])], body)
-        distance = float(np.linalg.norm(points[after[limb]] - points[before[limb]]))
+        margin = reach_margin(points[list(after[:2])], placed(after), body)
+        distance = 0.0 if before[limb] == OFF_WALL else float(np.linalg.norm(points[after[limb]] - points[before[limb]]))
         margins.append(margin)
         steps.append({"limb": LIMBS[limb], "from_hold": before[limb], "to_hold": after[limb], "distance_L": round(distance, 2),
                       "margin_L": round(margin, 2), "tight": margin < COMFORT_MARGIN_L})
     return {"profile": profile_key, "label": PROFILES[profile_key]["label"],
-            "start": {limb: path[0][i] for i, limb in enumerate(LIMBS)}, "start_margin_L": round(first, 2), "steps": steps,
+            "start": {limb: path[0][i] for i, limb in enumerate(LIMBS)}, "feet_start_off_wall": path[0][2] == OFF_WALL, "start_margin_L": round(first, 2), "steps": steps,
             "move_count": len(steps), "total_distance_L": round(sum(s["distance_L"] for s in steps), 2),
             "largest_move_L": max(s["distance_L"] for s in steps), "tightest_margin_L": round(min(margins), 2),
             "tight_moves": sum(s["tight"] for s in steps)}
@@ -218,7 +235,7 @@ def candidate_sequences(holds: Sequence[dict[str, Any]], width: int, height: int
     points = hold_points(holds, width, height, length_px)
     cache: dict = {}
     unspecified = sum(1 for h in holds if not h.get("use"))
-    extra = ([f"{unspecified} marked holds have no hand or foot use set, so they were treated as possible for both. Mark them to refine this."]
+    extra = ([] if len(holds) < 1 else ["If the feet start off the wall, the sequence assumes you can step from the ground onto the first marked foothold."]) + ([f"{unspecified} marked holds have no hand or foot use set, so they were treated as possible for both. Mark them to refine this."]
              if unspecified else [])
     seen, found = set(), []
     for key, profile in PROFILES.items():
@@ -227,6 +244,8 @@ def candidate_sequences(holds: Sequence[dict[str, Any]], width: int, height: int
             continue
         seen.add(tuple(path))
         found.append(_describe(path, holds, points, body, key))
+        if OFF_WALL in path[-1][2:]:
+            extra.append(f"The {PROFILES[key]['label'].lower()} candidate ends with a foot off the marked holds, so check where that foot would really go.")
     if not found:
         return {**base, "status": "no_candidate", "needs": [], "assumptions": [*ASSUMPTIONS, *extra],
                 "note": "No sequence stayed within this 2D reach model. That does not mean the problem is impossible; dynamic moves and missing holds are not modeled."}
