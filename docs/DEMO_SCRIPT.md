@@ -24,7 +24,8 @@ Open http://127.0.0.1:8317. Do one rehearsal so the page and video load quickly.
 6. **Judgments and reflection (1 min).** Show that "was it visible" and "was it useful" are separate. Add a note and a next-attempt focus, refresh, and show they persist.
 7. **Export (30 s).** Open the HTML report.
 8. **Reference labeling (30 s).** Click Reference labeling and show the blind mode. Explain that real accuracy needs labels from people.
-9. **Learned forecast (1 min).** Show the results table in `docs/TRAINING_REPORT.md`. Be clear what it is: predicting tracked wrist motion, not judging technique.
+9. **Learned forecast (1 min).** Show the results table in `docs/TRAINING_REPORT.md`. Be clear what it is: predicting tracked wrist motion, not judging technique. State that it was only slightly better than predicting no movement.
+10. **Optional: holds (30 s).** Open Mark holds and add one region. Say that marks apply to this one frame only.
 
 ## Say plainly
 
@@ -32,4 +33,6 @@ Open http://127.0.0.1:8317. Do one rehearsal so the page and video load quickly.
 - Events come from rules I wrote, with unvalidated thresholds.
 - Event accuracy has not been measured yet, because independent labels are pending.
 - The forecast is a separate experiment, and its error is against later pose estimates.
+- The feasibility gate is not met on handheld phone clips, and a tripod is the next step.
+- Hold marks are user-made and do not show contact.
 - No claim is made about technique, injury, or climbing improvement.

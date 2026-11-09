@@ -33,7 +33,7 @@ Watch each `overlay.mp4` and complete the checklist in its `report.md`.
    ```
 
 2. Open the attempt, choose **Reference labeling**, and enter a non-identifying alias.
-3. Label following `docs/ANNOTATION_GUIDE.md`. A second climber should label at least 20-30% of clips under a different alias without seeing your set.
+3. Do not label IMG_2532.MOV or IMG_2748.MOV yet; they stay reserved until methods are frozen. Label following `docs/ANNOTATION_GUIDE.md`. A second climber should label at least 20-30% of clips under a different alias without seeing your set.
 4. Export **All real raters (CSV)**, combine into `evaluation/annotations.csv`, and fill `evaluation/dataset_manifest.csv` from its template. Fix the split by climber first.
 5. Tune thresholds on development clips only, freeze them, then run:
 

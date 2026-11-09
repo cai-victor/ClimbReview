@@ -24,7 +24,7 @@ The system will distinguish observations from interpretations. A period of low m
 
 The planned implementation uses a React/TypeScript interface and a Python analysis service, with a pretrained pose model, explicit temporal features, and rule-based event detectors. The first milestone will test the model on representative climbing recordings. The core version will run locally and will not require a paid language-model API.
 
-Manual annotation of route holds may be added after the core system is validated. Automatic hold detection, hold-type classification, and technique diagnoses are stretch goals requiring additional data and evaluation.
+Manual route-hold marking on a reference frame has been implemented as an extension; the core system still awaits independent validation. Automatic hold detection, hold-type classification, and technique diagnoses are stretch goals requiring additional data and evaluation.
 
 ## Data and evaluation
 
@@ -40,9 +40,11 @@ A working video-review prototype; an explainable and versioned analysis pipeline
 | --- | --- | --- |
 | Pose landmarks | Pretrained MediaPipe model, weights frozen | Running on real clips; alignment inspected on samples only |
 | Low-movement and wrist events | Rule-based, written for this project | Implemented; thresholds unvalidated; accuracy not yet measured |
-| Wrist-motion forecast | Learned Ridge model on public clips, self-supervised | Experimental; see `docs/TRAINING_REPORT.md` |
+| Wrist-motion forecast | Learned Ridge model on public clips, self-supervised | Experimental; only marginally better than predicting no movement. See `docs/TRAINING_REPORT.md` |
 | Independent evaluation | Human reference labels | Tooling complete; labels and user study still pending |
-| Manual holds, camera compensation | Extensions | Experimental; hold marks apply to one reference frame |
+| Manual holds | Extension | Implemented for one reference frame; no hold detection or contact claims |
+| Camera compensation | Experimental study | Development clips only; off by default; unvalidated |
+| Feasibility on recorded clips | Provisional gate | Not met on handheld phone clips; tripod footage needed |
 
 ## Team and experience
 

@@ -20,11 +20,11 @@ The queue is complete. Everything remaining needs tripod footage, independent hu
 
 ## 1. What works, what is experimental, what is unverified
 
-**Works and was tested:** importing MP4/MOV, HDR conversion, upright normalization, attempt bounds, pose analysis in a separate worker, retry and cancel handling, synchronized skeleton playback, timeline, tracking-gap explanations, event cards, separate correctness and usefulness judgments, notes, reflection, JSON/CSV/HTML export, deletion, phone-width layout.
+**Works and was tested:** importing MP4/MOV, HDR conversion, upright normalization, attempt bounds, pose analysis in a separate worker, retry and cancel handling (including import Cancel), synchronized skeleton playback, timeline, tracking-gap explanations, event cards, separate correctness and usefulness judgments, notes, reflection, JSON/CSV/HTML export, deletion, phone-width layout, blind reference labeling, and manual hold marking on one reference frame.
 
-**Experimental:** every detector threshold, the camera-motion estimate, the implausible-pose rule, and the HDR conversion (a documented approximation).
+**Experimental:** every detector threshold, the camera-motion estimate, the implausible-pose rule, the HDR conversion (a documented approximation), the learned wrist-motion forecast, and camera compensation (off by default).
 
-**Unverified:** detector accuracy, pose accuracy beyond sampled frames, and left/right consistency across whole clips.
+**Unverified:** detector accuracy, pose accuracy beyond sampled frames, left/right consistency across whole clips, and any benefit to climbers. The first two need independent human labels and the last needs a user study.
 
 ## 2. Start the app
 
@@ -36,12 +36,12 @@ Then open http://127.0.0.1:8317. It runs on this computer only. Your five develo
 
 ## 3. Tests and sample findings
 
-Follow-up checks, all run after this report was first written:
+**Earlier follow-up checks (historical, before Phase 2).** The current verification is under Phase 2 results above: 172 backend tests and 5 browser specs.
 
 | Check | Result |
 | --- | --- |
-| Backend tests | 118 passed |
-| Clean copy of tracked files only (no media), full setup with frontend build, tests, app start | passed; packages identical to the lock |
+| Backend tests | 118 passed at that time (now 172) |
+| Clean copy of tracked files only (no media), full setup with frontend build, tests, app start | passed at that time with 118 tests; repeated with 172 in Phase 2 |
 | Real browser smoke spec, headless | passed |
 | Same spec in a visible window, twice | passed |
 | Continuous playback | about 40 distinct poses drawn in 4 s; drawn pose stayed within 49.6 ms of the video time |
@@ -87,10 +87,12 @@ Source links and hashes: `config/public_samples.json`, `data/public_samples/ATTR
 
 ## 4. Known defects and current state
 
-- No low-movement events on any handheld clip, by design.
+- No low-movement events on any handheld clip. This follows from excluding moving-camera intervals and requiring 2 s of continuous valid video; it is not evidence that no pauses happened.
 - Left/right labels can be wrong in back views; check overlays.
 - A second person is not excluded automatically.
 - Colors in converted HDR are approximate and can look bright.
+- The learned forecast only marginally beats predicting no movement and has no effect on event cards.
+- Hold marks apply to one reference frame; nothing links a wrist to a hold.
 - Git: local commits on `main` in this project only, nothing pushed. Private media is ignored.
 
 ## 5. What to record at your next gym session

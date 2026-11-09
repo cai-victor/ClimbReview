@@ -1,10 +1,10 @@
 # ClimbReview status
 
-Last updated 2026-11-09 (overnight run). Start with `docs/MORNING_REPORT.md` for the short version.
+Last updated 2026-11-09 after the documentation consistency pass. Start with `docs/MORNING_REPORT.md` for the short version.
 
 ## Bottom line
 
-The local app, analysis pipeline, two detectors, review flow, exports, and evaluation tooling are implemented and tested. **The provisional feasibility gate is not met** on the user's phone clips, mainly because the recordings are handheld. No independent human labels or user study exist, so **event accuracy is unknown**.
+The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, mainly because the recordings are handheld. No independent human labels or user study exist, so **event accuracy is unknown**.
 
 ## Implemented
 
@@ -17,7 +17,7 @@ The local app, analysis pipeline, two detectors, review flow, exports, and evalu
 
 Also added after the first report: import cancellation (`POST /api/attempts/{id}/cancel-import`, with a Cancel button during import) and a reproducible baseline comparison (`scripts/compare_baseline.py`).
 
-Not implemented: manual holds, attempt comparison, automatic hold types, slip diagnosis, real-time coaching, accounts, hosting.
+Not implemented: attempt comparison, automatic hold detection or hold types, wrist-to-hold association or near-hold events, slip diagnosis, real-time coaching, accounts, hosting.
 
 ## Phase 2 additions (2026-11-09)
 
@@ -25,7 +25,7 @@ Added and tested: blind reference-annotation workflow, manual reference-frame ho
 
 Forecast result, held-out 5 groups: Ridge MAE 0.3228 L, persistence 0.3282 L, constant velocity 0.4747 L. The learned model is only marginally better than doing nothing, and it tied persistence on the user's clips.
 
-Latest verification: `pytest` 172 passed. Playwright, 5 specs, passed: blind labeling, import Cancel, hold alignment on portrait and landscape, full review smoke with continuous playback (at most 49.7 ms from media time). Clean copy from `git archive`, zero media files: `scripts/setup_env.sh` exit 0, `pytest` 172 passed, type-check OK, API 200 and page served, `pip freeze` identical to the lock. The existing `data/app` database opened with all 5 attempts and the new annotation and hold endpoints.
+**Current verification (latest):** `pytest` 172 passed. Playwright, 5 specs, passed: blind labeling, import Cancel, hold alignment on portrait and landscape, full review smoke with continuous playback (at most 49.7 ms from media time). Clean copy from `git archive`, zero media files: `scripts/setup_env.sh` exit 0, `pytest` 172 passed, type-check OK, API 200 and page served, `pip freeze` identical to the lock. The existing `data/app` database opened with all 5 attempts and the new annotation and hold endpoints.
 
 ## Environment and versions
 
@@ -90,18 +90,20 @@ Output: `data/baseline_comparison/baseline-comparison-v1.json`; each run also ge
 
 Low movement: 0 vs 0 where available; unavailable on public_caulier. The baseline usually splits movement into more episodes, but not always. Which variant is better cannot be known without human labels.
 
-## Verification
+## Earlier verification (historical, before Phase 2)
+
+These results are from the first follow-up round. The 118-test counts are historical; the current count is the 172 above. Later features are covered by the current verification.
 
 | Check | Result |
 | --- | --- |
-| `pytest` (detectors, media, quality, overlay, API/worker, evaluation, baseline, real-model CLI) | 118 passed, 1 deprecation warning from the test client |
+| `pytest` (detectors, media, quality, overlay, API/worker, evaluation, baseline, real-model CLI) | 118 passed at that time, 1 deprecation warning from the test client |
 | Frontend `tsc --noEmit` and production build | passed |
 | Real browser run in the built-in pane: UI upload, real worker import and analysis, playback, canvas overlay, event selection, gap explanation, judgments, tags, autosaved note, reflection, reload persistence, three exports, loop, phone width, delete | passed on a public sample; details below |
 | Same production path on five personal development clips | all completed |
 | Playwright `frontend/tests/smoke.spec.ts`, bundled Chromium 158, headless | 1 passed (12.5 s) |
 | Same spec, `--headed` (visible window, throwaway profile), `--repeat-each=2`, serial | 2 passed |
 | Clean copy from `git archive` of commit 8336a2a, zero media or model files, `./scripts/setup_env.sh` | exit 0, including `npm ci` and frontend build; `pip freeze` identical to the lock |
-| In that clean copy: `pytest`, frontend type-check, `run_app.py` serving API and page | 118 passed; type-check OK; API 200 and page served. Copy deleted afterward |
+| In that clean copy: `pytest`, frontend type-check, `run_app.py` serving API and page | 118 passed at that time; type-check OK; API 200 and page served. Copy deleted afterward |
 | `scripts/compare_baseline.py` on all 8 stored runs | all stored events reproduced exactly; results below |
 
 Continuous playback (headed, 4 s of real playback, measured every display frame): 462 and 480 frames rendered, 40-41 distinct poses drawn, 40-41 distinct canvas images, video advanced 4.0 s, largest gap between drawn pose time and media time 49.6 ms (the drawing rule allows 60 ms). Headless runs gave 241 frames and at most 48.2 ms. Context loop wrapped back in every run. Frames captured during playback (`frontend/test-results/playing_strip.png`, public clip) show the skeleton following the climber.
@@ -112,14 +114,19 @@ Browser details: note persistence and escaping in the HTML report were confirmed
 
 Defects found and fixed during verification: stale cached `index.html` could leave a blank page after a rebuild; notes saved only on blur; context looping depended on animation frames.
 
-Not exercised in a browser: the import Cancel button (the endpoint and worker behavior are covered by API tests, including stopping a running FFmpeg).
+The import Cancel button was not exercised in a browser in this earlier round. It has since passed in `frontend/tests/annotate.spec.ts`, and API tests cover stopping a running FFmpeg.
 
 ## Remaining work
 
-1. Record tripod footage and rerun feasibility (see `docs/MORNING_REPORT.md`).
-2. Human annotation and a fixed split; then tune on dev data and freeze.
-3. Run `scripts/evaluate.py` on both `events.json` and `events_baseline_raw.json` once labels exist.
-4. Usability study with real beginners.
+All remaining items depend on people or new footage; the tooling for them exists. See `docs/NEXT_STEPS.md`.
+
+1. Add the full rubric, submission instructions, deadlines, team size, and AI-use rules to `inputs/`.
+2. Record tripod footage and rerun feasibility (see `docs/MORNING_REPORT.md`).
+3. Independent human annotation and a fixed split; then tune on dev data and freeze.
+4. Run `scripts/evaluate.py` on both `events.json` and `events_baseline_raw.json` once labels exist.
+5. Usability study with real beginners.
+
+Held-out caveat: the forecast test groups have been evaluated once, so any new forecast method needs a fresh test set. IMG_2532.MOV and IMG_2748.MOV remain reserved: they were not viewed, analyzed, or used for training, tuning, or testing, and IMG_2532.MOV was only checksummed to confirm it is unchanged.
 
 ## Next exact action
 
