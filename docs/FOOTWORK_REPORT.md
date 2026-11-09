@@ -18,7 +18,7 @@ Open http://127.0.0.1:8317. It runs on this computer only.
 
 ## What was wrong (baseline, before any change)
 
-Baseline is commit 32a4b27 with `detectors-v1`, run on the whole of both clips. Results are in `data/tripod_nov09/baseline_detectors_v1/`.
+Baseline is commit b1b9cbf with `detectors-v1`, run on the whole of both clips. Results are in `data/tripod_nov09/baseline_detectors_v1/`.
 
 **1. False camera-motion exclusions, the largest defect.** The old check used whole-frame phase correlation, which followed the moving climber. On these two clips it excluded 136 of 531 intervals (IMG_4301) and 55 of 326 (IMG_7238). With the climber masked out, background motion never exceeded 0.115 px and 0.255 px per interval. The background check did not support any of those 191 camera-motion flags on these two development videos; this is a diagnostic comparison, not an independent accuracy measurement.
 

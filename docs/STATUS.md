@@ -124,7 +124,7 @@ These results are from the first follow-up round. The 118-test counts are histor
 | Same production path on five personal development clips | all completed |
 | Playwright `frontend/tests/smoke.spec.ts`, bundled Chromium 158, headless | 1 passed (12.5 s) |
 | Same spec, `--headed` (visible window, throwaway profile), `--repeat-each=2`, serial | 2 passed |
-| Clean copy from `git archive` of commit 8336a2a, zero media or model files, `./scripts/setup_env.sh` | exit 0, including `npm ci` and frontend build; `pip freeze` identical to the lock |
+| Clean copy from `git archive` of commit 3016e45, zero media or model files, `./scripts/setup_env.sh` | exit 0, including `npm ci` and frontend build; `pip freeze` identical to the lock |
 | In that clean copy: `pytest`, frontend type-check, `run_app.py` serving API and page | 118 passed at that time; type-check OK; API 200 and page served. Copy deleted afterward |
 | `scripts/compare_baseline.py` on all 8 stored runs | all stored events reproduced exactly; results below |
 
