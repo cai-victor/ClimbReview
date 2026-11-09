@@ -300,6 +300,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             _, directory = completed_run(connection, run_id, settings)
         return load_json(directory / "overlay.json")
 
+    @app.get("/api/analyses/{run_id}/movement")
+    def get_movement(run_id: str, settings: Settings = Depends(get_settings)) -> Any:
+        """Per-limb series for charts. Older runs have none, and say so instead of failing."""
+        with db.session(settings.database) as connection:
+            _, directory = completed_run(connection, run_id, settings)
+        path = directory / "movement.json"
+        return {"available": True, **json.loads(path.read_text())} if path.exists() else {"available": False}
+
     @app.get("/api/analyses/{run_id}/events")
     def get_events(run_id: str, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
         with db.session(settings.database) as connection:

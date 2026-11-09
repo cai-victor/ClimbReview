@@ -20,7 +20,7 @@ from app.analysis.pose import read_jsonl
 from conftest import PROJECT_ROOT, encode_frames, tag_rotation
 
 POSE_IMAGE = PROJECT_ROOT / "data" / "test_assets" / "pose.jpg"
-ARTIFACTS = {"canonical.mp4", "poses.jsonl", "coverage.json", "coverage_timeline.csv", "events.json", "overlay.mp4",
+ARTIFACTS = {"canonical.mp4", "poses.jsonl", "coverage.json", "coverage_timeline.csv", "events.json", "movement.json", "overlay.mp4",
              "contact_sheet.jpg", "report.md", "run.json"}
 
 
@@ -80,7 +80,7 @@ def test_real_model_returns_landmarks_consistently_after_rotation(tmp_path, stil
         if a["visibility"] > 0.8 and b["visibility"] > 0.8:
             assert abs(a["x"] - b["x"]) < 0.05 and abs(a["y"] - b["y"]) < 0.05, a["name"]
     run = json.loads((tmp_path / "a" / "run.json").read_text())
-    assert run["pose_model"]["sha256"] == "4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad"
+    assert run["pose_model"]["sha256"] == "64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b"
     assert run["pose_model"]["running_mode"] == "VIDEO"
     assert run["attempt_bounds_ms"] == {"start": 100, "end": 900}
     assert len(run["config_hash"]) == 64

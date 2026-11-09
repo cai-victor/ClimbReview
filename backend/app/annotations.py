@@ -23,8 +23,8 @@ from .settings import PROJECT_ROOT, Settings, require_id
 
 ALIAS = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]{0,64}$")
-DETECTOR_KEYS = {"low_movement", "wrist_motion_left", "wrist_motion_right"}
-MIN_DURATION_MS = {"low_movement": 2000, "wrist_motion": 300}
+DETECTOR_KEYS = {"low_movement", "wrist_motion_left", "wrist_motion_right", "foot_motion_left", "foot_motion_right"}
+MIN_DURATION_MS = {"low_movement": 2000, "wrist_motion": 300, "foot_motion": 300}
 CSV_COLUMNS = ["clip_id", "climber_id", "route_id", "split", "annotator_id", "event_type", "hand", "start_ms", "end_ms",
                "observability", "applies_to", "notes"]
 
@@ -41,7 +41,7 @@ class SetCreate(BaseModel):
 
 class Interval(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    event_type: Literal["low_movement", "wrist_motion", "unscorable"]
+    event_type: Literal["low_movement", "wrist_motion", "foot_motion", "unscorable"]
     hand: Literal["left", "right"] | None = None
     start_ms: int = Field(ge=0)
     end_ms: int = Field(gt=0)
@@ -61,8 +61,10 @@ def _validate_interval(body: Interval, duration_ms: int) -> None:
         raise HTTPException(422, "The interval must satisfy 0 <= start < end <= video duration.")
     if body.event_type == "wrist_motion" and body.hand is None:
         raise HTTPException(422, "Wrist motion needs a left or right hand.")
-    if body.event_type != "wrist_motion" and body.hand is not None:
-        raise HTTPException(422, "Only wrist motion has a hand.")
+    if body.event_type == "foot_motion" and body.hand is None:
+        raise HTTPException(422, "Foot motion needs a left or right foot.")
+    if body.event_type not in {"wrist_motion", "foot_motion"} and body.hand is not None:
+        raise HTTPException(422, "Only wrist or foot motion has a side.")
     if body.event_type == "unscorable":
         chosen = set(body.applies_to)
         if not chosen or not chosen <= {*DETECTOR_KEYS, "all"} or ("all" in chosen and len(chosen) > 1):

@@ -2,16 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { annotationApi, AnnotationInterval, AnnotationSet, AnnotationSetSummary, api, Attempt, clock, IntervalBody } from "./api";
 
 // Blind reference labeling. This page must never request poses, events, or forecasts.
-type Kind = "low_movement" | "wrist_left" | "wrist_right" | "unscorable";
+type Kind = "low_movement" | "wrist_left" | "wrist_right" | "foot_left" | "foot_right" | "unscorable";
 const KIND_LABEL: Record<Kind, string> = {
-  low_movement: "Low visible movement", wrist_left: "Left wrist movement", wrist_right: "Right wrist movement", unscorable: "Unscorable (cannot judge)",
+  low_movement: "Low visible movement", wrist_left: "Left wrist movement", wrist_right: "Right wrist movement", foot_left: "Left foot movement", foot_right: "Right foot movement", unscorable: "Unscorable (cannot judge)",
 };
-const DETECTORS: [string, string][] = [["all", "All"], ["low_movement", "Low movement"], ["wrist_motion_left", "Left wrist"], ["wrist_motion_right", "Right wrist"]];
+const DETECTORS: [string, string][] = [["all", "All"], ["low_movement", "Low movement"], ["wrist_motion_left", "Left wrist"], ["wrist_motion_right", "Right wrist"], ["foot_motion_left", "Left foot"], ["foot_motion_right", "Right foot"]];
 const EMPTY = { kind: "low_movement" as Kind, start: "", end: "", applies: [] as string[], notes: "" };
 const seconds = (ms: number) => (ms / 1000).toFixed(2);
 
 function kindOf(interval: AnnotationInterval): Kind {
   if (interval.event_type === "wrist_motion") return interval.hand === "left" ? "wrist_left" : "wrist_right";
+  if (interval.event_type === "foot_motion") return interval.hand === "left" ? "foot_left" : "foot_right";
   return interval.event_type;
 }
 
@@ -74,8 +75,8 @@ export function Annotate({ attemptId }: { attemptId: string }) {
     setError("");
     const start_ms = Math.round(parseFloat(form.start) * 1000), end_ms = Math.round(parseFloat(form.end) * 1000);
     const body: IntervalBody = {
-      event_type: form.kind.startsWith("wrist") ? "wrist_motion" : (form.kind as "low_movement" | "unscorable"),
-      hand: form.kind === "wrist_left" ? "left" : form.kind === "wrist_right" ? "right" : null,
+      event_type: form.kind.startsWith("wrist") ? "wrist_motion" : form.kind.startsWith("foot") ? "foot_motion" : (form.kind as "low_movement" | "unscorable"),
+      hand: form.kind.endsWith("_left") ? "left" : form.kind.endsWith("_right") ? "right" : null,
       start_ms, end_ms, applies_to: form.kind === "unscorable" ? form.applies : [], notes: form.notes,
     };
     try {
@@ -127,6 +128,7 @@ export function Annotate({ attemptId }: { attemptId: string }) {
             <ul>
               <li><strong>Low visible movement:</strong> at least 2 s when both wrists, both ankles, and hips look approximately stationary. Mark what you see, not intent.</li>
               <li><strong>Wrist movement:</strong> the climber's own left or right wrist, from leaving relative stillness until returning to it, at least 0.3 s. Do not require a new hold.</li>
+              <li><strong>Foot movement:</strong> the climber's own left or right foot, from leaving relative stillness until returning to it, at least 0.3 s. Use the visible shoe, and do not decide whether it touched, slipped, or carried weight.</li>
               <li><strong>Unscorable:</strong> a person cannot judge the event because the body is hidden or off screen. Do not use it because tracking might fail.</li>
             </ul>
             <p className="muted small-text">Full protocol: docs/ANNOTATION_GUIDE.md.</p>
@@ -208,7 +210,7 @@ export function Annotate({ attemptId }: { attemptId: string }) {
                 <a className="button small" href={`/api/annotation-sets/${active.id}/export?format=json`} download>This set (JSON)</a>
                 <a className="button small" href={`/api/attempts/${attemptId}/annotations/export`} download>All real raters (CSV)</a>
               </div>
-              <p className="muted small-text">CSV matches evaluation/annotations_template.csv and scripts/evaluate.py. No agreement statistics are computed here.</p>
+              <p className="muted small-text">CSV matches evaluation/annotations_template.csv and scripts/evaluate.py. No agreement statistics are computed here. "All real raters" keeps every rater's rows, so scoring it needs <span className="kbd">--reference-annotator</span> with one rater or an adjudicated set; raters are never pooled.</p>
             </>
           )}
         </section>

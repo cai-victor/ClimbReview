@@ -19,7 +19,7 @@ from . import overlay as overlay_module
 from . import pose as pose_module
 from . import detectors as detectors_module
 from . import quality, video
-from .feedback import feedback_for
+from .explain import describe_events
 
 ALIGNMENT_NOT_REVIEWED = {
     "status": "not_reviewed",
@@ -75,8 +75,9 @@ def analysis_warnings(coverage: dict[str, Any]) -> list[str]:
     fraction = coverage.get("camera_motion_interval_fraction")
     if fraction is not None and fraction > CAMERA_MOTION_WARNING_FRACTION:
         warnings.append(
-            f"The camera appears to move in {fraction * 100:.0f}% of sampled intervals. Those intervals are excluded, "
-            "because image-space stillness or motion cannot be trusted while the camera moves. Use a fixed camera."
+            f"The camera appears to move in {fraction * 100:.0f}% of sampled intervals, measured from the background around "
+            "the climber. Those intervals are excluded, because image-space stillness or motion cannot be trusted while "
+            "the camera moves. Use a fixed camera."
         )
     return warnings
 
@@ -99,9 +100,9 @@ def analyze_canonical(
     if stage:
         stage("detecting_events")
     detection = detectors_module.run_detectors(records, validity, size[0], size[1], coverage, config)
-    for event in detection["events"]:
-        event["feedback"] = feedback_for(event)
-    return {"records": records, "validity": validity, "coverage": coverage, "detection": detection}
+    movement = detectors_module.movement_series(records, validity, size[0], size[1], config)
+    describe_events(detection["events"], movement)
+    return {"records": records, "validity": validity, "coverage": coverage, "detection": detection, "movement": movement}
 
 
 def write_analysis_files(directory: Path, analysis: dict[str, Any], config) -> None:
@@ -110,6 +111,7 @@ def write_analysis_files(directory: Path, analysis: dict[str, Any], config) -> N
     _write_timeline(rows, directory / "coverage_timeline.csv")
     (directory / "coverage.json").write_text(json.dumps(analysis["coverage"], indent=2, allow_nan=False) + "\n")
     (directory / "events.json").write_text(json.dumps(analysis["detection"], indent=2, allow_nan=False) + "\n")
+    (directory / "movement.json").write_text(json.dumps(analysis["movement"], allow_nan=False, separators=(",", ":")))
 
 
 def environment_record() -> dict[str, Any]:
@@ -306,7 +308,7 @@ def _run_stages(
         "coverage": coverage,
         "detection_summary": {"detector_version": detection["detector_version"], "detectors": detection["detectors"]},
         "warnings": [*source_warnings(source_probe, timing, config, frames.duration_ms), *analysis_warnings(coverage)],
-        "artifacts": ["canonical.mp4", "poses.jsonl", "coverage.json", "coverage_timeline.csv", "events.json",
+        "artifacts": ["canonical.mp4", "poses.jsonl", "coverage.json", "coverage_timeline.csv", "events.json", "movement.json",
                       "overlay.mp4", "contact_sheet.jpg", "report.md", "run.json"],
     }
     (work / "run.json").write_text(json.dumps(run, indent=2, allow_nan=False, default=_json_default) + "\n")

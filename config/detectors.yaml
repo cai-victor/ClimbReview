@@ -8,7 +8,7 @@ analysis:
   max_duration_s: 120
   max_upload_mb: 250           # decimal megabytes (1 MB = 1,000,000 bytes)
 pose_model:
-  model_path: models/pose_landmarker_full.task
+  model_path: models/pose_landmarker_heavy.task
   manifest_path: config/model_manifest.json
   num_poses: 1
   min_pose_detection_confidence: 0.5   # MediaPipe documented default
@@ -41,5 +41,15 @@ wrist_motion:
   offset_dwell_s: 0.25
   min_duration_s: 0.3
   min_displacement_L: 0.2
+foot_motion:                   # left and right ankle anchors, gated separately; see docs/DECISIONS.md D50-D53
+  onset_speed_L_per_s: 0.40
+  offset_speed_L_per_s: 0.20
+  offset_dwell_s: 0.25
+  min_duration_s: 0.3
+  min_displacement_L: 0.25
+  unstable_shin_std_L: 0.07            # knee-to-ankle length swinging this much suggests a guessed ankle
+  unstable_max_ankle_visibility: 0.9   # only when the model is also less sure of the ankle
+  unstable_half_window_s: 0.45
+  uncertain_min_fraction: 0.25         # share of an episode's samples that makes it uncertain
 feasibility:
   low_movement_target_fraction: 0.70   # provisional target from docs/EVALUATION.md

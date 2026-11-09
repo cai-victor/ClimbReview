@@ -16,7 +16,7 @@ import traceback
 from typing import Any
 
 from . import db
-from .analysis import PIPELINE_VERSION, ClimbReviewError
+from .analysis import PIPELINE_VERSION, SCHEMA_VERSION, ClimbReviewError
 from .analysis import pipeline, video
 from .analysis.config import PipelineConfig
 from .analysis.detectors import DETECTOR_VERSION
@@ -166,7 +166,7 @@ class Worker:
             (partial / "overlay.json").write_text(json.dumps(overlay, allow_nan=False, separators=(",", ":")))
             warnings = [*json.loads(attempt["warnings"]), *pipeline.analysis_warnings(analysis["coverage"])]
             result = {
-                "schema_version": "1.0", "timebase": "canonical_video_ms", "pipeline_version": PIPELINE_VERSION,
+                "schema_version": SCHEMA_VERSION, "timebase": "canonical_video_ms", "pipeline_version": PIPELINE_VERSION,
                 "attempt_bounds_ms": {"start": start_ms, "end": end_ms},
                 "config_hash": self.config.content_hash(), "config": self.config.model_dump(),
                 "pose_model": {**manifest, "options": pose_config.model_dump(exclude={"model_path", "manifest_path"}),

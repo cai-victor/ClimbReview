@@ -8,6 +8,7 @@ export function AttemptPage({ id }: { id: string }) {
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [error, setError] = useState("");
   const [showSetup, setShowSetup] = useState(false);
+  const [chosenRun, setChosenRun] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try { setAttempt(await api.getAttempt(id)); setError(""); }
@@ -46,7 +47,27 @@ export function AttemptPage({ id }: { id: string }) {
     );
   } else if (analyzing && latest) body = <Progress job={latest} onChange={load} title="Analyzing the attempt" />;
   else if (latest?.status === "complete" && !showSetup) {
-    body = <Review key={latest.id} attempt={attempt} run={latest} onReanalyze={() => setShowSetup(true)} />;
+    const completed = attempt.analyses.filter((job) => job.status === "complete");
+    const shown = completed.find((job) => job.id === chosenRun) ?? latest;
+    body = (
+      <>
+        {completed.length > 1 && (
+          <section className="card run-picker">
+            <label>Analysis shown
+              <select data-testid="run-picker" value={shown.id} onChange={(e) => setChosenRun(e.target.value)}>
+                {completed.map((job, index) => (
+                  <option key={job.id} value={job.id}>
+                    {new Date(job.created_at).toLocaleString()} · {job.detector_version ?? "unknown version"}{index === 0 ? " (latest)" : " (older, with its own notes)"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted small-text">Each analysis keeps its own event judgments and notes. Reanalyzing never changes an older one.</p>
+          </section>
+        )}
+        <Review key={shown.id} attempt={attempt} run={shown} onReanalyze={() => { setChosenRun(null); setShowSetup(true); }} />
+      </>
+    );
   } else {
     body = (
       <>

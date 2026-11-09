@@ -31,7 +31,7 @@ NOTE = ("Agreement compares the two variants with each other. It is not accuracy
 
 
 def _key(event: dict[str, Any]) -> str:
-    return "low_movement" if event["type"] == "low_movement" else f"wrist_motion_{event['hand']}"
+    return "low_movement" if event["type"] == "low_movement" else f"{event['type']}_{event['hand']}"
 
 
 def _intervals(clip_id: str, events: Sequence[dict[str, Any]], key: str) -> list[Interval]:

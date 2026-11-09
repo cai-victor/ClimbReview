@@ -88,6 +88,14 @@ class WristMotionConfig(_Strict):
         return self
 
 
+class FootMotionConfig(WristMotionConfig):
+    # Marks an episode uncertain; it never removes one. See docs/DECISIONS.md D52.
+    unstable_shin_std_L: float = Field(gt=0)
+    unstable_max_ankle_visibility: float = Field(gt=0, le=1)
+    unstable_half_window_s: float = Field(gt=0)
+    uncertain_min_fraction: float = Field(gt=0, le=1)
+
+
 class FeasibilityConfig(_Strict):
     low_movement_target_fraction: float = Field(ge=0, le=1)
 
@@ -99,6 +107,7 @@ class PipelineConfig(_Strict):
     features: FeaturesConfig
     low_movement: LowMovementConfig
     wrist_motion: WristMotionConfig
+    foot_motion: FootMotionConfig | None = None  # absent in runs stored before foot analysis existed
     feasibility: FeasibilityConfig
 
     def content_hash(self) -> str:

@@ -15,7 +15,7 @@ from app.analysis.pipeline import PROVENANCE_CHOICES, run_analysis
 REQUIRED_COLUMNS = {"clip_id", "filename", "attempt_start_ms", "attempt_end_ms"}
 SUMMARY_COLUMNS = [
     "clip_id", "camera_view", "conditions", "result", "pose_detected_fraction", "attempt_scale",
-    "low_movement_fraction", "wrist_left_fraction", "wrist_right_fraction", "provisional_target_met",
+    "low_movement_fraction", "wrist_left_fraction", "wrist_right_fraction", "foot_left_fraction", "foot_right_fraction", "provisional_target_met",
     "inference_samples_per_s", "manual_alignment_review", "error",
 ]
 
@@ -39,6 +39,8 @@ def _row_result(row: dict[str, str], run: dict | None, error: str) -> dict[str, 
         "low_movement_fraction": detectors["low_movement"]["fraction"],
         "wrist_left_fraction": detectors["wrist_motion_left"]["fraction"],
         "wrist_right_fraction": detectors["wrist_motion_right"]["fraction"],
+        "foot_left_fraction": detectors["foot_motion_left"]["fraction"],
+        "foot_right_fraction": detectors["foot_motion_right"]["fraction"],
         "provisional_target_met": coverage["provisional_coverage_target"]["met"],
         "inference_samples_per_s": round(run["runtime_s"]["inference_samples_per_s"], 1),
     }

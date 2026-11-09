@@ -25,9 +25,17 @@ Label left and right separately, using the climber's anatomical side. Mark from 
 - Do not require a new hold contact.
 - Do not call a movement a regrip because it happens near a hold.
 
+## Event C: visible foot movement (`foot_motion`)
+
+Label left and right separately, using the climber's anatomical side, and put the side in the `hand` column. Mark from when the foot leaves relative stillness until it returns to relative stillness, at least 0.3 seconds long and clearly larger than small jitter. Use the visible shoe.
+
+- Do not require a new foothold, and do not decide whether the foot touched, slipped, or carried weight.
+- A heel or toe pivot counts only if the shoe clearly changes position.
+- If the foot is hidden, mark that foot unscorable instead of guessing.
+
 ## Unscorable intervals (`unscorable`)
 
-Use these where a person cannot judge the event because the body is hidden or off screen. Fill `applies_to` with detector keys separated by `;`, or `all`. Keys: `low_movement`, `wrist_motion_left`, `wrist_motion_right`.
+Use these where a person cannot judge the event because the body is hidden or off screen. Fill `applies_to` with detector keys separated by `;`, or `all`. Keys: `low_movement`, `wrist_motion_left`, `wrist_motion_right`, `foot_motion_left`, `foot_motion_right`.
 
 Mark human visibility only. Do not mark an interval unscorable because the model lost tracking. A human-visible event the model missed must stay in the labels so it counts as a miss.
 
@@ -38,13 +46,13 @@ Save rows in `evaluation/annotations.csv`. All times are integer milliseconds wi
 | Column | Meaning |
 | --- | --- |
 | `clip_id` | Must match the dataset manifest |
-| `event_type` | `low_movement`, `wrist_motion`, or `unscorable` |
-| `hand` | `left` or `right` for wrist motion; otherwise blank |
+| `event_type` | `low_movement`, `wrist_motion`, `foot_motion`, or `unscorable` |
+| `hand` | The body side, `left` or `right`, for wrist or foot motion; otherwise blank |
 | `start_ms`, `end_ms` | Observed interval in canonical time |
 | `annotator_id` | Anonymous, such as `h1` |
 | `applies_to` | For `unscorable` only |
 
-The template's other columns (`climber_id`, `route_id`, `split`, `observability`, `notes`) are optional context. Keep each annotator's original file. If a second person labels the same clips, report their agreement before resolving differences.
+The template's other columns (`climber_id`, `route_id`, `split`, `observability`, `notes`) are optional context. Keep each annotator's original file. If a second person labels the same clips, report their agreement before resolving differences. The evaluator never pools raters: when a clip has more than one rater it stops and asks for `--reference-annotator`, naming one rater or a separately added adjudicated set (for example `annotator_id` `adjudicated`).
 
 ## Dataset manifest
 

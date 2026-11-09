@@ -6,7 +6,13 @@ const BONES: [string, string][] = [
   ["left_shoulder", "left_elbow"], ["left_elbow", "left_wrist"], ["right_shoulder", "right_elbow"], ["right_elbow", "right_wrist"],
   ["left_hip", "left_knee"], ["left_knee", "left_ankle"], ["right_hip", "right_knee"], ["right_knee", "right_ankle"],
   ["left_ankle", "left_foot_index"], ["right_ankle", "right_foot_index"],
+  ["left_ankle", "left_heel"], ["right_ankle", "right_heel"], ["left_heel", "left_foot_index"], ["right_heel", "right_foot_index"],
 ];
+export type Focus = "all" | "feet" | "hands";
+const inFocus = (focus: Focus, name: string) =>
+  focus === "all" || (focus === "feet" ? /(knee|ankle|heel|foot_index)$/.test(name) : /(shoulder|elbow|wrist)$/.test(name));
+const FOOT_ANCHOR: [string, string][] = [["left_ankle", "L foot"], ["right_ankle", "R foot"]];
+export interface Trail { points: { t: number; x: number; y: number }[]; side: "left" | "right" }
 const COLOR = { left: "#f28c28", right: "#2ab7f5", center: "#ffffff" };
 const side = (name: string) => (name.startsWith("left") ? COLOR.left : name.startsWith("right") ? COLOR.right : COLOR.center);
 // A 10 Hz track: use a sample only if it is the nearest one to this moment; never hold it longer.
@@ -26,15 +32,15 @@ function nearest(samples: OverlaySample[], ms: number): OverlaySample | null {
 export interface PlayerHandle { seek: (ms: number) => void; video: HTMLVideoElement | null }
 interface Props {
   src: string; samples: OverlaySample[]; showSkeleton: boolean; onTime: (ms: number) => void;
-  loop: { start: number; end: number } | null;
+  loop: { start: number; end: number } | null; focus?: Focus; trail?: Trail | null;
 }
 
-export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, samples, showSkeleton, onTime, loop }, ref) {
+export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, samples, showSkeleton, onTime, loop, focus = "all", trail = null }, ref) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [rate, setRate] = useState(1);
-  const latest = useRef({ samples, showSkeleton, loop, onTime });
-  latest.current = { samples, showSkeleton, loop, onTime };
+  const latest = useRef({ samples, showSkeleton, loop, onTime, focus, trail });
+  latest.current = { samples, showSkeleton, loop, onTime, focus, trail };
 
   useImperativeHandle(ref, () => ({
     seek: (ms) => { if (video.current) video.current.currentTime = ms / 1000; },
@@ -48,7 +54,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
     let frame = 0;
 
     const draw = () => {
-      const { samples, showSkeleton, onTime } = latest.current;
+      const { samples, showSkeleton, onTime, focus, trail } = latest.current;
       const ms = element.currentTime * 1000;
       onTime(ms);
       const dpr = window.devicePixelRatio || 1;
@@ -76,16 +82,43 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
       };
       context.lineWidth = 3;
       context.lineCap = "round";
+      surface.dataset.focus = focus;
+      if (trail) {
+        // The tracked point's path during the selected episode, drawn only up to the current moment.
+        const shown = trail.points.filter((point) => point.t <= ms);
+        const place = (point: { x: number; y: number }): [number, number] => [offsetX + point.x * contentW, offsetY + point.y * contentH];
+        surface.dataset.trail = String(shown.length);
+        context.strokeStyle = side(`${trail.side}_`);
+        context.lineWidth = 4;
+        context.setLineDash([2, 6]);
+        context.beginPath();
+        shown.forEach((point, index) => { const [x, y] = place(point); if (index) context.lineTo(x, y); else context.moveTo(x, y); });
+        context.stroke();
+        context.setLineDash([]);
+        if (shown[0]) { const [x, y] = place(shown[0]); context.strokeStyle = "#fff"; context.lineWidth = 2; context.beginPath(); context.arc(x, y, 7, 0, Math.PI * 2); context.stroke(); }
+        context.lineWidth = 3;
+      } else surface.dataset.trail = "";
       for (const [a, b] of BONES) {
+        if (!inFocus(focus, a) || !inFocus(focus, b)) continue;
         const p = at(a), q = at(b);
         if (!p || !q) continue; // never draw across an unavailable joint
         context.strokeStyle = a.split("_")[0] === b.split("_")[0] ? side(a) : COLOR.center;
         context.beginPath(); context.moveTo(p[0], p[1]); context.lineTo(q[0], q[1]); context.stroke();
       }
       for (const name of Object.keys(sample.joints)) {
+        if (!inFocus(focus, name)) continue;
         const p = at(name)!;
         context.fillStyle = side(name);
-        context.beginPath(); context.arc(p[0], p[1], 4, 0, Math.PI * 2); context.fill();
+        context.beginPath(); context.arc(p[0], p[1], focus === "feet" ? 6 : 4, 0, Math.PI * 2); context.fill();
+      }
+      if (focus === "feet") {
+        context.font = "600 13px system-ui, sans-serif";
+        for (const [name, label] of FOOT_ANCHOR) {
+          const p = at(name);
+          if (!p) continue;
+          context.lineWidth = 3; context.strokeStyle = "rgba(0,0,0,.75)"; context.strokeText(label, p[0] + 10, p[1] - 8);
+          context.fillStyle = side(name); context.fillText(label, p[0] + 10, p[1] - 8);
+        }
       }
     };
 

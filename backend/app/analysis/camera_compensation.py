@@ -90,6 +90,44 @@ def estimate_interval(
     return result
 
 
+BACKGROUND_METHOD = "background_similarity_v1"
+FALLBACK_METHOD = "phase_correlation_fallback"
+_GEOMETRY_REJECTIONS = {"implausible_scale", "implausible_rotation"}
+
+
+def frame_gray(rgb: np.ndarray) -> tuple[np.ndarray, float]:
+    """Grayscale at the analysis size, and the factor from canonical pixels to it."""
+    height, width = rgb.shape[:2]
+    scale = min(1.0, ANALYSIS_LONG_SIDE_PX / max(width, height))
+    return cv2.resize(cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY), None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA), scale
+
+
+def largest_corner_motion_px(matrix: Sequence[Sequence[float]], width: int, height: int, scale: float) -> float:
+    """Farthest any image corner moves, in canonical pixels. Unlike translation, this also sees rotation and zoom."""
+    transform = np.array(matrix, dtype=float)
+    corners = np.array([[0, 0], [width, 0], [0, height], [width, height]], dtype=float) * scale
+    moved = (transform[:, :2] @ corners.T).T + transform[:, 2] * scale
+    return float(np.max(np.linalg.norm(moved - corners, axis=1))) / scale
+
+
+def measure_camera_motion(
+    previous: np.ndarray, current: np.ndarray, scale: float, width: int, height: int,
+    records: Sequence[dict[str, Any]], limits: TransformLimits = TransformLimits(),
+) -> dict[str, Any] | None:
+    """Background-only camera motion for eligibility. None means abstain, and the caller uses its fallback.
+
+    The climber region is excluded, so a person moving on a static wall is not camera motion. A large but
+    well-supported rotation or zoom counts as measured motion instead of an abstention. This measures every
+    clip; it does not trust any label saying the camera was fixed.
+    """
+    result = estimate_interval(previous, current, climber_mask(previous.shape, records, limits), scale, limits)
+    usable = result["accepted"] or result["reason"] in _GEOMETRY_REJECTIONS
+    if not usable or result["matrix"] is None:
+        return None
+    return {"method": BACKGROUND_METHOD, "shift_px": largest_corner_motion_px(result["matrix"], width, height, scale),
+            "response": float(result["inlier_ratio"]), "inliers": result["inliers"]}
+
+
 def estimate_track(video_frames: dict[int, np.ndarray], records: Sequence[dict[str, Any]], limits: TransformLimits) -> list[dict[str, Any]]:
     """One result per interval between consecutive samples."""
     results: list[dict[str, Any]] = []

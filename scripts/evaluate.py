@@ -29,6 +29,9 @@ def main() -> int:
     parser.add_argument("--tiou", type=float, default=0.30, help="Matching threshold; freeze before test evaluation")
     parser.add_argument("--events-file", default="events.json",
                         help="Events in each run directory; use events_baseline_raw.json for the baseline")
+    parser.add_argument("--reference-annotator", default=None,
+                        help="Score against this annotator_id only. Required when a clip has more than one rater; "
+                             "use one rater or an adjudicated reference such as 'adjudicated'")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
@@ -39,7 +42,7 @@ def main() -> int:
         annotations = load_annotations(args.annotations, durations)
         if not annotations:
             raise ClimbReviewError("Annotations are empty. Metrics require independent human labels.")
-        result = evaluate(manifest, annotations, args.split, args.tiou, PROJECT_ROOT, args.events_file)
+        result = evaluate(manifest, annotations, args.split, args.tiou, PROJECT_ROOT, args.events_file, args.reference_annotator)
     except ClimbReviewError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

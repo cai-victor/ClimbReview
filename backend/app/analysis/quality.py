@@ -20,6 +20,9 @@ DETECTOR_LANDMARKS: dict[str, tuple[str, ...]] = {
     "low_movement": ("left_wrist", "right_wrist", "left_ankle", "right_ankle", "left_hip", "right_hip"),
     "wrist_motion_left": ("left_shoulder", "left_elbow", "left_wrist"),
     "wrist_motion_right": ("right_shoulder", "right_elbow", "right_wrist"),
+    # One ankle only, so each foot works when the other leg is hidden. Heel and toe are reported as support, not required.
+    "foot_motion_left": ("left_ankle",),
+    "foot_motion_right": ("right_ankle",),
 }
 
 
@@ -248,6 +251,11 @@ def compute_coverage(
         if reason:
             blocked_counts[reason] = blocked_counts.get(reason, 0) + 1
     interval_count = max(len(records) - 1, 0)
+    camera_methods: dict[str, int] = {}
+    for record in records:
+        method = record.get("camera_shift_method")
+        if method:
+            camera_methods[method] = camera_methods.get(method, 0) + 1
     camera_count = blocked_counts.get("camera_motion", 0)
     return {
         "attempt_bounds_ms": {"start": start_ms, "end": end_ms},
@@ -259,6 +267,7 @@ def compute_coverage(
         "attempt_scale": validity.scale,
         "excluded_intervals": blocked_counts,
         "camera_motion_interval_fraction": round(camera_count / interval_count, 4) if interval_count else None,
+        "camera_estimate_methods": camera_methods,
         "detectors": detectors,
         "provisional_coverage_target": {
             "detector": "low_movement",
@@ -272,7 +281,7 @@ def compute_coverage(
 OVERLAY_LANDMARKS = (
     "nose", "left_shoulder", "right_shoulder", "left_elbow", "right_elbow", "left_wrist", "right_wrist",
     "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle",
-    "left_foot_index", "right_foot_index",
+    "left_foot_index", "right_foot_index", "left_heel", "right_heel",
 )
 
 

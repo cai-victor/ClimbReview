@@ -19,11 +19,16 @@ export interface Review {
   detection_judgment: "unreviewed" | "confirmed" | "incorrect" | "cannot_tell";
   usefulness: "unrated" | "useful" | "not_useful"; context_tags: string[]; note: string;
 }
+export type Limb = "left_wrist" | "right_wrist" | "left_foot" | "right_foot";
+export interface EventContext {
+  method: string; limbs: Partial<Record<Limb, { state: "moved" | "quiet" | "drifted" | "unknown"; unknown_reason: string | null; observed_fraction: number; max_excursion_L: number | null; overlapping: { event_id: string; start_ms: number; end_ms: number }[] }>>;
+  previous: { limb: Limb; event_id: string; gap_ms: number; truncated: boolean } | null; next: { limb: Limb; event_id: string; gap_ms: number; truncated: boolean } | null;
+}
 export interface ClimbEvent {
-  id: string; type: "low_movement" | "wrist_motion"; hand: "left" | "right" | null; start_ms: number; end_ms: number;
-  truncated: boolean; evidence: Record<string, unknown>;
+  id: string; type: "low_movement" | "wrist_motion" | "foot_motion"; hand: "left" | "right" | null; start_ms: number; end_ms: number;
+  truncated: boolean; evidence: Record<string, unknown>; context?: EventContext;
   tracking_quality: { label: string; median_min_required_visibility: number; is_calibrated_event_probability: boolean };
-  feedback: { template_version: string; observation: string; interpretation: string; reflection_question: string };
+  feedback: { template_version: string; observation: string; context?: string; interpretation: string; reflection_question: string };
   review: Review;
 }
 export interface Gap { start_ms: number; end_ms: number; duration_ms: number; reasons: Record<string, number> }
@@ -44,8 +49,19 @@ export interface Summary {
   attempt_duration_ms: number; low_movement_total_ms: number | null; low_movement_fraction_of_eligible: number | null;
   eligible: Record<string, { eligible_ms: number | null; fraction: number | null; status: string }>;
   wrist_episode_counts: { left: number | null; right: number | null };
+  foot_analysis_available?: boolean; foot_episode_counts?: { left: number | null; right: number | null }; digest?: Digest | null;
   review_priority: { meaning: string; event_ids: string[] };
 }
+export interface Digest {
+  limbs: Record<Limb, { label: string; episodes: number | null; uncertain_episodes: number; analyzable_fraction: number | null; moving_ms: number | null; largest: { event_id: string; start_ms: number; text: string } | null }>;
+  phases: { start_ms: number; end_ms: number; event_ids: string[]; text: string }[];
+  repeated: { limb: Limb; start_ms: number; end_ms: number; count: number; event_ids: string[]; text: string }[];
+  rewatch: { event_id: string; start_ms: number; reason: string }[];
+  limits: { limb: Limb; fraction: number | null; text: string }[];
+  prompts: string[]; meaning: string;
+}
+export interface LimbSeries { detector: string; anchor: string; x: (number | null)[]; y: (number | null)[]; speed_L_per_s: (number | null)[]; run: (number | null)[] }
+export type Movement = { available: false } | { available: true; width: number; height: number; L_px: number | null; t: number[]; limbs: Record<Limb, LimbSeries> };
 export interface OverlaySample { t: number; pose: boolean; joints: Record<string, [number, number]> }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -75,6 +91,7 @@ export const api = {
   cancelJob: (id: string) => request<Job>(`/api/analyses/${id}/cancel`, { method: "POST" }),
   getAnalysis: (id: string) => request<Job & { result?: Result }>(`/api/analyses/${id}`),
   getPoses: (id: string) => request<{ samples: OverlaySample[] }>(`/api/analyses/${id}/poses`),
+  getMovement: (id: string) => request<Movement>(`/api/analyses/${id}/movement`),
   getEvents: (id: string) => request<{ events: ClimbEvent[]; summary: Summary }>(`/api/analyses/${id}/events`),
   putReview: (runId: string, eventId: string, review: Review) =>
     request<Review>(`/api/analyses/${runId}/events/${eventId}/review`, jsonInit("PUT", review)),
@@ -101,7 +118,7 @@ export const api = {
     }),
 };
 
-export type IntervalType = "low_movement" | "wrist_motion" | "unscorable";
+export type IntervalType = "low_movement" | "wrist_motion" | "foot_motion" | "unscorable";
 export interface AnnotationInterval {
   id: string; event_type: IntervalType; hand: "left" | "right" | null; start_ms: number; end_ms: number; applies_to: string[]; notes: string;
 }

@@ -14,7 +14,7 @@ from typing import Any, Callable, Iterable, Protocol, Sequence
 
 import numpy as np
 
-from . import ClimbReviewError
+from . import ClimbReviewError, camera_compensation
 from .config import PoseModelConfig
 from .video import FrameMap, iter_rgb_frames
 
@@ -136,6 +136,7 @@ def extract_poses(
     records: list[dict[str, Any]] = []
     previous_ms = -1
     previous_gray: np.ndarray | None = None
+    previous_background: np.ndarray | None = None
     width, height = size
     for index, rgb in iter_rgb_frames(video, width, height):
         if index in wanted_set:
@@ -145,12 +146,21 @@ def extract_poses(
             previous_ms = timestamp_ms
             record = frame_record(index, timestamp_ms, detector.detect(rgb, timestamp_ms))
             gray, factor = _camera_gray(rgb)
-            shift, response = None, None
+            background, background_scale = camera_compensation.frame_gray(rgb)
+            shift, response, method, phase_shift, measured = None, None, None, None, None
             if previous_gray is not None:
-                shift, response = estimate_camera_shift(previous_gray, gray, factor)
-            previous_gray = gray
+                phase_shift, phase_response = estimate_camera_shift(previous_gray, gray, factor)
+                measured = camera_compensation.measure_camera_motion(
+                    previous_background, background, background_scale, width, height, [records[-1], record])
+                if measured is not None:
+                    shift, response, method = measured["shift_px"], measured["response"], measured["method"]
+                else:
+                    shift, response, method = phase_shift, phase_response, camera_compensation.FALLBACK_METHOD
+            previous_gray, previous_background = gray, background
             record["camera_shift_px"] = finite_or_none(shift)
             record["camera_shift_response"] = finite_or_none(response)
+            record["camera_shift_method"] = method
+            record["camera_phase_shift_px"] = finite_or_none(phase_shift)  # kept for diagnosis; not used for eligibility
             record["repeated_source_frame"] = bool(repeated[len(records)]) if repeated is not None else False
             records.append(record)
             if on_progress is not None:

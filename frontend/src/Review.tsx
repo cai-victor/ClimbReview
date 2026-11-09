@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, Attempt, ClimbEvent, clock, DetectorCoverage, Gap, Job, OverlaySample, percent, Result, Summary } from "./api";
+import { api, Attempt, ClimbEvent, clock, DetectorCoverage, Gap, Job, Limb, Movement, OverlaySample, percent, Result, Summary } from "./api";
+import { DigestPanel } from "./DigestPanel";
 import { EventCard, eventTitle } from "./EventCard";
-import { Player, PlayerHandle } from "./Player";
+import { isUncertain, limbOf, MovementChart } from "./MovementChart";
+import { Focus, Player, PlayerHandle, Trail } from "./Player";
 
 const CONTEXT_MS = 1000;
 const REASONS: Record<string, string> = {
@@ -12,6 +14,14 @@ const REASONS: Record<string, string> = {
 };
 
 interface Track { key: string; label: string; events: ClimbEvent[]; detector: string }
+type RowKey = "low" | Limb;
+const ROWS: { key: RowKey; label: string; detector: string }[] = [
+  { key: "left_foot", label: "Left foot", detector: "foot_motion_left" }, { key: "right_foot", label: "Right foot", detector: "foot_motion_right" },
+  { key: "left_wrist", label: "Left wrist", detector: "wrist_motion_left" }, { key: "right_wrist", label: "Right wrist", detector: "wrist_motion_right" },
+  { key: "low", label: "Low movement", detector: "low_movement" },
+];
+const FEET: RowKey[] = ["left_foot", "right_foot"], HANDS: RowKey[] = ["left_wrist", "right_wrist"], ALL: RowKey[] = ROWS.map((r) => r.key);
+const rowOf = (event: ClimbEvent): RowKey => limbOf(event) ?? "low";
 
 export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: Job; onReanalyze: () => void }) {
   const [result, setResult] = useState<Result | null>(null);
@@ -24,12 +34,16 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
   const [skeleton, setSkeleton] = useState(true);
   const [time, setTime] = useState(0);
   const [gapInfo, setGapInfo] = useState<{ gap: Gap; detector: string } | null>(null);
+  const [movement, setMovement] = useState<Movement>({ available: false });
+  const [shown, setShown] = useState<RowKey[]>(ALL);
+  const [hideUncertain, setHideUncertain] = useState(false);
+  const [focus, setFocus] = useState<Focus>("all");
   const player = useRef<PlayerHandle>(null);
 
   useEffect(() => {
-    Promise.all([api.getAnalysis(run.id), api.getEvents(run.id), api.getPoses(run.id)])
-      .then(([analysis, eventData, poses]) => {
-        setResult(analysis.result ?? null); setEvents(eventData.events); setSummary(eventData.summary); setSamples(poses.samples);
+    Promise.all([api.getAnalysis(run.id), api.getEvents(run.id), api.getPoses(run.id), api.getMovement(run.id)])
+      .then(([analysis, eventData, poses, series]) => {
+        setResult(analysis.result ?? null); setEvents(eventData.events); setSummary(eventData.summary); setSamples(poses.samples); setMovement(series);
       }).catch((e) => setError(e.message));
   }, [run.id]);
 
@@ -42,6 +56,14 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
     return { start: Math.max(bounds.start, selectedEvent.start_ms - CONTEXT_MS), end: Math.min(bounds.end, selectedEvent.end_ms + CONTEXT_MS) };
   }, [looping, selectedEvent, bounds]);
 
+  const trail = useMemo<Trail | null>(() => {
+    const limb = selectedEvent && limbOf(selectedEvent);
+    if (!selectedEvent || !limb || !movement.available || !selectedEvent.hand) return null;
+    const data = movement.limbs[limb];
+    const points = movement.t.flatMap((t, i) => (t >= selectedEvent.start_ms && t <= selectedEvent.end_ms && data.x[i] !== null ? [{ t, x: data.x[i]!, y: data.y[i]! }] : []));
+    return { points, side: selectedEvent.hand };
+  }, [selectedEvent, movement]);
+
   const select = (event: ClimbEvent) => {
     setSelected(event.id); setGapInfo(null);
     if (bounds) player.current?.seek(Math.max(bounds.start, event.start_ms - CONTEXT_MS));
@@ -51,12 +73,15 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
   if (error) return <p className="error" role="alert">{error}</p>;
   if (!result || !summary || !bounds) return <p className="muted">Loading the analysis…</p>;
 
-  const tracks: Track[] = [
-    { key: "low", label: "Low movement", events: events.filter((e) => e.type === "low_movement"), detector: "low_movement" },
-    { key: "left", label: "Left wrist", events: events.filter((e) => e.hand === "left"), detector: "wrist_motion_left" },
-    { key: "right", label: "Right wrist", events: events.filter((e) => e.hand === "right"), detector: "wrist_motion_right" },
-  ];
   const coverage = result.coverage.detectors;
+  const footAvailable = Boolean(summary.foot_analysis_available);
+  const passes = (event: ClimbEvent) => shown.includes(rowOf(event)) && !(hideUncertain && isUncertain(event));
+  const visibleEvents = events.filter(passes);
+  const rows = ROWS.filter((row) => coverage[row.detector] && shown.includes(row.key));
+  const tracks: Track[] = rows.map((row) => ({ key: row.key, label: row.label, detector: row.detector, events: visibleEvents.filter((e) => rowOf(e) === row.key) }));
+  const toggle = (key: RowKey) => setShown((list) => list.includes(key) ? list.filter((k) => k !== key) : [...list, key]);
+  const chartLimbs = shown.filter((key): key is Limb => key !== "low");
+  const selectById = (id: string) => { const event = events.find((e) => e.id === id); if (event) { if (!passes(event)) { setShown(ALL); setHideUncertain(false); } select(event); } };
   const reasonText = (gap: Gap) => {
     const entries = Object.entries(gap.reasons ?? {});
     return entries.length ? entries.slice(0, 3).map(([key]) => REASONS[key] ?? key).join("; ") : "tracking was not continuous here";
@@ -68,12 +93,37 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
   return (
     <div className="review">
       <div className="review-main">
-        <Player ref={player} src={attempt.video_url!} samples={samples} showSkeleton={skeleton} onTime={setTime} loop={loopRange} />
+        <Player ref={player} src={attempt.video_url!} samples={samples} showSkeleton={skeleton} onTime={setTime} loop={loopRange} focus={focus} trail={trail} />
         <div className="row tight">
           <label className="check"><input type="checkbox" checked={skeleton} onChange={(e) => setSkeleton(e.target.checked)} /> Body skeleton</label>
           <label className="check"><input type="checkbox" checked={looping} disabled={!selectedEvent} onChange={(e) => setLooping(e.target.checked)} /> Loop selected event (±1 s)</label>
-          <span className="muted">Left is orange and right is blue, as labeled by the pose model.</span>
+          <label className="check">Show on video
+            <select data-testid="overlay-focus" value={focus} onChange={(e) => setFocus(e.target.value as Focus)}>
+              <option value="all">Whole body</option><option value="feet">Legs and feet</option><option value="hands">Arms and hands</option>
+            </select>
+          </label>
+          <span className="muted">Left is orange and right is blue, as labeled by the pose model. A selected movement draws its tracked path.</span>
         </div>
+
+        {!footAvailable && (
+          <section className="card notice" data-testid="old-run-notice" role="status">
+            <strong>This older analysis has no foot movement.</strong> It was made before left and right foot tracking was added, and its hand results and notes are kept as they were.
+            <div className="row tight"><button className="button primary" data-testid="reanalyze-feet" onClick={onReanalyze}>Reanalyze to add foot movement</button></div>
+          </section>
+        )}
+
+        {footAvailable && (
+          <section className="card filters" aria-label="Filters">
+            <div className="row tight">
+              <span className="muted">Show</span>
+              <button className={`button small ${shown.length === ALL.length ? "active" : ""}`} data-testid="filter-all" onClick={() => setShown(ALL)}>Everything</button>
+              <button className={`button small ${shown.length === 2 && FEET.every((k) => shown.includes(k)) ? "active" : ""}`} data-testid="filter-feet" onClick={() => { setShown(FEET); setFocus("feet"); }}>Feet only</button>
+              <button className={`button small ${shown.length === 2 && HANDS.every((k) => shown.includes(k)) ? "active" : ""}`} data-testid="filter-hands" onClick={() => { setShown(HANDS); setFocus("hands"); }}>Hands only</button>
+              {ROWS.map((row) => <label className="choice" key={row.key}><input type="checkbox" data-testid={`filter-${row.key}`} checked={shown.includes(row.key)} onChange={() => toggle(row.key)} /> {row.label}</label>)}
+              <label className="choice"><input type="checkbox" data-testid="hide-uncertain" checked={hideUncertain} onChange={(e) => setHideUncertain(e.target.checked)} /> Hide uncertain foot episodes</label>
+            </div>
+          </section>
+        )}
 
         <section className="card" aria-label="Timeline">
           <h2>Timeline <span className="muted small-text">{clock(bounds.start)} to {clock(bounds.end)}</span></h2>
@@ -91,7 +141,7 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
                         onClick={() => { setGapInfo({ gap, detector: track.label }); setSelected(null); player.current?.seek(gap.start_ms); }} />
                     ))}
                     {track.events.map((event) => (
-                      <button key={event.id} data-testid="timeline-event" className={`event-mark ${event.type} ${selected === event.id ? "selected" : ""}`}
+                      <button key={event.id} data-testid="timeline-event" className={`event-mark ${event.type} ${isUncertain(event) ? "uncertain" : ""} ${selected === event.id ? "selected" : ""}`}
                         title={eventTitle(event)} aria-label={`${eventTitle(event)} ${clock(event.start_ms)}`}
                         style={{ left: `${percentOf(event.start_ms)}%`, width: `${Math.max(0.6, ((event.end_ms - event.start_ms) / span) * 100)}%` }}
                         onClick={() => select(event)} />
@@ -103,13 +153,22 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
               );
             })}
           </div>
-          <p className="legend"><span className="swatch gap-swatch" /> Not analyzable <span className="swatch low-swatch" /> Low movement <span className="swatch wrist-swatch" /> Wrist movement</p>
+          <p className="legend"><span className="swatch gap-swatch" /> Not analyzable <span className="swatch low-swatch" /> Low movement <span className="swatch wrist-swatch" /> Wrist movement{footAvailable && <><span className="swatch foot-swatch" /> Foot movement <span className="swatch uncertain-swatch" /> Uncertain foot episode</>}</p>
           {gapInfo && (
             <p className="notice-text" role="status">
               {gapInfo.detector}: no analysis from {clock(gapInfo.gap.start_ms)} to {clock(gapInfo.gap.end_ms)} because {reasonText(gapInfo.gap)}.
             </p>
           )}
         </section>
+
+        {movement.available && chartLimbs.length > 0 && (
+          <section className="card" aria-label="Movement chart">
+            <h2>How fast each limb moved</h2>
+            <MovementChart movement={movement} events={visibleEvents} limbs={chartLimbs} bounds={bounds} time={time} selected={selected} onSeek={(ms) => player.current?.seek(ms)} />
+          </section>
+        )}
+
+        {summary.digest && <DigestPanel digest={summary.digest} onEvent={selectById} />}
 
         {result.warnings.length > 0 && <section className="card notice"><h2>About this recording</h2><ul className="warnings">{result.warnings.map((w) => <li key={w}>{w}</li>)}</ul></section>}
 
@@ -119,14 +178,16 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
             <tr><th>Attempt duration</th><td>{clock(summary.attempt_duration_ms)}</td></tr>
             <tr><th>Time analyzable for low movement</th><td>{percent(summary.eligible.low_movement.fraction)}</td></tr>
             <tr><th>Time analyzable for left / right wrist</th><td>{percent(summary.eligible.wrist_motion_left.fraction)} / {percent(summary.eligible.wrist_motion_right.fraction)}</td></tr>
+            {footAvailable && <tr><th>Time analyzable for left / right foot</th><td>{percent(summary.eligible.foot_motion_left.fraction)} / {percent(summary.eligible.foot_motion_right.fraction)}</td></tr>}
             <tr><th>Low movement, of analyzable time</th><td>{percent(summary.low_movement_fraction_of_eligible)}</td></tr>
             <tr><th>Left / right wrist episodes</th><td>{countOf(summary.wrist_episode_counts.left)} / {countOf(summary.wrist_episode_counts.right)}</td></tr>
+            {footAvailable && <tr><th>Left / right foot episodes</th><td>{countOf(summary.foot_episode_counts!.left)} / {countOf(summary.foot_episode_counts!.right)}</td></tr>}
           </tbody></table>
           <p className="muted">These describe what was visible. They are not a technique score, and fewer pauses or movements do not mean better climbing.</p>
           {priority.length > 0 && (<>
             <h3>Suggested order to rewatch</h3>
             <p className="muted">{summary.review_priority.meaning}</p>
-            <ol>{priority.map((event) => <li key={event.id}><button className="link" onClick={() => select(event)}>{clock(event.start_ms)}: {eventTitle(event)}</button></li>)}</ol>
+            <ol>{priority.filter(passes).map((event) => <li key={event.id}><button className="link" onClick={() => select(event)}>{clock(event.start_ms)}: {eventTitle(event)}</button></li>)}</ol>
           </>)}
         </section>
         <ReflectionPanel attemptId={attempt.id} />
@@ -142,14 +203,14 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
         </section>
       </div>
       <aside className="review-side" aria-label="Events">
-        <h2>Events ({events.length})</h2>
+        <h2>Events ({visibleEvents.length}{visibleEvents.length !== events.length ? ` of ${events.length}` : ""})</h2>
         {events.length === 0 && (
           <p className="muted">
             No events were detected in the analyzable parts of this attempt. That is not a judgment of the climb, and any tracking gaps are shown on the timeline.
           </p>
         )}
-        {events.map((event) => (
-          <EventCard key={event.id} event={event} runId={run.id} selected={selected === event.id}
+        {visibleEvents.map((event) => (
+          <EventCard key={event.id} event={event} runId={run.id} selected={selected === event.id} movement={movement} time={time} onSeek={(ms) => player.current?.seek(ms)}
             onSelect={() => select(event)} onSaved={(saved) => setEvents((list) => list.map((e) => (e.id === event.id ? { ...e, review: saved } : e)))} />
         ))}
       </aside>

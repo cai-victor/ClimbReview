@@ -36,19 +36,22 @@ test("blind labeling: create, edit, reload, delete, export without model data", 
   await expect(page.getByTestId("interval-list").getByRole("listitem")).toHaveCount(1);
   await add("wrist_left", "6", "6.5");
   await expect(page.getByTestId("interval-list").getByRole("listitem")).toHaveCount(2);
+  await add("foot_right", "7", "7.6");
+  await expect(page.getByTestId("interval-list").getByRole("listitem")).toHaveCount(3);
+  await expect(page.getByTestId("interval-list")).toContainText("Right foot movement");
   await page.getByTestId("interval-kind").selectOption("unscorable");
   await page.getByTestId("interval-start").fill("8");
   await page.getByTestId("interval-end").fill("9");
   await page.getByRole("checkbox", { name: "All" }).check();
   await page.getByTestId("save-interval").click();
-  await expect(page.getByTestId("interval-list").getByRole("listitem")).toHaveCount(3);
+  await expect(page.getByTestId("interval-list").getByRole("listitem")).toHaveCount(4);
 
   await page.getByRole("button", { name: "Edit interval at 00:02.0" }).click();
   await page.getByTestId("interval-end").fill("5.5");
   await page.getByTestId("save-interval").click();
   await expect(page.getByTestId("interval-list")).toContainText("00:05.5");
   await page.getByRole("button", { name: "Delete interval at 00:06.0" }).click();
-  await expect(page.getByTestId("interval-list").getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByTestId("interval-list").getByRole("listitem")).toHaveCount(3);
 
   // Keyboard marks.
   await page.getByTestId("annotate-video").evaluate(async (node) => { const v = node as HTMLVideoElement; v.currentTime = 11; await new Promise((r) => v.addEventListener("seeked", r, { once: true })); });
@@ -58,7 +61,7 @@ test("blind labeling: create, edit, reload, delete, export without model data", 
 
   await page.reload();
   await page.getByRole("button", { name: "Open set synthetic_rater" }).click();
-  await expect(page.getByTestId("interval-list").getByRole("listitem")).toHaveCount(2);
+  await expect(page.getByTestId("interval-list").getByRole("listitem")).toHaveCount(3);
 
   const sets = await (await request.get(`/api/attempts/${id}/annotation-sets`)).json();
   const csv = await (await request.get(`/api/annotation-sets/${sets[0].id}/export?format=csv`)).text();

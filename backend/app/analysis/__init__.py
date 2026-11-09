@@ -1,7 +1,7 @@
 """ClimbReview analysis pipeline (feasibility milestone)."""
 
-PIPELINE_VERSION = "0.1.0-feasibility"
-SCHEMA_VERSION = "1.0"
+PIPELINE_VERSION = "0.2.0-footwork"
+SCHEMA_VERSION = "1.1"
 
 
 class ClimbReviewError(Exception):

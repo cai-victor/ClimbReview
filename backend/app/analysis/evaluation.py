@@ -17,8 +17,9 @@ from typing import Any, Iterable, Sequence
 
 from . import ClimbReviewError
 
-EVENT_KEYS = ("low_movement", "wrist_motion_left", "wrist_motion_right")
-ANNOTATION_TYPES = {"low_movement", "wrist_motion", "unscorable"}
+EVENT_KEYS = ("low_movement", "wrist_motion_left", "wrist_motion_right", "foot_motion_left", "foot_motion_right")
+SIDED_TYPES = {"wrist_motion", "foot_motion"}
+ANNOTATION_TYPES = {"low_movement", "wrist_motion", "foot_motion", "unscorable"}
 VALID_SPLITS = {"dev", "test"}
 UNSCORABLE_OVERLAP_FRACTION = 0.5
 
@@ -69,7 +70,7 @@ def f1_score(precision: float | None, recall: float | None) -> float | None:
 
 
 def _key(kind: str, hand: str | None) -> str:
-    return "low_movement" if kind == "low_movement" else f"wrist_motion_{hand}"
+    return "low_movement" if kind == "low_movement" else f"{kind}_{hand}"
 
 
 def load_manifest(path: Path) -> list[dict[str, str]]:
@@ -106,8 +107,8 @@ def load_annotations(path: Path, durations: dict[str, int]) -> list[dict[str, An
         if row["event_type"] not in ANNOTATION_TYPES:
             raise ClimbReviewError(f"{where}: unknown event_type {row['event_type']}")
         hand = (row.get("hand") or "").strip().lower() or None
-        if row["event_type"] == "wrist_motion" and hand not in {"left", "right"}:
-            raise ClimbReviewError(f"{where}: wrist_motion needs hand left or right")
+        if row["event_type"] in SIDED_TYPES and hand not in {"left", "right"}:
+            raise ClimbReviewError(f"{where}: {row['event_type']} needs hand left or right (the body side)")
         try:
             start, end = int(row["start_ms"]), int(row["end_ms"])
         except ValueError as error:
@@ -124,11 +125,15 @@ def load_annotations(path: Path, durations: dict[str, int]) -> list[dict[str, An
 
 def _excluded(prediction: Interval, unscorable: Iterable[dict[str, Any]]) -> bool:
     """A prediction is excluded when at least half of it lies in a human-unscorable interval."""
-    overlap = 0
-    for label in unscorable:
-        keys = {k.strip() for k in label["applies_to"].split(";")}
-        if label["clip_id"] == prediction.clip_id and ("all" in keys or prediction.key in keys):
-            overlap += max(0, min(prediction.end_ms, label["end_ms"]) - max(prediction.start_ms, label["start_ms"]))
+    spans = sorted((max(prediction.start_ms, label["start_ms"]), min(prediction.end_ms, label["end_ms"])) for label in unscorable
+                   if label["clip_id"] == prediction.clip_id
+                   and ({"all", prediction.key} & {k.strip() for k in label["applies_to"].split(";")}))
+    overlap, cursor = 0, prediction.start_ms
+    for start, end in spans:                 # a union: overlapping rows count once
+        start = max(start, cursor)
+        if end > start:
+            overlap += end - start
+            cursor = end
     return overlap >= UNSCORABLE_OVERLAP_FRACTION * prediction.duration
 
 
@@ -172,18 +177,46 @@ def load_predictions(run_dir: Path, events_file: str = "events.json") -> tuple[l
     return events["events"], events["detectors"]
 
 
+def select_reference(
+    annotations: list[dict[str, Any]], clip_ids: Sequence[str], reference_annotator: str | None,
+) -> list[dict[str, Any]]:
+    """One reference per clip. Several raters' rows are never pooled, since duplicates would count as misses.
+
+    The original rows are not changed; this only chooses which ones to score against.
+    """
+    raters: dict[str, set[str]] = {clip: set() for clip in clip_ids}
+    for label in annotations:
+        if label["clip_id"] in raters:
+            raters[label["clip_id"]].add(label["annotator_id"])
+    if reference_annotator is None:
+        ambiguous = {clip: sorted(names) for clip, names in raters.items() if len(names) > 1}
+        if ambiguous:
+            listing = "; ".join(f"{clip}: {', '.join(names)}" for clip, names in sorted(ambiguous.items()))
+            raise ClimbReviewError(
+                f"More than one rater labeled the same clip ({listing}). Pooling them would count duplicate labels as misses. "
+                "Pass --reference-annotator with one rater, or with an adjudicated annotator_id such as 'adjudicated' whose rows "
+                "are one agreed reference. Keep each rater's original rows.")
+        return annotations
+    missing = sorted(clip for clip, names in raters.items() if names and reference_annotator not in names)
+    if missing:
+        raise ClimbReviewError(f"Reference annotator '{reference_annotator}' has no rows for clips labeled by others: {', '.join(missing)}.")
+    return [label for label in annotations if label["annotator_id"] == reference_annotator or label["clip_id"] not in raters]
+
+
 def evaluate(
     manifest: list[dict[str, str]], annotations: list[dict[str, Any]], split: str, threshold: float, root: Path,
-    events_file: str = "events.json",
+    events_file: str = "events.json", reference_annotator: str | None = None,
 ) -> dict[str, Any]:
-    """Pooled and per-clip metrics for one split. Refuses a split with no clips."""
+    """Pooled and per-clip metrics for one split. Refuses a split with no clips or an ambiguous reference."""
     clips = [row for row in manifest if row["split"] == split]
     if not clips:
         raise ClimbReviewError(f"No clips in split '{split}'.")
+    annotations = select_reference(annotations, [c["clip_id"] for c in clips], reference_annotator)
     unscorable = [a for a in annotations if a["event_type"] == "unscorable"]
     per_clip: list[dict[str, Any]] = []
     pooled: dict[str, dict[str, Any]] = {
-        k: {"predictions": [], "references": [], "scorable": 0, "excluded": 0, "unavailable_clips": 0} for k in EVENT_KEYS
+        k: {"predictions": [], "references": [], "scorable": 0, "excluded": 0, "unavailable_clips": 0, "not_in_run_clips": 0}
+        for k in EVENT_KEYS
     }
     for clip in clips:
         clip_id = clip["clip_id"]
@@ -191,6 +224,11 @@ def evaluate(
         events, detector_state = load_predictions(root / clip["run_dir"], events_file)
         references = [a for a in annotations if a["clip_id"] == clip_id and a["event_type"] != "unscorable"]
         for key in EVENT_KEYS:
+            if key not in detector_state or detector_state[key]["status"] == "not_run":
+                # A run made before this detector existed cannot miss anything; its references must not count as misses.
+                pooled[key]["not_in_run_clips"] += 1
+                per_clip.append({"clip_id": clip_id, "detector": key, "detector_status": "not_in_this_run"})
+                continue
             all_predictions = [Interval(clip_id, key, e["start_ms"], e["end_ms"]) for e in events
                                if _key(e["type"], e["hand"]) == key]
             kept = [p for p in all_predictions if not _excluded(p, unscorable)]
@@ -209,10 +247,12 @@ def evaluate(
     results = {}
     for key, group in pooled.items():
         score = score_group(group["predictions"], group["references"], threshold, group["scorable"], group["excluded"])
-        results[key] = {**score, "clips_with_detector_unavailable": group["unavailable_clips"]}
+        results[key] = {**score, "clips_with_detector_unavailable": group["unavailable_clips"],
+                        "clips_analyzed_before_detector_existed": group["not_in_run_clips"]}
     return {
         "split": split, "tiou_threshold": threshold, "events_file": events_file, "clips": [c["clip_id"] for c in clips],
-        "annotators": sorted({a["annotator_id"] for a in annotations}),
+        "annotators": sorted({a["annotator_id"] for a in annotations if a["clip_id"] in {c["clip_id"] for c in clips}}),
+        "reference_annotator": reference_annotator,
         "pooled": results, "per_clip": per_clip,
         "note": "Human labels are a reference standard. Coverage and F1 are not probabilities for individual events.",
     }

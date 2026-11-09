@@ -1,17 +1,24 @@
 import { useRef, useState } from "react";
-import { api, ClimbEvent, clock, Review } from "./api";
+import { api, ClimbEvent, clock, Movement, Review } from "./api";
+import { EventChart, isUncertain } from "./MovementChart";
 
 export const eventTitle = (event: ClimbEvent) =>
-  event.type === "low_movement" ? "Low visible movement" : `${event.hand === "left" ? "Left" : "Right"} wrist movement`;
+  event.type === "low_movement" ? "Low visible movement" : `${event.hand === "left" ? "Left" : "Right"} ${event.type === "wrist_motion" ? "wrist" : "foot"} movement`;
 
 const TAGS: [string, string][] = [
   ["planned_rest", "Planned rest"], ["planning_next_move", "Planning next move"],
   ["intentional_dynamic_movement", "Intentional dynamic movement"], ["other", "Other"],
 ];
+const supportText = (state: string, points: string[]) => {
+  const named = points.join(" and ");
+  return state === "agrees" ? `${named} moved with the ankle` : state === "differs" ? `${named} did not all move with the ankle` : "heel and toe not tracked well enough to compare";
+};
 
-export function EventCard({ event, runId, selected, onSelect, onSaved }: {
+export function EventCard({ event, runId, selected, onSelect, onSaved, movement, time, onSeek }: {
   event: ClimbEvent; runId: string; selected: boolean; onSelect: () => void; onSaved: (review: Review) => void;
+  movement: Movement; time: number; onSeek: (ms: number) => void;
 }) {
+  const support = event.evidence.foot_support as { state: string; points_compared: string[]; limitation: string; toe_valid_fraction: number; heel_valid_fraction: number; anchor_unstable_fraction: number } | undefined;
   const [review, setReview] = useState(event.review);
   const [status, setStatus] = useState("");
   const noteTimer = useRef<number | undefined>(undefined);
@@ -35,12 +42,16 @@ export function EventCard({ event, runId, selected, onSelect, onSaved }: {
         <strong>{eventTitle(event)}</strong>
         <span>{clock(event.start_ms)} to {clock(event.end_ms)}</span>
       </button>
+      {isUncertain(event) && <p className="uncertain-tag" data-testid="uncertain-tag">Uncertain tracking: check this in the video</p>}
       <p><span className="label">Observed</span> {event.feedback.observation}</p>
+      {event.feedback.context && <p><span className="label">Meanwhile</span> {event.feedback.context}</p>}
+      {selected && movement.available && <figure className="event-figure"><EventChart movement={movement} event={event} time={time} onSeek={onSeek} /><figcaption className="muted small-text">Distance of the tracked point from where this movement began, in torso lengths. Click to jump.</figcaption></figure>}
       <p><span className="label">Could be</span> {event.feedback.interpretation}</p>
       <p><span className="label">Reflect</span> {event.feedback.reflection_question}</p>
       <details>
         <summary>Evidence · tracking {event.tracking_quality.label}</summary>
         <p className="muted small-text">The tracking label describes how well the joints were seen. It is not the chance that this event is correct.</p>
+        {support && <p className="muted small-text">{support.limitation} Support: {supportText(support.state, support.points_compared)} (toe tracked {Math.round(support.toe_valid_fraction * 100)}%, heel {Math.round(support.heel_valid_fraction * 100)}%).</p>}
         <dl className="evidence">
           {Object.entries(event.evidence).filter(([, v]) => v !== null && typeof v !== "object").map(([key, value]) => (
             <div key={key}><dt>{key.replaceAll("_", " ")}</dt><dd>{String(value)}</dd></div>

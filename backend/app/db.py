@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS annotation_sets (
 CREATE TABLE IF NOT EXISTS annotation_intervals (
   id TEXT PRIMARY KEY,
   set_id TEXT NOT NULL REFERENCES annotation_sets(id) ON DELETE CASCADE,
-  event_type TEXT NOT NULL CHECK (event_type IN ('low_movement','wrist_motion','unscorable')),
+  event_type TEXT NOT NULL CHECK (event_type IN ('low_movement','wrist_motion','foot_motion','unscorable')),
   hand TEXT CHECK (hand IN ('left','right')),
   start_ms INTEGER NOT NULL,
   end_ms INTEGER NOT NULL,
@@ -125,11 +125,34 @@ def _connect(path: Path) -> sqlite3.Connection:
     return connection
 
 
+def _migrate_annotation_types(connection: sqlite3.Connection) -> None:
+    """Allow foot_motion in databases made earlier. SQLite cannot alter a CHECK, so the table is copied in one transaction."""
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        definition = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='annotation_intervals'").fetchone()["sql"]
+        if "foot_motion" not in definition:
+            connection.execute("ALTER TABLE annotation_intervals RENAME TO annotation_intervals_old")
+            connection.execute("DROP INDEX IF EXISTS annotation_intervals_set")
+            start = SCHEMA.index("CREATE TABLE IF NOT EXISTS annotation_intervals")
+            end = SCHEMA.index("CREATE TABLE IF NOT EXISTS hold_maps")
+            for statement in SCHEMA[start:end].split(";"):
+                if statement.strip():
+                    connection.execute(statement)
+            connection.execute("INSERT INTO annotation_intervals SELECT * FROM annotation_intervals_old")
+            connection.execute("DROP TABLE annotation_intervals_old")
+        connection.commit()
+    except BaseException:
+        connection.rollback()
+        raise
+
+
 def initialize(path: Path) -> None:
     connection = _connect(path)
     try:
         connection.executescript(SCHEMA)
         connection.commit()
+        _migrate_annotation_types(connection)
     finally:
         connection.close()
 

@@ -28,7 +28,8 @@ CONNECTIONS = (
     ("left_ankle", "left_foot_index"), ("right_ankle", "right_foot_index"),
 )
 LABELS = {"left_wrist": "LW", "right_wrist": "RW", "left_ankle": "LA", "right_ankle": "RA"}
-SHORT_NAMES = {"low_movement": "LOW", "wrist_motion_left": "WRIST-L", "wrist_motion_right": "WRIST-R"}
+SHORT_NAMES = {"low_movement": "LOW", "wrist_motion_left": "WRIST-L", "wrist_motion_right": "WRIST-R",
+               "foot_motion_left": "FOOT-L", "foot_motion_right": "FOOT-R"}
 LEFT_BGR, RIGHT_BGR, CENTER_BGR = (0, 140, 255), (255, 200, 0), (255, 255, 255)
 SHEET_FRAMES, SHEET_COLUMNS, SHEET_CELL_WIDTH = 12, 4, 360
 

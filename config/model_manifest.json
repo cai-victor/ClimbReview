@@ -1,13 +1,11 @@
 {
-  "name": "pose_landmarker_full",
+  "name": "pose_landmarker_heavy",
   "variant": "float16",
-  "source_url": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task",
+  "source_url": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task",
   "documentation": "https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker",
   "model_card": "https://storage.googleapis.com/mediapipe-assets/Model%20Card%20BlazePose%20GHUM%203D.pdf",
-  "local_path": "models/pose_landmarker_full.task",
-  "sha256": "4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad",
-  "size_bytes": 9398198,
-  "gcs_last_modified": "2023-04-28T00:46:27Z",
-  "gcs_generation": "1682642787774579",
+  "local_path": "models/pose_landmarker_heavy.task",
+  "sha256": "64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b",
+  "size_bytes": 30664242,
   "retrieved": "2026-11-09"
 }
