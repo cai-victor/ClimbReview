@@ -1,0 +1,9 @@
+# Project-local runtime: Python interpreter and FFmpeg/FFprobe from conda-forge.
+# Create with scripts/setup_env.sh (installs into ./.venv, nothing system-wide).
+# The GPL FFmpeg build is selected because it includes the libx264 encoder.
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.16
+  - ffmpeg=9.0.2=gpl*
+  - pip

@@ -1,0 +1,6 @@
+# Direct Python dependencies. Exact resolved set: requirements.lock.txt
+mediapipe==1.2.2
+numpy
+pydantic>=2,<3
+PyYAML>=6,<7
+pytest>=8,<10

@@ -1,0 +1,27 @@
+# Feasibility-milestone configuration. Every number here is a provisional
+# engineering setting, not a validated climbing or pose-quality standard.
+# Detector speed/duration thresholds are added with the detectors (Milestone 2).
+analysis:
+  canonical_fps: 30
+  inference_fps: 10            # must divide canonical_fps exactly
+  longest_side_px: 1280
+  max_duration_s: 120
+  max_upload_mb: 250           # decimal megabytes (1 MB = 1,000,000 bytes)
+pose_model:
+  model_path: models/pose_landmarker_full.task
+  manifest_path: config/model_manifest.json
+  num_poses: 1
+  min_pose_detection_confidence: 0.5   # MediaPipe documented default
+  min_pose_presence_confidence: 0.5    # MediaPipe documented default
+  min_tracking_confidence: 0.5         # MediaPipe documented default
+  delegate: CPU
+quality:
+  min_visibility: 0.6
+  min_presence_if_available: 0.6
+  out_of_frame_margin: 0.0     # normalized units; 0 = must lie inside the image
+  fill_missing_gaps: false     # the schema rejects true
+  max_sample_gap_factor: 1.5   # consecutive samples farther apart break eligibility
+  min_scale_samples: 10
+  min_torso_fraction_of_diagonal: 0.02
+feasibility:
+  low_movement_target_fraction: 0.70   # provisional target from docs/EVALUATION.md
