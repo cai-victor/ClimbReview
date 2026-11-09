@@ -34,6 +34,16 @@ We will assemble a small dataset of recorded attempts, create independent timest
 
 A working video-review prototype; an explainable and versioned analysis pipeline; an annotation guide and evaluation results; a documented demonstration; and a final report discussing design decisions, user feedback, and limitations.
 
+## Current implementation status (November 2026)
+
+| Component | Kind | State |
+| --- | --- | --- |
+| Pose landmarks | Pretrained MediaPipe model, weights frozen | Running on real clips; alignment inspected on samples only |
+| Low-movement and wrist events | Rule-based, written for this project | Implemented; thresholds unvalidated; accuracy not yet measured |
+| Wrist-motion forecast | Learned Ridge model on public clips, self-supervised | Experimental; see `docs/TRAINING_REPORT.md` |
+| Independent evaluation | Human reference labels | Tooling complete; labels and user study still pending |
+| Manual holds, camera compensation | Extensions | Experimental; hold marks apply to one reference frame |
+
 ## Team and experience
 
 Fill in team members, relevant experience, available equipment, actual deadline, and scope. For one student, the two event detectors and a modest evaluation form the core. For a larger team, broaden independent annotation, user testing, or the evaluated manual-hold extension rather than only adding interface features.
