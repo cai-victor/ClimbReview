@@ -21,6 +21,7 @@ Open http://127.0.0.1:8317. Do one rehearsal so the page and video load quickly.
 3. **Set bounds (30 s).** Mark start 3 s and end 30 s. Note the checkboxes: this clip is not on a fixed camera, so say the warning is correct.
 4. **Quality feedback (1 min).** Run the analysis and show real progress. Open the warnings and the timeline's hatched gaps. Click one gap and read the reason.
 5. **Review (1.5 min).** Play at 0.5× with the skeleton on. Select a wrist event, loop it, and read Observed / Could be / Reflect.
+   Then choose **Feet only**. Select a foot episode and read its time, direction, distance, and what the other limbs did. Show its path on the video and click the speed chart to jump. Open **What moved and when** and point out where tracking prevents a conclusion. If the licensed clip has too little foot tracking, describe this using `docs/FOOTWORK_REPORT.md` instead of showing private footage.
 6. **Judgments and reflection (1 min).** Show that "was it visible" and "was it useful" are separate. Add a note and a next-attempt focus, refresh, and show they persist.
 7. **Export (30 s).** Open the HTML report.
 8. **Reference labeling (30 s).** Click Reference labeling and show the blind mode. Explain that real accuracy needs labels from people.
@@ -33,6 +34,8 @@ Open http://127.0.0.1:8317. Do one rehearsal so the page and video load quickly.
 - Events come from rules I wrote, with unvalidated thresholds.
 - Event accuracy has not been measured yet, because independent labels are pending.
 - The forecast is a separate experiment, and its error is against later pose estimates.
-- The feasibility gate is not met on handheld phone clips, and a tripod is the next step.
+- Foot movement uses the ankle as a stand-in. It does not show contact, weight, or a slip.
+- "Uncertain" foot episodes need checking in the video, and that flag also catches some real steps.
+- The feasibility gate is not met on handheld phone clips or on two tripod clips, because hands are often hidden.
 - Hold marks are user-made and do not show contact.
 - No claim is made about technique, injury, or climbing improvement.

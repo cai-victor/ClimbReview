@@ -90,5 +90,7 @@ details summary { cursor:pointer; font-size:.86rem; color:var(--muted); }
 .filters { padding:8px 12px; } select { font:inherit; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); }
 .run-picker select { display:block; width:100%; margin-top:2px; } .run-picker p { margin:4px 0 0; }
 .phase-list, .plain-list { margin:4px 0; padding-left:20px; font-size:.92rem; } .plain-list li, .phase-list li { margin:2px 0; }
-.facts thead th { font-size:.8rem; }
-@media (max-width:600px) { .facts th,.facts td { font-size:.84rem; overflow-wrap:anywhere; } .chart-tip { display:none; } }
+.facts thead th { font-size:.8rem; overflow-wrap:normal; word-break:normal; }
+.chart-row-label { position:absolute; left:0; background:rgba(255,255,255,.88); font-size:.74rem; font-weight:600; color:var(--muted); padding:0 4px; border-radius:3px; pointer-events:none; }
+.chart-time { display:flex; justify-content:space-between; font-size:.74rem; color:var(--muted); margin-top:2px; }
+@media (max-width:600px) { .facts th,.facts td { font-size:.84rem; } .facts td { overflow-wrap:anywhere; } .chart-tip { display:none; } }

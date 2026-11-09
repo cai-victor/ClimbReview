@@ -16,7 +16,7 @@ How accurately can a video-based pipeline identify low-movement intervals and vi
 
 ## Proposed system
 
-A climber will import a recording and mark the beginning and end of an attempt. A pretrained pose-estimation model will extract body landmarks. We will develop algorithms that clean and normalize those measurements, track missing data, and identify two defined classes of movement events. The application will display synchronized video and body overlays, an event timeline, evidence-based explanations, and a place for the climber to record interpretations and future practice goals.
+A climber will import a recording and mark the beginning and end of an attempt. A pretrained pose-estimation model will extract body landmarks. We will develop algorithms that clean and normalize those measurements, track missing data, and identify defined classes of movement events: low visible movement and separate left and right hand and foot movement episodes. The application will display synchronized video and body overlays, an event timeline, evidence-based explanations, and a place for the climber to record interpretations and future practice goals.
 
 The system will distinguish observations from interpretations. A period of low movement may reflect a planned rest or route planning; it will not automatically be labeled a mistake. Uncertain tracking will be visible, and the system will abstain when the required measurements are unavailable.
 
@@ -38,13 +38,14 @@ A working video-review prototype; an explainable and versioned analysis pipeline
 
 | Component | Kind | State |
 | --- | --- | --- |
-| Pose landmarks | Pretrained MediaPipe model, weights frozen | Running on real clips; alignment inspected on samples only |
-| Low-movement and wrist events | Rule-based, written for this project | Implemented; thresholds unvalidated; accuracy not yet measured |
+| Pose landmarks | Pretrained MediaPipe model (heavy, chosen on development clips), weights frozen | Running on real clips; alignment spot-checked on samples only |
+| Low-movement, wrist, and foot events | Rule-based, written for this project | Implemented; thresholds unvalidated; accuracy not yet measured |
+| Event explanations and attempt digest | Deterministic, from stored measurements | Implemented; no technique score, contact, weight, or slip claims |
 | Wrist-motion forecast | Learned Ridge model on public clips, self-supervised | Experimental; only marginally better than predicting no movement. See `docs/TRAINING_REPORT.md` |
 | Independent evaluation | Human reference labels | Tooling complete; labels and user study still pending |
 | Manual holds | Extension | Implemented for one reference frame; no hold detection or contact claims |
 | Camera compensation | Experimental study | Development clips only; off by default; unvalidated |
-| Feasibility on recorded clips | Provisional gate | Not met on handheld phone clips; tripod footage needed |
+| Feasibility on recorded clips | Provisional gate | Not met on handheld phone clips or on the two tripod clips, mainly because hands are often hidden; foot coverage on tripod clips was 87-100% |
 
 ## Team and experience
 

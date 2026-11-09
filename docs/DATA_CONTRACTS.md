@@ -16,7 +16,7 @@ These examples specify intended structures. Numbers and IDs are illustrative, no
   "timebase": "canonical_video_ms",
   "attempt_bounds_ms": {"start": 4500, "end": 46200},
   "model": {
-    "name": "pose_landmarker_full",
+    "name": "pose_landmarker_heavy",
     "source": "record-actual-official-source",
     "sha256": "record-actual-checksum",
     "library_version": "record-actual-version"

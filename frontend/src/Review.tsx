@@ -51,6 +51,12 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
   const span = bounds ? bounds.end - bounds.start : 1;
   const percentOf = (ms: number) => bounds ? ((ms - bounds.start) / span) * 100 : 0;
   const selectedEvent = events.find((e) => e.id === selected) ?? null;
+  useEffect(() => {
+    if (selectedEvent && (!shown.includes(rowOf(selectedEvent)) || (hideUncertain && isUncertain(selectedEvent)))) {
+      setSelected(null);
+      setLooping(false);
+    }
+  }, [selectedEvent, shown, hideUncertain]);
   const loopRange = useMemo(() => {
     if (!looping || !selectedEvent || !bounds) return null;
     return { start: Math.max(bounds.start, selectedEvent.start_ms - CONTEXT_MS), end: Math.min(bounds.end, selectedEvent.end_ms + CONTEXT_MS) };

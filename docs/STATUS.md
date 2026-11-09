@@ -1,10 +1,30 @@
 # ClimbReview status
 
-Last updated 2026-11-09 after the documentation consistency pass. Start with `docs/MORNING_REPORT.md` for the short version.
+Last updated 2026-11-09 after the footwork phase. Start with `docs/FOOTWORK_REPORT.md` for the latest work and `docs/MORNING_REPORT.md` for the earlier overnight run.
 
 ## Bottom line
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, mainly because the recordings are handheld. No independent human labels or user study exist, so **event accuracy is unknown**.
+
+## Footwork phase (latest)
+
+Added and tested: background-only camera measurement, the official heavy pose model, separately gated left and right foot episodes, per-limb series, specific event explanations with limb context, an attempt-level digest, filters, foot overlay and path, speed and distance charts, foot exports, foot reference labels and evaluation, and old-run compatibility. Details and before/after numbers: `docs/FOOTWORK_REPORT.md`.
+
+**Current verification:** `pytest` 216 passed. Playwright, 6 specs, passed on the final build, including real IMG_4301 import to review. The real v1 run of IMG_7238 opened in the live app with its results and exports, and reanalysis added a new run beside it. Event accuracy remains unmeasured. Tripod coverage also does not meet the provisional low-movement target (19.4% and 15.6% against 70%).
+
+Footwork commands actually run:
+
+```bash
+.venv/bin/python scripts/run_feasibility.py --manifest data/tripod_nov09/manifest.csv --output-root data/tripod_nov09/baseline_detectors_v1
+```
+
+```bash
+.venv/bin/python scripts/run_feasibility.py --manifest data/tripod_nov09/manifest.csv --output-root data/tripod_nov09/footwork_v2 --overwrite
+```
+
+```bash
+cd frontend && PLAYWRIGHT_BROWSERS_PATH="$PWD/.playwright-browsers" npx playwright test
+```
 
 ## Implemented
 
@@ -17,7 +37,7 @@ The local app, analysis pipeline, two detectors, review flow, exports, evaluatio
 
 Also added after the first report: import cancellation (`POST /api/attempts/{id}/cancel-import`, with a Cancel button during import) and a reproducible baseline comparison (`scripts/compare_baseline.py`).
 
-Not implemented: attempt comparison, automatic hold detection or hold types, wrist-to-hold association or near-hold events, slip diagnosis, real-time coaching, accounts, hosting.
+Not implemented: attempt comparison, automatic hold detection or hold types, wrist-to-hold or foot-to-hold association, near-hold events, slip diagnosis, real-time coaching, accounts, hosting.
 
 ## Phase 2 additions (2026-11-09)
 
@@ -29,7 +49,7 @@ Forecast result, held-out 5 groups: Ridge MAE 0.3228 L, persistence 0.3282 L, co
 
 ## Environment and versions
 
-Apple M4 Pro, arm64, macOS 15.7.4. Python 3.12.16 and FFmpeg 9.0.2 (conda-forge GPL build) in `./.venv`. MediaPipe 1.2.2, OpenCV 5.0.0, NumPy 2.5.4, FastAPI 0.162.2, Starlette 1.10.0, Uvicorn 0.54.0. Node 24.16.0, React 18.3.1, Vite 8.3.6, TypeScript ~5.9.3. Pose model `pose_landmarker_full`, SHA-256 `4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad`, CPU delegate. Exact sets: `requirements.lock.txt`, `conda.lock.txt`, `frontend/package-lock.json`.
+Apple M4 Pro, arm64, macOS 15.7.4. Python 3.12.16 and FFmpeg 9.0.2 (conda-forge GPL build) in `./.venv`. MediaPipe 1.2.2, OpenCV 5.0.0, NumPy 2.5.4, FastAPI 0.162.2, Starlette 1.10.0, Uvicorn 0.54.0. Node 24.16.0, React 18.3.1, Vite 8.3.6, TypeScript ~5.9.3. Current pose model `pose_landmarker_heavy` float16, SHA-256 `64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b`, CPU delegate. Runs before the footwork phase and forecast-v1 used `pose_landmarker_full`, SHA-256 `4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad`. Exact sets: `requirements.lock.txt`, `conda.lock.txt`, `frontend/package-lock.json`.
 
 ## Commands actually run
 
@@ -121,8 +141,8 @@ The import Cancel button was not exercised in a browser in this earlier round. I
 All remaining items depend on people or new footage; the tooling for them exists. See `docs/NEXT_STEPS.md`.
 
 1. Add the full rubric, submission instructions, deadlines, team size, and AI-use rules to `inputs/`.
-2. Record tripod footage and rerun feasibility (see `docs/MORNING_REPORT.md`).
-3. Independent human annotation and a fixed split; then tune on dev data and freeze.
+2. Independent human annotation of hand and foot episodes on the tripod clips and any new footage, with a fixed split; then tune on dev data and freeze.
+3. More tripod footage from other climbers, so a held-out group exists.
 4. Run `scripts/evaluate.py` on both `events.json` and `events_baseline_raw.json` once labels exist.
 5. Usability study with real beginners.
 
@@ -130,8 +150,8 @@ Held-out caveat: the forecast test groups have been evaluated once, so any new f
 
 ## Next exact action
 
-Record new clips, add them to `data/raw/manifest.csv`, then run:
+Open http://127.0.0.1:8317, open each tripod clip before viewing its results, and use **Reference labeling** to mark left and right foot episodes. Then score the development clips:
 
 ```bash
-.venv/bin/python scripts/run_feasibility.py --output-root data/feasibility_tripod
+.venv/bin/python scripts/evaluate.py --split dev --reference-annotator YOUR_ALIAS --output evaluation/results_dev.json
 ```

@@ -14,7 +14,7 @@ LIMBS = ("left_wrist", "right_wrist", "left_foot", "right_foot")
 NAMES = {"left_wrist": "left hand", "right_wrist": "right hand", "left_foot": "left foot", "right_foot": "right foot"}
 DETECTOR_OF = {"left_wrist": "wrist_motion_left", "right_wrist": "wrist_motion_right",
                "left_foot": "foot_motion_left", "right_foot": "foot_motion_right"}
-MIN_OBSERVED_FOR_QUIET = 0.9      # share of a window that must be tracked before absence of movement is reported
+MIN_OBSERVED_FOR_QUIET = 1.0      # a whole-window quiet claim requires every sample, including both boundaries
 QUIET_MAX_EXCURSION_L = 0.15      # a limb is quiet only if measured motion stayed within this; no episode alone is not enough
 SEQUENCE_WINDOW_MS = 1500         # how far before or after an event a neighboring limb's episode is mentioned
 PHASE_GAP_MS = 750                # episodes closer than this are listed together

@@ -109,3 +109,19 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 **D48. Ridge alpha grid extended once on training cross-validation.** The first grid's best value sat at its edge. The test groups had not been read. After extension the optimum was interior at 100,000.
 
 **D49. Test split was re-frozen once, before any test evaluation,** to add four sources from one bounded search. The earlier group assignments did not change.
+
+## Footwork phase (2026-11-09)
+
+**D50. Camera motion is measured from the background around the climber.** Whole-frame phase correlation flagged 191 intervals on two tripod clips where the masked background moved at most 0.255 px; it was following the climber. The new measure is the farthest image-corner motion of a background similarity transform, so rotation and zoom count, and it runs on every clip regardless of how the camera was described. It abstains when features are too few or no pose can mask the climber, and then the earlier estimate is used.
+
+**D51. The default pose model is now the official heavy model.** A bounded comparison on the two development tripod clips showed fewer misplaced left-foot landmarks on IMG_7238 by AI-assisted spot check, and more abstention on hidden feet. This is not an accuracy result. Stored runs keep their own model record. The forecast stays tied to the full model and was not retrained.
+
+**D52. Foot uncertainty is a caution, not a gate.** Shin-length and foot-length limits and an ankle-overlap rule flagged nothing useful, and overlapping feet or strongly bent knees are normal climbing. Knee-to-ankle length swinging by more than 0.07 torso lengths over about 0.9 s with ankle visibility below 0.9 flagged the unreliable IMG_7238 left-foot spans, but also some real fast steps. Such episodes stay visible, are labeled, and are excluded from context claims and digest highlights.
+
+**D53. Foot episodes use each side's ankle only.** Each side works when the other is hidden. Heel and toe are support and never create an event. Thresholds are starting values (onset 0.40, offset 0.20 L/s, 0.25 s dwell, 0.3 s, 0.25 L), set larger than wrist minimum displacement to reduce heel-drop pivots, and were checked only against two development clips. Detector version is `detectors-v2-footwork`. The event field `hand` holds the body side for foot events, so stored data and label files stay compatible.
+
+**D54. Quiet requires measurement, not the absence of an event.** A limb is "nearly still" only with at least 90% of samples in one continuous tracked run and at most 0.15 L of measured excursion. Motion without an episode is "shifted slowly". A tracking break is "unknown", even when samples on both sides are valid. Support wording names only the points compared, and neighbors cut off by tracking are described as last or first observed.
+
+**D55. The evaluator keeps one reference per clip.** Overlapping unscorable rows are merged before the 50% test. When a clip has several raters, scoring stops until `--reference-annotator` chooses one rater or an adjudicated set. Original per-rater rows are unchanged.
+
+**D56. Older runs are preserved.** Reanalysis creates a new run. The attempt page lets either be chosen, each keeps its own notes, and runs without foot data show a notice. A run predating a detector cannot produce misses for it in evaluation.
