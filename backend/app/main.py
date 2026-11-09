@@ -259,7 +259,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         directory = settings.run_dir(job["attempt_id"], job["id"])
         if job["status"] == "complete":
             payload["result"] = load_json(directory / "result.json")
-            payload["result"]["summary"] = None
         return payload
 
     @app.post("/api/analyses/{run_id}/cancel")
@@ -321,6 +320,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return JSONResponse(bundle, headers={"Content-Disposition": f'attachment; filename="climbreview_analysis_{short}.json"'})
         return HTMLResponse(report.html_report(bundle),
                             headers={"Content-Disposition": f'attachment; filename="climbreview_report_{short}.html"'})
+
+    @app.middleware("http")
+    async def _reject_oversized_uploads(request: Request, call_next):
+        # Refuse before the multipart body is buffered; the streaming check below still applies.
+        declared = request.headers.get("content-length")
+        if request.method == "POST" and request.url.path == "/api/attempts" and declared and declared.isdigit() \
+                and int(declared) > max_upload_bytes + 1_000_000:
+            return JSONResponse({"detail": f"File is larger than the {max_upload_bytes / 1e6:.0f} MB limit. Trim it first."},
+                                status_code=413)
+        return await call_next(request)
+
+    @app.middleware("http")
+    async def _no_stale_shell(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path == "/" or request.url.path.endswith(".html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
     dist = PROJECT_ROOT / "frontend" / "dist"
     if dist.exists():

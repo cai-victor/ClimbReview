@@ -83,6 +83,7 @@ class Worker:
                 connection.execute("UPDATE attempts SET status='failed', error=? WHERE id=?", (message, job["attempt_id"]))
             directory = self.settings.attempt_dir(job["attempt_id"])
             (directory / "canonical.mp4").unlink(missing_ok=True)
+            (directory / "canonical.partial.mp4").unlink(missing_ok=True)
 
     # ---- import
     def _run_import(self, job: dict[str, Any]) -> None:

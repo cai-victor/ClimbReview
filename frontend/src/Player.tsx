@@ -48,10 +48,9 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
     let frame = 0;
 
     const draw = () => {
-      const { samples, showSkeleton, loop, onTime } = latest.current;
+      const { samples, showSkeleton, onTime } = latest.current;
       const ms = element.currentTime * 1000;
       onTime(ms);
-      if (loop && ms >= loop.end && !element.paused) element.currentTime = loop.start / 1000;
       const dpr = window.devicePixelRatio || 1;
       const width = element.clientWidth, height = element.clientHeight;
       if (surface.width !== Math.round(width * dpr) || surface.height !== Math.round(height * dpr)) {
@@ -88,9 +87,15 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
       }
     };
 
+    // Event loops use the media element's own clock, so they also work if drawing is throttled.
+    const onTimeUpdate = () => {
+      const { loop } = latest.current;
+      if (loop && !element.paused && element.currentTime * 1000 >= loop.end) element.currentTime = loop.start / 1000;
+    };
+    element.addEventListener("timeupdate", onTimeUpdate);
     const loopFrames = () => { draw(); frame = requestAnimationFrame(loopFrames); };
     frame = requestAnimationFrame(loopFrames);
-    return () => cancelAnimationFrame(frame);
+    return () => { cancelAnimationFrame(frame); element.removeEventListener("timeupdate", onTimeUpdate); };
   }, []);
 
   return (

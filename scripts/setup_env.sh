@@ -14,4 +14,6 @@ mkdir -p data/test_assets
 curl -sSfL -o data/test_assets/pose.jpg https://storage.googleapis.com/mediapipe-assets/pose.jpg
 echo "c8a830ed683c0276d713dd5aeda28f415f10cd6291972084a40d0d8b934ed62b  data/test_assets/pose.jpg" | shasum -a 256 -c
 rm -rf .conda-pkgs
-echo "Setup complete. Run: .venv/bin/python -m pytest"
+# Frontend build (uses Node from PATH; tested with v24.16.0).
+(cd frontend && npm ci --no-audit --no-fund && npm run build)
+echo "Setup complete. Run: .venv/bin/python scripts/run_app.py"

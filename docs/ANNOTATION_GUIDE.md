@@ -44,7 +44,7 @@ Save rows in `evaluation/annotations.csv`. All times are integer milliseconds wi
 | `annotator_id` | Anonymous, such as `h1` |
 | `applies_to` | For `unscorable` only |
 
-Keep each annotator's original file. If a second person labels the same clips, report their agreement before resolving differences.
+The template's other columns (`climber_id`, `route_id`, `split`, `observability`, `notes`) are optional context. Keep each annotator's original file. If a second person labels the same clips, report their agreement before resolving differences.
 
 ## Dataset manifest
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, ClimbEvent, clock, Review } from "./api";
 
 export const eventTitle = (event: ClimbEvent) =>
@@ -14,8 +14,10 @@ export function EventCard({ event, runId, selected, onSelect, onSaved }: {
 }) {
   const [review, setReview] = useState(event.review);
   const [status, setStatus] = useState("");
+  const noteTimer = useRef<number | undefined>(undefined);
 
   const save = async (next: Review) => {
+    window.clearTimeout(noteTimer.current);
     setReview(next);
     try { onSaved(await api.putReview(runId, event.id, next)); setStatus("Saved"); }
     catch (e) { setStatus((e as Error).message); }
@@ -61,7 +63,13 @@ export function EventCard({ event, runId, selected, onSelect, onSaved }: {
           </label>
         ))}
       </fieldset>
-      <label>Note<textarea data-testid="event-note" value={review.note} onChange={(e) => setReview({ ...review, note: e.target.value })} onBlur={() => save(review)} /></label>
+      <label>Note<textarea data-testid="event-note" value={review.note} onChange={(e) => {
+        const next = { ...review, note: e.target.value };
+        setReview(next);
+        setStatus("");
+        window.clearTimeout(noteTimer.current);
+        noteTimer.current = window.setTimeout(() => void save(next), 500);
+      }} onBlur={() => void save(review)} /></label>
       {status && <span className="muted small-text" role="status">{status}</span>}
     </article>
   );

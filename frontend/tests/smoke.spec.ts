@@ -54,7 +54,6 @@ test("import, analyze, review, annotate, refresh, export, delete", async ({ page
     await card.getByText("Cannot tell").click();
     await card.getByText("Not useful").click();
     await card.getByTestId("event-note").fill("Smoke note");
-    await card.getByTestId("event-note").blur();
     await expect(card.getByRole("status")).toHaveText("Saved");
   }
   await page.getByTestId("reflection-observation").fill("I looked at my feet");

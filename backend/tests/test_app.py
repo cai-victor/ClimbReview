@@ -79,7 +79,24 @@ def test_corrupt_upload_fails_with_message_and_can_be_deleted(env, tmp_path):
     assert client.get(f"/api/attempts/{attempt['id']}").status_code == 404
 
 
-def test_rejects_extension_and_oversized_upload(env, tmp_path, monkeypatch):
+def test_oversized_upload_is_rejected_and_leaves_nothing(tmp_path, monkeypatch):
+    import types
+    from app import main as main_module
+
+    real = load_pipeline_config()
+    limited = types.SimpleNamespace(analysis=types.SimpleNamespace(max_upload_mb=0.001))  # 1000 bytes
+    monkeypatch.setattr(main_module, "load_pipeline_config", lambda: limited)
+    settings = Settings(tmp_path / "limited")
+    client = TestClient(create_app(settings))
+    big = tmp_path / "big.mp4"
+    big.write_bytes(b"0" * 5000)
+    response = upload(client, big)
+    assert response.status_code == 413 and "limit" in response.json()["detail"]
+    assert list(settings.attempts_dir.iterdir()) == []
+    assert real.analysis.max_upload_mb == 250
+
+
+def test_rejects_wrong_extension_and_empty_upload(env, tmp_path):
     settings, client, _ = env
     text = tmp_path / "x.txt"
     text.write_text("hello")
