@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,6 +22,7 @@ class ForecastConfig(BaseModel):
     torso_ratio_max: float = Field(gt=0)
     camera_max_speed_L_per_s: float = Field(gt=0)
     camera_min_correlation_response: float = Field(ge=0)
+    train_population: Literal["all_eligible", "primary_only"]
     ridge_alphas: tuple[float, ...]
     constant_velocity_windows_ms: tuple[int, ...]
     cv_folds: int = Field(ge=2)

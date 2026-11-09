@@ -85,3 +85,23 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 **D37. Baseline comparison reuses the stored run's poses and configuration.** Only smoothing and hysteresis change, and the final variant must reproduce the stored events, otherwise the runner exits non-zero. It reports differences between variants and writes no accuracy fields. Scoring the baseline against labels uses `scripts/evaluate.py --events-file events_baseline_raw.json`.
 
 **D38. Import cancellation shares the job mechanism.** A queued import is cancelled immediately. A running one sets `cancel_requested`, and the normalization poll kills FFmpeg. The uploaded source is kept so the import can be retried.
+
+## Phase 2 (2026-11-09): public clips, forecast, labeling, holds, camera experiment
+
+**D39. Grouping is by climber when known, otherwise by recording.** Same-climber clips stay together across events (for example two clips of Anna Stöhr). Clips with unknown climbers are separate groups, which means an unknown climber could in principle appear in two groups.
+
+**D40. The forecast is causal by construction.** `features_from_history` receives only samples up to prediction time. Scale is the history median torso length; no smoothing is used. Future samples decide only target value and availability. Camera steadiness over the horizon classifies an example for reporting and is never an input.
+
+**D41. Histories must be fully valid and contiguous (11 samples).** Validity enters as visibility summaries. Filling missing inputs would conflict with the project's rule against substituted coordinates, at the cost of coverage.
+
+**D42. The model trains on all reliable windows, and results are reported by camera condition.** The steady-camera filter left 187 training windows and none in the held-out groups, because public climbing video almost always moves. The target is wrist position minus hip position, so pure camera translation cancels, while zoom and rotation do not. This deviates from a steady-camera-only predictor and was fixed before any test evaluation. Results for all-window, steady, and moving strata are separate.
+
+**D43. Baseline constant-velocity window is chosen on training groups** from 100, 200, 300, and 500 ms, matching the treatment of the Ridge alpha. Test groups are not used. A ledger records each held-out evaluation and refuses a changed model without an explicit flag, which is then written into the results.
+
+**D44. Earlier public development clips train only**, since they were inspected during earlier work. The user's five development clips are a separate stress evaluation, not training data. The two reserved clips are refused by name.
+
+**D45. Reference annotation is a separate blind page.** It loads only the video and the rater's own set. The set list shows counts but no intervals. Synthetic fixtures are flagged and excluded from the attempt-level export.
+
+**D46. Holds live on a reference frame.** Marks are stored with frame index and the canonical video's SHA-256, and drawn only on that frame. An SVG in canonical pixel coordinates handles letterboxing. No tracking, detection, or wrist linkage exists.
+
+**D47. Camera compensation stays experimental and off by default.** The time-boxed development study (`scripts/experiment_handheld.py`) accepted 86-100% of intervals on the phone clips with about 0.2 px median background residual, and blended frames showed less ghosting. Coverage rose, and wrist-event counts rose, but no event's validity is known. Low-movement events remained zero. Using it for detection needs human labels first.

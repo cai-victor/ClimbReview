@@ -85,6 +85,7 @@ def main() -> int:
         "units": "Euclidean endpoint error in torso lengths of body-relative wrist displacement over 0.5 s",
         "caution": "Targets are later pose estimates, not human ground truth. Windows overlap and are correlated.",
         "repeat_test_use": repeated,
+        "held_out_test_all_windows": score((splits == "test") & (primary | stress), data, artifact, config),
         "held_out_test_primary": score((splits == "test") & primary, data, artifact, config),
         "held_out_test_camera_moving_stress": score((splits == "test") & stress, data, artifact, config),
         "personal_dev_stress_primary": score((splits == "personal_stress") & primary, data, artifact, config),
@@ -96,7 +97,8 @@ def main() -> int:
     tracked.mkdir(parents=True, exist_ok=True)
     text = json.dumps(report, indent=1, sort_keys=True, allow_nan=False) + "\n"
     (tracked / f"results_{config.version}.json").write_text(text)
-    for name in ("held_out_test_primary", "held_out_test_camera_moving_stress", "personal_dev_stress_primary"):
+    for name in ("held_out_test_all_windows", "held_out_test_primary", "held_out_test_camera_moving_stress",
+                 "personal_dev_stress_primary", "personal_dev_stress_camera_moving"):
         section = report[name]
         print(name, section["n_examples"], "examples", section["n_clips"], "clips", section["n_groups"], "groups")
         if section["n_examples"]:

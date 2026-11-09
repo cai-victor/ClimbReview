@@ -10,7 +10,7 @@ import sklearn
 from _bootstrap import PROJECT_ROOT
 from app.forecast import model as md
 from app.forecast.config import load_forecast_config
-from app.forecast.dataset import ELIGIBLE_PRIMARY, SIDES
+from app.forecast.dataset import ELIGIBLE_PRIMARY, ELIGIBLE_STRESS, SIDES
 
 ROOT = PROJECT_ROOT / "data" / "public_training"
 
@@ -19,7 +19,8 @@ def main() -> int:
     config = load_forecast_config(PROJECT_ROOT / "config" / "forecast.yaml")
     data = np.load(ROOT / "dataset" / f"{config.version}.npz")
     manifest = json.loads((ROOT / "dataset" / f"{config.version}_manifest.json").read_text())
-    train = (data["split"] == "train") & (data["status"] == ELIGIBLE_PRIMARY)
+    allowed = (ELIGIBLE_PRIMARY, ELIGIBLE_STRESS) if config.train_population == "all_eligible" else (ELIGIBLE_PRIMARY,)
+    train = (data["split"] == "train") & np.isin(data["status"], allowed)
     artifact: dict = {"version": config.version, "kind": "experimental_wrist_motion_forecast",
                       "not": ["pose inference", "event detection", "technique feedback"],
                       "config": config.model_dump(), "dataset_content_sha256": manifest["content_sha256"],

@@ -16,7 +16,7 @@ import numpy as np  # noqa: E402
 from _bootstrap import PROJECT_ROOT  # noqa: E402
 from app.forecast import model as md  # noqa: E402
 from app.forecast.config import load_forecast_config  # noqa: E402
-from app.forecast.dataset import ELIGIBLE_PRIMARY, SIDES, constant_velocity_prediction  # noqa: E402
+from app.forecast.dataset import ELIGIBLE_PRIMARY, ELIGIBLE_STRESS, SIDES, constant_velocity_prediction  # noqa: E402
 
 ROOT = PROJECT_ROOT / "data" / "public_training"
 COLORS = {"ridge": "#2a78d6", "persistence": "#eb6834", "constant_velocity": "#1baf7a"}
@@ -123,14 +123,16 @@ def main() -> int:
     data = np.load(ROOT / "dataset" / f"{config.version}.npz")
     sources = json.loads((PROJECT_ROOT / "config" / "public_training_sources.json").read_text())["sources"]
     split = json.loads((PROJECT_ROOT / "config" / "public_training_split.json").read_text())
-    primary = (data["split"] == "test") & (data["status"] == ELIGIBLE_PRIMARY)
-    test = results["held_out_test_primary"]
+    primary = (data["split"] == "test") & np.isin(data["status"], (ELIGIBLE_PRIMARY, ELIGIBLE_STRESS))
+    all_windows = results["held_out_test_all_windows"]
+    test = all_windows
     parts = [
         "<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Wrist-motion forecast</title>"
         "<style>body{font:15px/1.5 system-ui,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#1b1f24;background:#fcfcfb}table{border-collapse:collapse;width:100%;margin:8px 0 16px;font-size:.88rem}th,td{border-bottom:1px solid #dfe2e6;padding:5px 6px;text-align:left}img{max-width:100%}.note{background:#fff7e0;border:1px solid #e8d48a;border-radius:6px;padding:10px}</style>",
         "<h1>Experimental wrist-motion forecast</h1>",
         "<p class=note><strong>What this is:</strong> a Ridge model predicting where a tracked wrist moves relative to the hips over the next 0.5 s. Targets are later pose estimates, not human ground truth. It is separate from pose inference, from the event rules, and from any technique judgment. Errors are in torso lengths, not centimeters.</p>",
-        section_html("Held-out public test groups (steady camera)", test),
+        section_html("Held-out public test groups, all reliable windows", all_windows),
+        section_html("Held-out public test groups, steady camera only", results["held_out_test_primary"]),
     ]
     if test.get("n_examples"):
         parts.append(f"<img alt='Mean endpoint error by test group for each method' src='data:image/png;base64,{group_chart(test)}'>")
