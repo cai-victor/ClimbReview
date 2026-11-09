@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
-CONTEXT_VERSION = "limb-context-v1"
+CONTEXT_VERSION = "limb-context-v2"
 LIMBS = ("left_wrist", "right_wrist", "left_foot", "right_foot")
 NAMES = {"left_wrist": "left hand", "right_wrist": "right hand", "left_foot": "left foot", "right_foot": "right foot"}
 DETECTOR_OF = {"left_wrist": "wrist_motion_left", "right_wrist": "wrist_motion_right",

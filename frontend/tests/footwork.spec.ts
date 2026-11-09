@@ -80,6 +80,15 @@ test("left and right feet: filtering, detail, seek, loop, persistence, exports, 
   expect(loop).toBe(true);
   await page.getByText("Loop selected event").click();
 
+  // Filtering away a selected limb must also stop its hidden loop and trail.
+  await page.getByTestId("filter-hands").click();
+  await page.getByTestId("timeline-event").first().click();
+  await page.getByLabel("Loop selected event (±1 s)", { exact: true }).check();
+  await page.getByTestId("filter-feet").click();
+  await expect(page.getByLabel("Loop selected event (±1 s)", { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel("Loop selected event (±1 s)", { exact: true })).toBeDisabled();
+  await expect(page.locator(".event-card.selected")).toHaveCount(0);
+
   // Clicking the chart seeks to that time.
   await page.getByTestId("filter-all").click();
   await page.getByTestId("movement-chart").scrollIntoViewIfNeeded();

@@ -10,9 +10,11 @@ Beginner indoor boulderers may find it difficult to identify which moments of an
 
 The project aligns primarily with the final assignment's third pathway: using data analytics to model sports behavior or performance. Its central contribution will be the design and evaluation of an explainable movement-analysis pipeline, supported by an interactive review experience.
 
+The student has confirmed that AI-assisted coding is allowed and that the quoted course description is all guidance currently available. The full rubric has not been released. Course facts are recorded in `inputs/COURSE_UPDATE_2026-11-09.md`; no additional submission requirements are assumed.
+
 ## Research question
 
-How accurately can a video-based pipeline identify low-movement intervals and visible wrist-movement episodes during beginner indoor bouldering, and how useful are those events for reviewing an attempt?
+How accurately can a video-based pipeline identify low-movement intervals and visible hand- and foot-movement episodes during beginner indoor bouldering, and how useful are those events for reviewing an attempt?
 
 ## Proposed system
 
@@ -49,7 +51,7 @@ A working video-review prototype; an explainable and versioned analysis pipeline
 
 ## Team and experience
 
-Fill in team members, relevant experience, available equipment, actual deadline, and scope. For one student, the two event detectors and a modest evaluation form the core. For a larger team, broaden independent annotation, user testing, or the evaluated manual-hold extension rather than only adding interface features.
+Fill in team members, relevant experience, available equipment, actual deadline, and scope. For one student, low-movement and per-limb event modeling with a modest evaluation form the core. For a larger team, broaden independent annotation, user testing, or the evaluated manual-hold extension rather than only adding interface features.
 
 ## Suggested four-submission progression
 

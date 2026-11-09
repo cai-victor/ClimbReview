@@ -12,15 +12,15 @@ Open http://127.0.0.1:8317. It runs on this computer only.
 
 | In the library | Analyses |
 | --- | --- |
-| IMG_4301 (teammate tripod) | One new analysis, 25 events |
-| IMG_7238 | New analysis, 14 events, shown by default. The original v1 analysis is still selectable under "Analysis shown" |
+| IMG_4301 (teammate tripod) | Latest 0.2.1 analysis: 25 events; earlier phase run preserved |
+| IMG_7238 | Latest 0.2.1 analysis: 14 events, shown by default. Earlier v2 and original v1 analyses remain selectable under "Analysis shown" |
 | Five phone clips | Unchanged v1 analyses. Each shows a notice and a Reanalyze button |
 
 ## What was wrong (baseline, before any change)
 
 Baseline is commit 32a4b27 with `detectors-v1`, run on the whole of both clips. Results are in `data/tripod_nov09/baseline_detectors_v1/`.
 
-**1. False camera-motion exclusions, the largest defect.** The old check used whole-frame phase correlation, which followed the moving climber. On these two clips it excluded 136 of 531 intervals (IMG_4301) and 55 of 326 (IMG_7238). With the climber masked out, background motion never exceeded 0.115 px and 0.255 px per interval. All 191 exclusions were false.
+**1. False camera-motion exclusions, the largest defect.** The old check used whole-frame phase correlation, which followed the moving climber. On these two clips it excluded 136 of 531 intervals (IMG_4301) and 55 of 326 (IMG_7238). With the climber masked out, background motion never exceeded 0.115 px and 0.255 px per interval. The background check did not support any of those 191 camera-motion flags on these two development videos; this is a diagnostic comparison, not an independent accuracy measurement.
 
 **2. The tracked left foot on IMG_7238 could be wrong while reporting high visibility.** With the default model, spot-checked frames showed it on blank wall at 2.4 s and on a hold at 25.1 s.
 
@@ -40,7 +40,7 @@ Not found on these clips: ankle left/right swaps, or a rendering offset. Feet us
 
 **Uncertain episodes.** Rapid swings in knee-to-ankle length while ankle visibility is reduced mark an episode "uncertain". The episode stays visible with a caution, and no conclusion is drawn from it: it is left out of sequences and the "largest movement" lists.
 
-**Explanations.** Each event now states its time, duration, image-plane direction, distance in torso lengths, peak speed, and what other limbs did. A limb is "nearly still" only if it was tracked continuously and measurably stayed within 0.15 torso lengths. Otherwise it is "shifted slowly", or "unknown" with the reason. Attempt-level panels cover what moved and when, what to rewatch, repeated movement, where tracking prevents a conclusion, and specific questions.
+**Explanations.** Each event now states its time, duration, image-plane direction, distance in torso lengths, peak speed, and what other limbs did. A limb is "nearly still" only if every sample in its window was tracked in one continuous run and measurably stayed within 0.15 torso lengths. Otherwise it is "shifted slowly", or "unknown" with the reason. Attempt-level panels cover what moved and when, what to rewatch, repeated movement, where tracking prevents a conclusion, and specific questions.
 
 **Interface.** Added left and right foot timeline rows, filters (Everything, Feet only, Hands only, per limb, hide uncertain), a legs-and-feet overlay, the selected movement's tracked path, a per-limb speed chart that seeks when clicked, and a per-event distance chart. Foot data is in the JSON, CSV and HTML exports. Blind labeling and the evaluator now accept foot episodes.
 
@@ -85,7 +85,7 @@ Left-wrist and low-movement coverage on IMG_4301 fell, because the heavy model r
 | Pipeline on both clips, by CLI and through the live worker | Completed with matching event counts |
 | Clean copy of tracked files (no media), full setup including the heavy model download | Setup exit 0, 216 backend tests passed, type-check OK, app started with API 200. Installed packages match the project environment |
 
-All test motion and test labels are synthetic. Software tests do not establish pose accuracy.
+Numerical trajectory fixtures and fixture reference labels are synthetic; the browser workflow also uses actual teammate footage. Software tests and AI-assisted spot checks do not establish pose accuracy.
 
 ## Limits and what remains
 
@@ -94,3 +94,18 @@ All test motion and test labels are synthetic. Software tests do not establish p
 - "Left foot" uses the model's label. Direction words such as "left of the picture" are the viewer's.
 - The next useful step is independent human labels of foot episodes, using Reference labeling, followed by threshold tuning on development clips and a freeze before any held-out test.
 - IMG_2532 and IMG_2748 remain reserved and were not used. The locked forecast test groups were not used, and the forecast was not retrained. It remains tied to the earlier full model.
+
+## Independent review corrections (0.2.1)
+
+The final source and live-browser review found and fixed four additional issues:
+
+- Plot paths now stop at every null speed/coordinate, and blocked intervals are shaded even when both endpoint landmarks exist.
+- An event-distance chart uses only the continuous tracking run containing the event origin; it does not measure a displacement across camera/tracking gaps.
+- A whole-window quiet claim needs 100% of its samples in the same continuous run, including both boundaries. The former 90% rule could hide a short boundary gap. Context method is now limb-context-v2.
+- Filtering away a selected hand/foot event clears its selection, path and loop. A real live-app test reproduced the hidden hand loop before the correction and confirmed the loop unchecked/disabled after Feet only.
+
+Validation after these corrections: production build/type-check passed; full backend suite **218 passed**; **4 targeted Playwright checks passed**, comprising three chart geometry/SSR regressions and the real IMG_4301 import/analysis/review/filter/loop/persistence/export/legacy workflow. The full six-spec browser run and clean-copy check above preceded these last corrections and were not represented as new runs.
+
+Both live tripod attempts were regenerated under pipeline 0.2.1-footwork, with earlier runs preserved. Final live checks confirmed left-foot selection at 5.4 s seeks video to 4.4 s with context, shows its event chart and specific hand/foot explanation, and keeps the original v1 IMG_7238 run selectable with its two wrist cards. Existing event review, hold map, hold, annotation and reflection tables match their pre-review SHA-256 fingerprints. The private database backup and comparison snapshot are under data/backups/.
+
+A phone-width screenshot from the passing real-video test is at frontend/test-results/footwork-left-and-right-fe-60cba-ersistence-exports-old-runs/phone.png (private local artifact).

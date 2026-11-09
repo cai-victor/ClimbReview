@@ -1,6 +1,6 @@
 """ClimbReview analysis pipeline (feasibility milestone)."""
 
-PIPELINE_VERSION = "0.2.0-footwork"
+PIPELINE_VERSION = "0.2.1-footwork"
 SCHEMA_VERSION = "1.1"
 
 

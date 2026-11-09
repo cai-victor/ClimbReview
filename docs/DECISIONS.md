@@ -120,8 +120,11 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 
 **D53. Foot episodes use each side's ankle only.** Each side works when the other is hidden. Heel and toe are support and never create an event. Thresholds are starting values (onset 0.40, offset 0.20 L/s, 0.25 s dwell, 0.3 s, 0.25 L), set larger than wrist minimum displacement to reduce heel-drop pivots, and were checked only against two development clips. Detector version is `detectors-v2-footwork`. The event field `hand` holds the body side for foot events, so stored data and label files stay compatible.
 
-**D54. Quiet requires measurement, not the absence of an event.** A limb is "nearly still" only with at least 90% of samples in one continuous tracked run and at most 0.15 L of measured excursion. Motion without an episode is "shifted slowly". A tracking break is "unknown", even when samples on both sides are valid. Support wording names only the points compared, and neighbors cut off by tracking are described as last or first observed.
+**D54. Quiet requires measurement, not the absence of an event.** A limb is "nearly still" only with every sample, including both window boundaries, in one continuous tracked run and at most 0.15 L of measured excursion. Motion without an episode is "shifted slowly". A tracking break is "unknown", even when samples on both sides are valid. Support wording names only the points compared, and neighbors cut off by tracking are described as last or first observed.
 
 **D55. The evaluator keeps one reference per clip.** Overlapping unscorable rows are merged before the 50% test. When a clip has several raters, scoring stops until `--reference-annotator` chooses one rater or an adjudicated set. Original per-rater rows are unchanged.
 
 **D56. Older runs are preserved.** Reanalysis creates a new run. The attempt page lets either be chosen, each keeps its own notes, and runs without foot data show a notice. A run predating a detector cannot produce misses for it in evaluation.
+
+
+**D57. Final review fixes are versioned as 0.2.1-footwork / limb-context-v2.** Null plot samples and blocked run transitions break and shade charts; event-distance origins cannot cross tracking runs. Missing boundary samples keep whole-window foot context unknown. Filtering hides selected events by clearing their trail and loop. Fresh runs preserve earlier results and notes. These are correctness fixes, not new validation of climbing technique.

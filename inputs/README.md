@@ -1,6 +1,6 @@
 # Project inputs
 
-Before the first coding session, provide as many of these as are available:
+Current course guidance and AI permission are confirmed in `COURSE_UPDATE_2026-11-09.md`. The full rubric has not been released; do not treat that as missing user action or a blocker. The development environment and footage are already present. The following is the original preparation checklist, retained for reference:
 
 - The complete assignment, individual submission rubrics, due dates, and any course rules about AI assistance. The original excerpt alone does not define all four deliverables.
 - Team size, each person's coding/design/analytics experience, available hours, and the target demonstration computer.

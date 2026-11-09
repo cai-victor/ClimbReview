@@ -4,13 +4,15 @@ Last updated 2026-11-09 after the footwork phase. Start with `docs/FOOTWORK_REPO
 
 ## Bottom line
 
-The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, mainly because the recordings are handheld. No independent human labels or user study exist, so **event accuracy is unknown**.
+The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
 ## Footwork phase (latest)
 
 Added and tested: background-only camera measurement, the official heavy pose model, separately gated left and right foot episodes, per-limb series, specific event explanations with limb context, an attempt-level digest, filters, foot overlay and path, speed and distance charts, foot exports, foot reference labels and evaluation, and old-run compatibility. Details and before/after numbers: `docs/FOOTWORK_REPORT.md`.
 
-**Current verification:** `pytest` 216 passed. Playwright, 6 specs, passed on the final build, including real IMG_4301 import to review. The real v1 run of IMG_7238 opened in the live app with its results and exports, and reanalysis added a new run beside it. A clean copy of tracked files (no media) passed full setup with the heavy model, 216 tests, type-check, and app start; its packages match the project environment. Event accuracy remains unmeasured. Tripod coverage also does not meet the provisional low-movement target (19.4% and 15.6% against 70%).
+**Current verification:** `pytest` 218 passed after the independent review corrections. Playwright, 6 specs, passed on the final build, including real IMG_4301 import to review. The real v1 run of IMG_7238 opened in the live app with its results and exports, and reanalysis added a new run beside it. A clean copy of tracked files (no media) passed full setup with the heavy model, 216 tests, type-check, and app start; its packages match the project environment. Event accuracy remains unmeasured. Tripod coverage also does not meet the provisional low-movement target (19.4% and 15.6% against 70%).
+
+**Independent final review, pipeline 0.2.1-footwork:** fixed chart connections across nulls, event-distance origins across tracking runs, whole-window quiet claims with missing boundary samples, and hidden loops after filtering. The final build passed type-check/production build, 218 backend tests, and 4 targeted Playwright checks (3 synthetic chart checks and the real-video footwork workflow). The earlier full 6-spec browser suite and clean-copy 216-test check are retained above as stage results, not rerun claims. Both tripod attempts have fresh 0.2.1 runs. Existing review/hold/annotation/reflection table fingerprints match the pre-review backup. See docs/FOOTWORK_REPORT.md.
 
 Footwork commands actually run:
 
@@ -45,7 +47,7 @@ Added and tested: blind reference-annotation workflow, manual reference-frame ho
 
 Forecast result, held-out 5 groups: Ridge MAE 0.3228 L, persistence 0.3282 L, constant velocity 0.4747 L. The learned model is only marginally better than doing nothing, and it tied persistence on the user's clips.
 
-**Current verification (latest):** `pytest` 172 passed. Playwright, 5 specs, passed: blind labeling, import Cancel, hold alignment on portrait and landscape, full review smoke with continuous playback (at most 49.7 ms from media time). Clean copy from `git archive`, zero media files: `scripts/setup_env.sh` exit 0, `pytest` 172 passed, type-check OK, API 200 and page served, `pip freeze` identical to the lock. The existing `data/app` database opened with all 5 attempts and the new annotation and hold endpoints.
+**Historical Phase 2 verification:** `pytest` 172 passed. Playwright, 5 specs, passed: blind labeling, import Cancel, hold alignment on portrait and landscape, full review smoke with continuous playback (at most 49.7 ms from media time). Clean copy from `git archive`, zero media files: `scripts/setup_env.sh` exit 0, `pytest` 172 passed, type-check OK, API 200 and page served, `pip freeze` identical to the lock. The existing `data/app` database opened with all 5 attempts and the new annotation and hold endpoints.
 
 ## Environment and versions
 
