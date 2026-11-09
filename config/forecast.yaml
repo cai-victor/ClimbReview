@@ -12,7 +12,7 @@ torso_ratio_max: 2.0
 camera_max_speed_L_per_s: 0.15
 camera_min_correlation_response: 0.3
 train_population: all_eligible  # steady-camera windows are too few; see docs/DECISIONS.md D42
-ridge_alphas: [0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0]
+ridge_alphas: [0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1000000.0]  # extended on training CV only
 constant_velocity_windows_ms: [100, 200, 300, 500]
 cv_folds: 4
 seed: 317

@@ -40,7 +40,8 @@ def select_hyperparameters(
         window_scores[window] = float(np.mean(endpoint_errors(baseline[position * len(features):(position + 1) * len(features)], targets)))
     best_alpha = min(alpha_scores, key=lambda a: (alpha_scores[a], a))
     best_window = min(window_scores, key=lambda w: (window_scores[w], w))
-    return {"cv_folds": folds, "alpha": best_alpha, "alpha_scores_cv_mae": alpha_scores,
+    persistence_mae = float(np.mean(endpoint_errors(np.zeros_like(targets), targets)))
+    return {"cv_folds": folds, "alpha": best_alpha, "alpha_scores_cv_mae": alpha_scores, "persistence_train_mae": persistence_mae,
             "constant_velocity_window_ms": best_window, "window_scores_train_mae": window_scores}
 
 
