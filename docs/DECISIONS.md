@@ -81,3 +81,7 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 **D35. Unscorable overlap rule for evaluation.** A prediction is excluded when at least half of it falls in a human-unscorable interval for that detector. Matching is greedy by descending tIoU at 0.30. Both are fixed before any labels exist.
 
 **D36. Not implemented tonight: camera-motion compensation.** Subtracting estimated background motion might make handheld clips usable, but it adds an unvalidated step that could create false stillness. A tripod is the safer next step.
+
+**D37. Baseline comparison reuses the stored run's poses and configuration.** Only smoothing and hysteresis change, and the final variant must reproduce the stored events, otherwise the runner exits non-zero. It reports differences between variants and writes no accuracy fields. Scoring the baseline against labels uses `scripts/evaluate.py --events-file events_baseline_raw.json`.
+
+**D38. Import cancellation shares the job mechanism.** A queued import is cancelled immediately. A running one sets `cancel_requested`, and the normalization poll kills FFmpeg. The uploaded source is kept so the import can be retried.

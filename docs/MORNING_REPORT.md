@@ -8,7 +8,7 @@
 
 **Experimental:** every detector threshold, the camera-motion estimate, the implausible-pose rule, and the HDR conversion (a documented approximation).
 
-**Unverified:** detector accuracy, pose accuracy beyond sampled frames, left/right consistency across whole clips, the Playwright spec, and live overlay during continuous playback on a visible screen.
+**Unverified:** detector accuracy, pose accuracy beyond sampled frames, left/right consistency across whole clips, and the import Cancel button in a browser (its backend behavior is tested).
 
 ## 2. Start the app
 
@@ -20,7 +20,21 @@ Then open http://127.0.0.1:8317. It runs on this computer only. Your five develo
 
 ## 3. Tests and sample findings
 
-112 backend tests passed. The frontend type-check and build passed. I drove the real flow in the built-in browser. Headless Playwright hung before reaching the app in this environment, so that spec remains unverified. Details are in `docs/STATUS.md`.
+Follow-up checks, all run after this report was first written:
+
+| Check | Result |
+| --- | --- |
+| Backend tests | 118 passed |
+| Clean copy of tracked files only (no media), full setup with frontend build, tests, app start | passed; packages identical to the lock |
+| Real browser smoke spec, headless | passed |
+| Same spec in a visible window, twice | passed |
+| Continuous playback | about 40 distinct poses drawn in 4 s; drawn pose stayed within 49.6 ms of the video time |
+| Event context looping | wrapped back in every run |
+| Baseline comparison on 8 stored runs | ran; stored events reproduced exactly |
+
+The original 4-minute Playwright hang did not recur, and its cause is unknown. Commands and details are in `docs/STATUS.md`.
+
+**Baseline comparison:** raw landmarks without hysteresis usually produced more wrist episodes, for example phone04 right wrist 8 versus 4, but not always (phone05 right wrist 0 versus 2). This compares methods with each other. It says nothing about accuracy until human labels exist.
 
 ### Your phone clips (development only)
 
@@ -61,7 +75,6 @@ Source links and hashes: `config/public_samples.json`, `data/public_samples/ATTR
 - Left/right labels can be wrong in back views; check overlays.
 - A second person is not excluded automatically.
 - Colors in converted HDR are approximate and can look bright.
-- An import in progress cannot be cancelled, only retried after failure.
 - Git: local commits on `main` in this project only, nothing pushed. Private media is ignored.
 
 ## 5. What to record at your next gym session
@@ -86,5 +99,7 @@ Watch each `overlay.mp4` and complete its `report.md` checklist.
 1. Please add the full rubric, submission instructions, due dates, team size, and any AI-use rules to `inputs/`. Does rule-based event modeling satisfy "model or predict"?
 2. Who can independently label clips? `docs/ANNOTATION_GUIDE.md` has the protocol.
 3. If tripod footage isn't possible, should we try camera-motion compensation? It could rescue handheld clips but adds a new unvalidated step (`docs/DECISIONS.md` D36).
+
+No technical verification remains blocked. What's left needs you: tripod footage, independent labels, a user study, and the course documents.
 
 **Next action:** record tripod clips and run the command above. If coverage and alignment hold up, freeze the thresholds after labeling development clips.

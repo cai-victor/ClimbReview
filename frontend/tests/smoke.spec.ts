@@ -72,10 +72,19 @@ test("import, analyze, review, annotate, refresh, export, delete", async ({ page
     video.pause();
     return { frames, advanced: end - 12, drawn: drawn.size, images: images.size, maxDrift: Math.max(...drift) };
   });
+  console.log(`playback ${JSON.stringify(playback)}`);
   expect(playback.advanced).toBeGreaterThan(2);
   expect(playback.drawn).toBeGreaterThan(10);
   expect(playback.images).toBeGreaterThan(3);
   expect(playback.maxDrift).toBeLessThanOrEqual(120); // 60 ms draw rule plus one display frame of timer lag
+
+  // Frames captured while the video is actually playing, for human inspection of alignment.
+  await page.getByTestId("review-video").evaluate(async (node) => { const v = node as HTMLVideoElement; v.currentTime = 20; await v.play(); });
+  for (const index of [1, 2, 3]) {
+    await page.waitForTimeout(700);
+    await page.locator(".stage").screenshot({ path: test.info().outputPath(`playing-${index}.png`) });
+  }
+  await page.getByTestId("review-video").evaluate((node) => (node as HTMLVideoElement).pause());
 
   if (events > 0) {
     await page.getByTestId("timeline-event").first().click();
@@ -95,6 +104,7 @@ test("import, analyze, review, annotate, refresh, export, delete", async ({ page
       video.pause();
       return { wrapped, highest };
     });
+    console.log(`loop ${JSON.stringify(loop)}`);
     expect(loop.wrapped).toBe(true);
     await page.getByText("Loop selected event").click();
     const card = page.locator(".event-card.selected");

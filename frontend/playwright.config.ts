@@ -6,6 +6,7 @@ const dataDir = path.resolve(import.meta.dirname, "../data/e2e_app");
 export default defineConfig({
   testDir: "./tests",
   timeout: 240_000,
+  workers: 1, // the app has one analysis worker, and tests share its data directory
   use: { baseURL: "http://127.0.0.1:8318", video: "off" },
   reporter: [["list"]],
   webServer: {

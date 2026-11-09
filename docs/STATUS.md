@@ -15,7 +15,9 @@ The local app, analysis pipeline, two detectors, review flow, exports, and evalu
 - React/TypeScript/Vite UI: library, setup, progress, review with synchronized canvas overlay, timeline, tracking-gap explanations, separate judgments, tags, notes, reflection, summary, responsive layout.
 - JSON, CSV, standalone HTML exports. Evaluation tool, annotation guide, manifest template.
 
-Not implemented: manual holds, attempt comparison, automatic hold types, slip diagnosis, real-time coaching, accounts, hosting. Cancelling an in-progress import has no UI or API; imports can be retried.
+Also added after the first report: import cancellation (`POST /api/attempts/{id}/cancel-import`, with a Cancel button during import) and a reproducible baseline comparison (`scripts/compare_baseline.py`).
+
+Not implemented: manual holds, attempt comparison, automatic hold types, slip diagnosis, real-time coaching, accounts, hosting.
 
 ## Environment and versions
 
@@ -51,28 +53,65 @@ cd frontend && npm run build
 .venv/bin/python scripts/load_manifest_into_app.py --url http://127.0.0.1:8318
 ```
 
+```bash
+.venv/bin/python scripts/compare_baseline.py
+```
+
+```bash
+cd frontend && PLAYWRIGHT_BROWSERS_PATH="$PWD/.playwright-browsers" npx playwright install chromium
+```
+
+```bash
+cd frontend && PLAYWRIGHT_BROWSERS_PATH="$PWD/.playwright-browsers" npx playwright test --headed --repeat-each=2 --timeout=120000 --global-timeout=170000
+```
+
+## Baseline comparison (variants only, not accuracy)
+
+Output: `data/baseline_comparison/baseline-comparison-v1.json`; each run also gets `events_baseline_raw.json`. Baseline means raw landmarks and no onset/offset hysteresis. Wrist event counts, final vs baseline:
+
+| Clip | Left | Right |
+| --- | --- | --- |
+| phone01 | 3 vs 5 | 1 vs 1 |
+| phone02 | 0 vs 0 | 6 vs 7 |
+| phone03_a1 | 4 vs 4 | 3 vs 7 |
+| phone04 | 2 vs 2 | 4 vs 8 |
+| phone05 | 0 vs 0 | 2 vs 0 |
+| public_khazanov_v3 | 1 vs 2 | 1 vs 1 |
+| public_caulier | 0 vs 0 | 0 vs 0 |
+| public_rockspot_v3 | 1 vs 1 | 7 vs 6 |
+
+Low movement: 0 vs 0 where available; unavailable on public_caulier. The baseline usually splits movement into more episodes, but not always. Which variant is better cannot be known without human labels.
+
 ## Verification
 
 | Check | Result |
 | --- | --- |
-| `pytest` (detectors, media, quality, overlay, API/worker, evaluation, real-model CLI) | 112 passed, 1 deprecation warning from the test client |
+| `pytest` (detectors, media, quality, overlay, API/worker, evaluation, baseline, real-model CLI) | 118 passed, 1 deprecation warning from the test client |
 | Frontend `tsc --noEmit` and production build | passed |
 | Real browser run in the built-in pane: UI upload, real worker import and analysis, playback, canvas overlay, event selection, gap explanation, judgments, tags, autosaved note, reflection, reload persistence, three exports, loop, phone width, delete | passed on a public sample; details below |
 | Same production path on five personal development clips | all completed |
-| `frontend/tests/smoke.spec.ts` (Playwright) | **not passing here:** headless Chromium hung during setup in this environment before reaching the app. The spec is unverified; the browser checks above were done manually in the pane |
-| Clean-copy `scripts/setup_env.sh` | last run before the app was added; not rerun with the frontend build step |
+| Playwright `frontend/tests/smoke.spec.ts`, bundled Chromium 158, headless | 1 passed (12.5 s) |
+| Same spec, `--headed` (visible window, throwaway profile), `--repeat-each=2`, serial | 2 passed |
+| Clean copy from `git archive` of commit 8336a2a, zero media or model files, `./scripts/setup_env.sh` | exit 0, including `npm ci` and frontend build; `pip freeze` identical to the lock |
+| In that clean copy: `pytest`, frontend type-check, `run_app.py` serving API and page | 118 passed; type-check OK; API 200 and page served. Copy deleted afterward |
+| `scripts/compare_baseline.py` on all 8 stored runs | all stored events reproduced exactly; results below |
 
-Browser details: note persistence and escaping in the HTML report were confirmed on the final build; reflection and judgment persistence were confirmed by page reload on an earlier build; only the note-saving, loop, and cache code changed afterward. Loop wrap was seen at 12.8 s for an event ending at 11.7 s with 1 s of context. No horizontal overflow at 375 px. The pane was hidden, which pauses animation frames, so continuous live overlay during playback was not observed; overlay placement was checked after seeks and in screenshots.
+Continuous playback (headed, 4 s of real playback, measured every display frame): 462 and 480 frames rendered, 40-41 distinct poses drawn, 40-41 distinct canvas images, video advanced 4.0 s, largest gap between drawn pose time and media time 49.6 ms (the drawing rule allows 60 ms). Headless runs gave 241 frames and at most 48.2 ms. Context loop wrapped back in every run. Frames captured during playback (`frontend/test-results/playing_strip.png`, public clip) show the skeleton following the climber.
+
+Playwright diagnosis: the first run hung for 4 minutes in "setting up page". A bounded launch probe then started Chromium in 300 ms, and the spec passed on every serial run. **The original hang did not recur and its cause is unknown.** An intermediate `--repeat-each=3` run had 2 failures caused by the test design: copies ran in parallel and saw each other's same-titled clip. The config now forces one worker. Chromium logs `CVDisplayLinkCreateWithCGDisplay failed` warnings headless, without effect on the run.
+
+Browser details: note persistence and escaping in the HTML report were confirmed on the final build; reflection and judgment persistence were confirmed by page reload on an earlier build; only the note-saving, loop, and cache code changed afterward. Loop wrap was seen at 12.8 s for an event ending at 11.7 s with 1 s of context. No horizontal overflow at 375 px. The manual pane session had a hidden pane; continuous playback was verified later by the headed Playwright run above.
 
 Defects found and fixed during verification: stale cached `index.html` could leave a blank page after a rebuild; notes saved only on blur; context looping depended on animation frames.
+
+Not exercised in a browser: the import Cancel button (the endpoint and worker behavior are covered by API tests, including stopping a running FFmpeg).
 
 ## Remaining work
 
 1. Record tripod footage and rerun feasibility (see `docs/MORNING_REPORT.md`).
 2. Human annotation and a fixed split; then tune on dev data and freeze.
-3. Run `scripts/evaluate.py`; implement the raw-landmark baseline comparison run (detector flags exist: `smoothing=False`, `hysteresis=False`).
+3. Run `scripts/evaluate.py` on both `events.json` and `events_baseline_raw.json` once labels exist.
 4. Usability study with real beginners.
-5. Rerun `scripts/setup_env.sh` from a clean copy, and run the Playwright spec outside this restricted environment.
 
 ## Next exact action
 
