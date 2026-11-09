@@ -147,7 +147,7 @@ function BetaFigure({ map, candidate, stepIndex, width, height }: { map: HoldMap
         {map.holds.map((hold, index) => (
           <g key={hold.id}>
             <circle cx={hold.x * width} cy={hold.y * height} r={hold.radius * width} fill="none" stroke={hold.role === "start" ? "#2fbf71" : hold.role === "finish" ? "#e0245e" : "#ffc800"} strokeWidth={stroke} />
-            <text x={hold.x * width} y={hold.y * height} textAnchor="middle" dominantBaseline="middle" fontSize={width / 34} fontWeight="700" fill="#fff" stroke="#000" strokeWidth={stroke / 2} paintOrder="stroke">{index + 1}</text>
+            <text x={hold.x * width} y={hold.y * height} textAnchor="middle" dominantBaseline="middle" fontSize={width / 22} fontWeight="700" fill="#fff" stroke="#000" strokeWidth={stroke / 2} paintOrder="stroke">{index + 1}</text>
           </g>
         ))}
       </svg>

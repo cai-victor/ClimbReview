@@ -53,6 +53,10 @@ Watch each `overlay.mp4` and complete the checklist in its `report.md`.
 
 Aim for 5-8 beginners, using the tasks in `docs/EVALUATION.md` section 6: find a moment, explain what was measured, judge correctness separately from usefulness, and save a reflection. Record what actually happens; do not claim learning gains.
 
+## 5. Validate the coaching
+
+Follow `docs/COACHING_EVALUATION.md` with an experienced climber. To get candidate sequences, open **Mark holds** and set start, finish, and hand or foot use. To test a suggestion, mark it "I'll try this", record a matched attempt with the same problem and climber names, and record the result.
+
 ## Keyboard shortcuts
 
 - **Reference labeling:** `[` mark start, `]` mark end, `,` and `.` step 0.1 s (outside text fields). Use Tab to reach Edit and Delete.

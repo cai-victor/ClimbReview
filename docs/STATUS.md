@@ -1,12 +1,28 @@
 # ClimbReview status
 
-Last updated 2026-11-09 after the footwork phase. Start with `docs/FOOTWORK_REPORT.md` for the latest work and `docs/MORNING_REPORT.md` for the earlier overnight run.
+Last updated 2026-11-09 after the performance phase. Start with `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
 
 ## Bottom line
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Footwork phase (latest)
+## Performance phase (latest)
+
+Added and tested: timestamped coaching hypotheses with counterexamples and unknowns, foot placement review confirmed only by the user, hold roles and uses, background-measured hold-map alignment, candidate 2D sequences on marked holds, explicit same-problem comparison, decision and trial recording, and coaching in JSON and HTML exports. Coaching is computed from stored analysis files, so 0.2.0 and later runs did not need reprocessing. Details: `docs/PERFORMANCE_REPORT.md`. Human evaluation plan: `docs/COACHING_EVALUATION.md`.
+
+**Current verification:** `pytest` 257 passed. Playwright, 10 specs, passed, including the real IMG_4301 import-to-coaching flow. The live database was backed up to `data/app/backups/climbreview_before_performance_phase.sqlite` before its additive migration; the 11 hold marks and existing notes are unchanged. The clean-copy setup was not rerun for this phase. **Coaching has not been rated by any experienced climber, its accuracy is unmeasured, and no performance improvement is shown.** Four of seven card types did not occur on the two real clips.
+
+Performance commands actually run:
+
+```bash
+.venv/bin/python scripts/demo_candidate_beta.py --attempt febff1724e424bcbbf052abe569c2c08 --output data/tripod_nov09/candidate_beta_demo_img7238.json
+```
+
+```bash
+.venv/bin/python scripts/export_coaching_rating_sheet.py --attempts febff1724e424bcbbf052abe569c2c08 cc5dde8e42d1490c90685fa554432603 --seed 317 --output data/tripod_nov09/coaching_rating_sheet_blank.csv --key data/tripod_nov09/coaching_rating_key.json
+```
+
+## Footwork phase
 
 Added and tested: background-only camera measurement, the official heavy pose model, separately gated left and right foot episodes, per-limb series, specific event explanations with limb context, an attempt-level digest, filters, foot overlay and path, speed and distance charts, foot exports, foot reference labels and evaluation, and old-run compatibility. Details and before/after numbers: `docs/FOOTWORK_REPORT.md`.
 
@@ -152,8 +168,8 @@ Held-out caveat: the forecast test groups have been evaluated once, so any new f
 
 ## Next exact action
 
-Open http://127.0.0.1:8317, open each tripod clip before viewing its results, and use **Reference labeling** to mark left and right foot episodes. Then score the development clips:
+Open http://127.0.0.1:8317, open IMG_7238, and choose **Mark holds**. Mark start, finish, and hand or foot use to get candidate sequences. Then have an experienced climber follow `docs/COACHING_EVALUATION.md`.
 
 ```bash
-.venv/bin/python scripts/evaluate.py --split dev --reference-annotator YOUR_ALIAS --output evaluation/results_dev.json
+.venv/bin/python scripts/run_app.py
 ```

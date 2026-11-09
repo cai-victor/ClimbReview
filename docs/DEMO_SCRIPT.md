@@ -22,6 +22,7 @@ Open http://127.0.0.1:8317. Do one rehearsal so the page and video load quickly.
 4. **Quality feedback (1 min).** Run the analysis and show real progress. Open the warnings and the timeline's hatched gaps. Click one gap and read the reason.
 5. **Review (1.5 min).** Play at 0.5× with the skeleton on. Select a wrist event, loop it, and read Observed / Could be / Reflect.
    Then choose **Feet only**. Select a foot episode and read its time, direction, distance, and what the other limbs did. Show its path on the video and click the speed chart to jump. Open **What moved and when** and point out where tracking prevents a conclusion. If the licensed clip has too little foot tracking, describe this using `docs/FOOTWORK_REPORT.md` instead of showing private footage.
+   Open **Performance opportunities**. Read one card aloud: what happened, what to try, and when to keep your own way. Open "Measurements and limits". Show **Foot placements to check** and say that only the climber can confirm contact or a smear. Show that **Alternative beta to try** asks for route setup instead of inventing a route.
 6. **Judgments and reflection (1 min).** Show that "was it visible" and "was it useful" are separate. Add a note and a next-attempt focus, refresh, and show they persist.
 7. **Export (30 s).** Open the HTML report.
 8. **Reference labeling (30 s).** Click Reference labeling and show the blind mode. Explain that real accuracy needs labels from people.
@@ -34,6 +35,8 @@ Open http://127.0.0.1:8317. Do one rehearsal so the page and video load quickly.
 - Events come from rules I wrote, with unvalidated thresholds.
 - Event accuracy has not been measured yet, because independent labels are pending.
 - The forecast is a separate experiment, and its error is against later pose estimates.
+- Coaching cards are untested hypotheses. No experienced climber has rated them, and nothing shows that they improve climbing.
+- Candidate beta is 2D geometry on marks you made. It is not the best or easiest route.
 - Foot movement uses the ankle as a stand-in. It does not show contact, weight, or a slip.
 - "Uncertain" foot episodes need checking in the video, and that flag also catches some real steps.
 - The feasibility gate is not met on handheld phone clips or on two tripod clips, because hands are often hidden.

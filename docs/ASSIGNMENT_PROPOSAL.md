@@ -44,6 +44,8 @@ A working video-review prototype; an explainable and versioned analysis pipeline
 | Low-movement, wrist, and foot events | Rule-based, written for this project | Implemented; thresholds unvalidated; accuracy not yet measured |
 | Event explanations and attempt digest | Deterministic, from stored measurements | Implemented; no technique score, contact, weight, or slip claims |
 | Wrist-motion forecast | Learned Ridge model on public clips, self-supervised | Experimental; only marginally better than predicting no movement. See `docs/TRAINING_REPORT.md` |
+| Performance coaching | Rule-based hypotheses from pose measurements, written for this project | Implemented on real clips; thresholds unvalidated; no expert ratings or performance gains yet. See `docs/PERFORMANCE_REPORT.md` |
+| Candidate beta | 2D reach search on user-marked holds | Implemented; requires the climber to mark start, finish, and hold use; untested on the wall |
 | Independent evaluation | Human reference labels | Tooling complete; labels and user study still pending |
 | Manual holds | Extension | Implemented for one reference frame; no hold detection or contact claims |
 | Camera compensation | Experimental study | Development clips only; off by default; unvalidated |

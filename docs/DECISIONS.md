@@ -128,3 +128,20 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 
 
 **D57. Final review fixes are versioned as 0.2.1-footwork / limb-context-v2.** Null plot samples and blocked run transitions break and shade charts; event-distance origins cannot cross tracking runs. Missing boundary samples keep whole-window foot context unknown. Filtering hides selected events by clearing their trail and loop. Fresh runs preserve earlier results and notes. These are correctness fixes, not new validation of climbing technique.
+
+## Performance phase (2026-11-09)
+
+**D58. Coaching is computed on request from stored files.** Cards use `events.json`, `movement.json` and `overlay.json`, so 0.2.0 and later runs gain coaching without reprocessing, and rule version `coaching-v1` can change without touching analyses. A run with no foot data is told to reanalyze.
+
+**D59. A card is a conditional hypothesis with explicit counterexamples.** The rules were first written only for hand-first reaches and produced no cards on real clips. Rather than loosening those, hand-and-foot overlap, large steps, and long stops were added as separate, measurable situations. Reaches that fail a rule are shown as "Checked and not flagged", and ones without evidence as "Could not be judged".
+
+**D60. Overextension is never inferred from a straight arm.** A straight arm is often good climbing. The arm card needs a qualifying upward reach, no foot setup, a near-straight projected arm, and near this arm's own tracked length, and it says 2D length cannot show strain.
+
+**D61. Contact and smears are user-confirmed.** Proximity to a marked hold is reported as proximity. A missing marked hold is reported as unknown, including possibly an intentional smear. Automation never writes a placement status.
+
+**D62. Marks are compared with movement only after measuring alignment.** Twelve frames are compared with the reference frame using the background around the climber, and every frame must stay within 8 canonical pixels, with at least 80% measurable. This runs per analysis and ignores any tripod label. It runs synchronously because it is about a second of work on cached frames, which is an exception to the rule that heavy work goes to the worker.
+
+**D63. Candidate beta is a labeled 2D search, not a route solver.** An exact shortest-path search replaced an initial beam search, which missed feasible sequences on the real route. Feet may start off the wall, a hand may not move until a foot is placed, and a foot is never proposed above both hands. A stick figure scaled to the climber's tracked limbs gives a reach margin. Unknown hold use is treated as possible and disclosed.
+
+**D64. Attempts are comparable only through explicit labels.** The same problem and climber text must both be entered. Outcome stays the user's own text, tracking proxies need 60% foot coverage, and no success model is trained without outcome data.
+

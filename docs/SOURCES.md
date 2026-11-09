@@ -12,3 +12,5 @@ Checked November 9, 2026. These references support the tool capabilities in the 
 - [conda-forge](https://conda-forge.org/): source of the project-local Python and FFmpeg builds.
 
 Recheck official API examples and mutually compatible dependency versions when coding. Do not copy legacy pose APIs merely because an older tutorial uses them.
+
+Coaching rationale sources are listed in `docs/PERFORMANCE_REPORT.md`, checked November 9, 2026. They support rationale only; every threshold is a project heuristic.
