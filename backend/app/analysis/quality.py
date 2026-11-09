@@ -269,6 +269,42 @@ def compute_coverage(
     }
 
 
+OVERLAY_LANDMARKS = (
+    "nose", "left_shoulder", "right_shoulder", "left_elbow", "right_elbow", "left_wrist", "right_wrist",
+    "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle",
+    "left_foot_index", "right_foot_index",
+)
+
+
+def overlay_samples(records: Sequence[dict[str, Any]], validity: TrackValidity) -> dict[str, Any]:
+    """Compact browser overlay data: only valid joints, in normalized canonical coordinates."""
+    samples = []
+    for record, reasons in zip(records, validity.reasons):
+        lookup = landmark_lookup(record)
+        joints = {n: [round(lookup[n]["x"], 5), round(lookup[n]["y"], 5)]
+                  for n in OVERLAY_LANDMARKS if n in lookup and n not in reasons}
+        samples.append({"t": record["timestamp_ms"], "pose": record["pose_detected"], "joints": joints})
+    return {"timebase": "canonical_video_ms", "samples": samples}
+
+
+def explain_gaps(
+    coverage: dict[str, Any], records: Sequence[dict[str, Any]], validity: TrackValidity,
+) -> None:
+    """Attach the observed reasons to each detector gap, for the review interface."""
+    for detector, names in DETECTOR_LANDMARKS.items():
+        for gap in coverage["detectors"][detector]["gaps"]:
+            tally: dict[str, int] = {}
+            for i, record in enumerate(records):
+                if gap["start_ms"] <= record["timestamp_ms"] <= gap["end_ms"]:
+                    for name in names:
+                        if name in validity.reasons[i]:
+                            key = validity.reasons[i][name]
+                            tally[key] = tally.get(key, 0) + 1
+                    if i < len(validity.blocked) and validity.blocked[i]:
+                        tally[validity.blocked[i]] = tally.get(validity.blocked[i], 0) + 1
+            gap["reasons"] = dict(sorted(tally.items(), key=lambda item: -item[1]))
+
+
 def timeline_rows(
     records: Sequence[dict[str, Any]], cfg: QualityConfig, validity: TrackValidity | None = None,
 ) -> list[dict[str, Any]]:

@@ -40,10 +40,15 @@ def _resolve_bounds(start: int | None, end: int | None, duration_ms: int) -> tup
 
 def source_warnings(p: video.VideoProbe, timing: dict[str, Any], cfg, canonical_ms: int) -> list[str]:
     warnings: list[str] = []
-    if p.color_transfer in video.HDR_TRANSFERS:
+    if video.is_hlg(p):
         warnings.append(
-            f"Source is HDR ({p.color_transfer}). This FFmpeg build cannot tone-map, so canonical colors may look "
-            "washed out, which could affect pose quality. Prefer recording with HDR off."
+            "Source is HLG HDR. It was converted to SDR with the project's documented HLG-to-BT.709 LUT, "
+            "an approximation suitable for review and pose analysis, not a color-accurate grade."
+        )
+    elif p.color_transfer in video.HDR_TRANSFERS:
+        warnings.append(
+            f"Source is HDR ({p.color_transfer}). This transfer has no tone-mapping path here, so canonical colors "
+            "may look wrong, which could affect pose quality. Prefer recording with HDR off."
         )
     intervals = timing.get("interval_ms")
     if intervals and intervals["max"] > cfg.analysis.sample_period_ms:
@@ -229,7 +234,7 @@ def _run_stages(
     timing = video.source_frame_timing(source, source_probe)
     geometry = video.compute_geometry(source_probe, config.analysis.longest_side_px)
     canonical_path = work / "canonical.mp4"
-    args = video.normalize(source, canonical_path, geometry, fps)
+    args = video.normalize(source, canonical_path, geometry, fps, tone_map_hlg=video.is_hlg(source_probe))
     canonical_probe = video.probe(canonical_path)
     frames = video.read_frame_map(canonical_path, canonical_probe.time_base, fps)
     video.verify_canonical(canonical_probe, frames, geometry)
@@ -284,6 +289,7 @@ def _run_stages(
         "transform": {
             **geometry.__dict__,
             "ffmpeg_args": ["-i", "<source>", *args, "<canonical.mp4>"],
+            "color_conversion": "hlg_bt2020_to_sdr_bt709_lut_v1" if video.is_hlg(source_probe) else "none",
         },
         "sampling": {
             "inference_fps": config.analysis.inference_fps,

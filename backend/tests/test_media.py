@@ -177,7 +177,7 @@ def test_duration_and_size_limits(config):
 
 
 def test_warnings_flag_hdr_slow_motion_and_sparse_frames(config):
-    probe = _probe_like(color_transfer="arib-std-b67", avg_frame_rate="240/1", duration_ms=1000.0)
+    probe = _probe_like(color_transfer="smpte2084", avg_frame_rate="240/1", duration_ms=1000.0)
     timing = {"interval_ms": {"min": 4.0, "median": 4.0, "max": 150.0}}
     warnings = " ".join(pipeline.source_warnings(probe, timing, config, 1000))
     assert "HDR" in warnings and "slow motion" in warnings and "look like stillness" in warnings
@@ -198,3 +198,40 @@ def test_sparse_source_marks_repeated_samples():
 def test_dense_source_has_no_repeated_samples():
     source_ms = [i * 1000 / 30 for i in range(40)]
     assert not any(v.repeated_sample_flags(source_ms, list(range(0, 1300, 100)), 30))
+
+
+def _hlg_clip(tmp_path, signals):
+    """Gray HEVC clip whose patches hold known HLG signal values, tagged like a phone recording."""
+    frame = np.zeros((360, 120 * len(signals), 3), np.uint8)
+    for i, signal in enumerate(signals):
+        frame[:, 120 * i: 120 * (i + 1)] = int(round(signal * 255))
+    return encode_frames(
+        [frame] * 15, tmp_path / "hlg.mov",
+        filters="scale=out_color_matrix=bt2020:out_range=tv,format=yuv420p10le",
+        extra=["-c:v", "libx265", "-x265-params", "log-level=error:qp=6:colorprim=bt2020:transfer=arib-std-b67:colormatrix=bt2020nc",
+               "-tag:v", "hvc1"],
+    )
+
+
+def test_hlg_math_matches_known_operating_points():
+    gray = lambda s: v.hlg_signal_to_sdr_signal(np.array([[s, s, s]], dtype=float))[0, 1] * 255
+    assert gray(0.0) == pytest.approx(0, abs=1)
+    assert gray(0.5) == pytest.approx(143, abs=3)   # about 51 nits scaled to 25% SDR, gamma 2.4
+    assert gray(0.75) == pytest.approx(245, abs=4)  # HLG reference white lands near SDR white
+    assert gray(1.0) <= 255
+
+
+def test_hlg_source_is_converted_not_relabeled(tmp_path, config):
+    signals = [0.0, 0.25, 0.5, 0.75]
+    source = _hlg_clip(tmp_path, signals)
+    probe = v.probe(source)
+    assert v.is_hlg(probe)
+    geometry = v.compute_geometry(probe, config.analysis.longest_side_px)
+    output = tmp_path / "canonical.mp4"
+    v.normalize(source, output, geometry, 30, tone_map_hlg=True)
+    canonical = v.probe(output)
+    frame = next(v.iter_rgb_frames(output, canonical.width, canonical.height))[1]
+    expected = v.hlg_signal_to_sdr_signal(np.array([[s, s, s] for s in signals], dtype=float))[:, 1] * 255
+    measured = [float(frame[180, 60 + 120 * i, 1]) for i in range(len(signals))]
+    assert measured == pytest.approx(list(expected), abs=10)
+    assert measured[3] > 225  # relabeling HLG as SDR would leave reference white near 191

@@ -244,19 +244,62 @@ def compute_geometry(p: VideoProbe, longest_side_px: int) -> CanonicalGeometry:
     )
 
 
-def normalization_args(geometry: CanonicalGeometry, canonical_fps: int) -> list[str]:
+def hlg_signal_to_sdr_signal(rgb: np.ndarray) -> np.ndarray:
+    """Convert BT.2020 HLG signal values (0..1) to BT.709 SDR signal values (0..1).
+
+    Follows BT.2100: inverse OETF to scene light, then the 1000-nit OOTF (gamma 1.2).
+    Display light is scaled so HLG reference white (75% signal, about 203 nits) lands
+    near SDR white, highlights above a knee are compressed, primaries are converted
+    to BT.709, and the BT.1886 inverse (gamma 2.4) encodes the result. This is a
+    transparent approximation for pose analysis and review, not a mastering-grade grade.
+    """
+    a, b, c = 0.17883277, 0.28466892, 0.55991073
+    signal = np.clip(rgb, 0.0, 1.0)
+    scene = np.where(signal <= 0.5, signal ** 2 / 3, (np.exp((signal - c) / a) + b) / 12)
+    luminance = np.sum(scene * np.array([0.2627, 0.6780, 0.0593]), axis=-1, keepdims=True)
+    display = np.power(np.maximum(luminance, 1e-9), 0.2) * scene   # relative to 1000-nit peak
+    relative = display * 1000 / 203
+    peak = np.max(relative, axis=-1, keepdims=True)
+    knee = 0.75
+    compressed = np.where(peak <= knee, peak, knee + (1 - knee) * (1 - np.exp(-(peak - knee) / (1 - knee))))
+    mapped = relative * compressed / np.maximum(peak, 1e-9)
+    bt2020_to_bt709 = np.array([[1.6605, -0.5876, -0.0728], [-0.1246, 1.1329, -0.0083], [-0.0182, -0.1006, 1.1187]])
+    linear = np.clip(mapped @ bt2020_to_bt709.T, 0.0, 1.0)
+    return np.power(linear, 1 / 2.4)
+
+
+def write_hlg_cube(path: Path, size: int = 33) -> None:
+    """Write the conversion as a .cube 3D LUT (R index changes fastest)."""
+    axis = np.linspace(0.0, 1.0, size)
+    blue, green, red = np.meshgrid(axis, axis, axis, indexing="ij")
+    lattice = np.stack([red, green, blue], axis=-1).reshape(-1, 3)
+    output = hlg_signal_to_sdr_signal(lattice)
+    lines = [f"LUT_3D_SIZE {size}"] + [f"{r:.6f} {g:.6f} {b:.6f}" for r, g, b in output]
+    path.write_text("\n".join(lines) + "\n")
+
+
+def is_hlg(p: VideoProbe) -> bool:
+    return p.color_transfer == "arib-std-b67"
+
+
+def normalization_args(geometry: CanonicalGeometry, canonical_fps: int, hlg_lut: Path | None = None) -> list[str]:
     """FFmpeg arguments between input and output paths.
 
     FFmpeg's default autorotate applies the display matrix exactly once, before
     this filter graph, and the output carries no rotation metadata.
     """
     width, height = geometry.canonical_size
-    video_filter = (
-        "setpts=PTS-STARTPTS,"
-        f"fps=fps={canonical_fps}:round=near,"
-        f"scale={width}:{height}:flags=lanczos:out_color_matrix=bt709:out_range=tv,"
-        "setsar=1,format=yuv420p"
-    )
+    retime = f"setpts=PTS-STARTPTS,fps=fps={canonical_fps}:round=near,"
+    if hlg_lut is None:
+        convert = f"scale={width}:{height}:flags=lanczos:out_color_matrix=bt709:out_range=tv,"
+    else:
+        escaped = str(hlg_lut).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
+        convert = (
+            f"scale={width}:{height}:flags=lanczos:in_color_matrix=bt2020,format=gbrp16le,"
+            f"lut3d=file={escaped}:interp=tetrahedral,"
+            "scale=out_color_matrix=bt709:out_range=tv,"
+        )
+    video_filter = f"{retime}{convert}setsar=1,format=yuv420p"
     return [
         "-map", "0:v:0", "-an", "-sn", "-dn", "-map_metadata", "-1", "-map_chapters", "-1",
         "-vf", video_filter, "-fps_mode", "passthrough",
@@ -270,10 +313,20 @@ def normalization_args(geometry: CanonicalGeometry, canonical_fps: int) -> list[
 
 def normalize(
     source: Path, output: Path, geometry: CanonicalGeometry, canonical_fps: int,
-    check_cancel: Callable[[], None] | None = None,
+    check_cancel: Callable[[], None] | None = None, tone_map_hlg: bool = False,
 ) -> list[str]:
     """Create the canonical file. `check_cancel` may raise to stop FFmpeg."""
-    args = normalization_args(geometry, canonical_fps)
+    if tone_map_hlg:
+        with tempfile.TemporaryDirectory() as directory:
+            lut = Path(directory) / "hlg_to_sdr.cube"
+            write_hlg_cube(lut)
+            return _run_normalize(source, output, normalization_args(geometry, canonical_fps, lut), check_cancel)
+    return _run_normalize(source, output, normalization_args(geometry, canonical_fps), check_cancel)
+
+
+def _run_normalize(
+    source: Path, output: Path, args: list[str], check_cancel: Callable[[], None] | None,
+) -> list[str]:
     command = [tool_path("ffmpeg"), "-nostdin", "-v", "error", "-y", "-i", str(source), *args, str(output)]
     with tempfile.TemporaryFile() as stderr:
         process = subprocess.Popen(command, stderr=stderr, stdout=subprocess.DEVNULL)
