@@ -54,8 +54,7 @@ def polite_download(url: str) -> bytes:
 def verify_at_source(source: dict) -> None:
     query = urllib.parse.urlencode({"action": "query", "format": "json", "prop": "imageinfo", "iiprop": "sha1|extmetadata",
                                     "titles": source["commons_title"]})
-    request = urllib.request.Request(f"https://commons.wikimedia.org/w/api.php?{query}", headers=UA)
-    page = next(iter(json.load(urllib.request.urlopen(request, context=CONTEXT, timeout=60))["query"]["pages"].values()))
+    page = next(iter(json.loads(polite_download(f"https://commons.wikimedia.org/w/api.php?{query}"))["query"]["pages"].values()))
     info = page["imageinfo"][0]
     license_name = info["extmetadata"]["LicenseShortName"]["value"]
     if license_name != source["license"] or info["sha1"] != source["sha1"]:
@@ -71,10 +70,11 @@ def main() -> int:
     converted.mkdir(parents=True, exist_ok=True)
     rows, attribution = [], ["# Public training clip attributions", ""]
     for source in SOURCES:
-        verify_at_source(source)
         suffix = "." + source["download_url"].rsplit(".", 1)[1]
         original = originals / f"{source['clip_id']}{suffix}"
         if not original.exists():
+            verify_at_source(source)  # license and hash are rechecked before each new download
+            time.sleep(PAUSE_BETWEEN_DOWNLOADS_S)
             original.write_bytes(polite_download(source["download_url"]))
             time.sleep(PAUSE_BETWEEN_DOWNLOADS_S)
         digest = hashlib.sha1(original.read_bytes()).hexdigest()
