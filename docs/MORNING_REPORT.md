@@ -14,7 +14,9 @@
 
 **Data notes:** 22 licensed public clips were added (249.8 MB). Public climbing video almost always has a moving camera, so only 48 steady-camera held-out windows exist. Wikimedia rate-limited the downloads. An early run retried after 180 s when asked to wait 600 s; the script now honors the full wait. The reserved clips stayed untouched for training, tuning, and testing.
 
-**Verification:** 172 backend tests and 5 browser specs passed. The import Cancel button is now verified in a real browser.
+**Verification:** 172 backend tests and 5 browser specs passed. The import Cancel button is now verified in a real browser. A clean copy of tracked files (no media) passed full setup, frontend build, 172 tests, and app start, with packages identical to the lock. Your existing local app data opened correctly with the new features.
+
+The queue is complete. Everything remaining needs tripod footage, independent human labels, a user study, or the course documents (`docs/NEXT_STEPS.md`).
 
 ## 1. What works, what is experimental, what is unverified
 
