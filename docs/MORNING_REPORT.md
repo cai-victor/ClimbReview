@@ -2,11 +2,19 @@
 
 **The app works end to end on your real clips, but it cannot yet support the stillness analysis on handheld video, and event accuracy is unmeasured.** No human labels or user study exist. The provisional feasibility gate is not met.
 
-## Phase 2 checkpoint (in progress)
+## Phase 2 results (added after the first report)
 
-**Done:** blind reference-labeling page, manual hold editor, and a time-boxed camera-compensation experiment. Their browser and API checks pass. The import Cancel button is now verified in a browser.
+**Forecast finding, plainly:** on held-out public clips the learned model was only slightly better than predicting no movement (0.3228 vs 0.3282 torso lengths), and it clearly beat constant velocity (0.4747). On your steady-camera clips it tied the do-nothing baseline. It mostly predicts little motion. Full report: `docs/TRAINING_REPORT.md`, with charts in `docs/training_report_forecast-v1.html`. Errors are against later pose estimates, not people.
 
-**Forecast experiment:** 18 licensed public clips were downloaded and processed. Public competition video almost always has a moving camera, so very few steady-camera windows exist. The final results will be in `docs/TRAINING_REPORT.md`.
+**Added:**
+- **Blind reference labeling:** per attempt, the Reference labeling button. It loads no skeletons, events, or forecasts, and exports to the evaluation format.
+- **Manual holds:** the Mark holds button. Marks apply to one reference frame only.
+- **Handheld camera experiment:** `scripts/experiment_handheld.py`, results in `data/experiments/handheld/summary.json`. Background transforms were accepted on 86-100% of phone-clip intervals. Coverage rose, but low-movement events stayed at zero and no accuracy is known. It stays off by default.
+- **Demo and next steps:** `docs/DEMO_SCRIPT.md`, `docs/NEXT_STEPS.md`.
+
+**Data notes:** 22 licensed public clips were added (249.8 MB). Public climbing video almost always has a moving camera, so only 48 steady-camera held-out windows exist. Wikimedia rate-limited the downloads. An early run retried after 180 s when asked to wait 600 s; the script now honors the full wait. The reserved clips stayed untouched for training, tuning, and testing.
+
+**Verification:** 172 backend tests and 5 browser specs passed. The import Cancel button is now verified in a real browser.
 
 ## 1. What works, what is experimental, what is unverified
 
@@ -14,7 +22,7 @@
 
 **Experimental:** every detector threshold, the camera-motion estimate, the implausible-pose rule, and the HDR conversion (a documented approximation).
 
-**Unverified:** detector accuracy, pose accuracy beyond sampled frames, left/right consistency across whole clips, and the import Cancel button in a browser (its backend behavior is tested).
+**Unverified:** detector accuracy, pose accuracy beyond sampled frames, and left/right consistency across whole clips.
 
 ## 2. Start the app
 
@@ -104,7 +112,7 @@ Watch each `overlay.mp4` and complete its `report.md` checklist.
 
 1. Please add the full rubric, submission instructions, due dates, team size, and any AI-use rules to `inputs/`. Does rule-based event modeling satisfy "model or predict"?
 2. Who can independently label clips? `docs/ANNOTATION_GUIDE.md` has the protocol.
-3. If tripod footage isn't possible, should we try camera-motion compensation? It could rescue handheld clips but adds a new unvalidated step (`docs/DECISIONS.md` D36).
+3. If tripod footage isn't possible, should camera compensation be enabled once labels exist? The experiment looks plausible but is unvalidated (`docs/DECISIONS.md` D47).
 
 No technical verification remains blocked. What's left needs you: tripod footage, independent labels, a user study, and the course documents.
 

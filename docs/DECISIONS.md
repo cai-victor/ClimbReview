@@ -105,3 +105,7 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 **D46. Holds live on a reference frame.** Marks are stored with frame index and the canonical video's SHA-256, and drawn only on that frame. An SVG in canonical pixel coordinates handles letterboxing. No tracking, detection, or wrist linkage exists.
 
 **D47. Camera compensation stays experimental and off by default.** The time-boxed development study (`scripts/experiment_handheld.py`) accepted 86-100% of intervals on the phone clips with about 0.2 px median background residual, and blended frames showed less ghosting. Coverage rose, and wrist-event counts rose, but no event's validity is known. Low-movement events remained zero. Using it for detection needs human labels first.
+
+**D48. Ridge alpha grid extended once on training cross-validation.** The first grid's best value sat at its edge. The test groups had not been read. After extension the optimum was interior at 100,000.
+
+**D49. Test split was re-frozen once, before any test evaluation,** to add four sources from one bounded search. The earlier group assignments did not change.

@@ -19,6 +19,14 @@ Also added after the first report: import cancellation (`POST /api/attempts/{id}
 
 Not implemented: manual holds, attempt comparison, automatic hold types, slip diagnosis, real-time coaching, accounts, hosting.
 
+## Phase 2 additions (2026-11-09)
+
+Added and tested: blind reference-annotation workflow, manual reference-frame hold editor, time-boxed camera-compensation study (development only, off by default), experimental wrist-motion forecast with grouped train/test evaluation, public clip collection, class demo script, next-steps list. Details: `docs/TRAINING_REPORT.md`, `docs/DEMO_SCRIPT.md`, `docs/NEXT_STEPS.md`.
+
+Forecast result, held-out 5 groups: Ridge MAE 0.3228 L, persistence 0.3282 L, constant velocity 0.4747 L. The learned model is only marginally better than doing nothing, and it tied persistence on the user's clips.
+
+Latest verification: `pytest` 172 passed. Playwright, 5 specs, passed: blind labeling, import Cancel, hold alignment on portrait and landscape, full review smoke with continuous playback (at most 49.7 ms from media time). Clean-copy result is recorded in `docs/MORNING_REPORT.md`.
+
 ## Environment and versions
 
 Apple M4 Pro, arm64, macOS 15.7.4. Python 3.12.16 and FFmpeg 9.0.2 (conda-forge GPL build) in `./.venv`. MediaPipe 1.2.2, OpenCV 5.0.0, NumPy 2.5.4, FastAPI 0.162.2, Starlette 1.10.0, Uvicorn 0.54.0. Node 24.16.0, React 18.3.1, Vite 8.3.6, TypeScript ~5.9.3. Pose model `pose_landmarker_full`, SHA-256 `4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad`, CPU delegate. Exact sets: `requirements.lock.txt`, `conda.lock.txt`, `frontend/package-lock.json`.
