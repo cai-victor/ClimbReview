@@ -9,7 +9,7 @@ export interface Job {
   created_at: string; finished_at: string | null;
 }
 export interface Attempt {
-  id: string; title: string; route_name: string; grade: string; outcome: string; focus: string;
+  id: string; title: string; route_name: string; grade: string; outcome: string; focus: string; problem_label: string; climber_label: string;
   status: "importing" | "ready" | "failed"; error: string | null; width: number | null; height: number | null;
   duration_ms: number | null; attempt_start_ms: number | null; attempt_end_ms: number | null; created_at: string;
   original_filename: string; single_climber_confirmed: boolean; fixed_camera_confirmed: boolean;
@@ -142,7 +142,7 @@ export const annotationApi = {
     request<AnnotationSet>(`/api/annotation-sets/${id}/intervals/${intervalId}`, { method: "DELETE" }),
 };
 
-export interface Hold { id: string; x: number; y: number; radius: number; route: string; hold_type: string }
+export interface Hold { id: string; x: number; y: number; radius: number; route: string; hold_type: string; role: "" | "start" | "finish"; use: "" | "hand" | "foot" | "both" }
 export interface HoldMap {
   id: string; attempt_id: string; name: string; reference_frame_ms: number; width: number; height: number;
   holds: Hold[]; scope_note: string; frame_url: string;
@@ -156,6 +156,38 @@ export const holdApi = {
   addHold: (mapId: string, body: HoldBody) => request<HoldMap>(`/api/hold-maps/${mapId}/holds`, jsonInit("POST", body)),
   editHold: (mapId: string, id: string, body: HoldBody) => request<HoldMap>(`/api/hold-maps/${mapId}/holds/${id}`, jsonInit("PUT", body)),
   removeHold: (mapId: string, id: string) => request<HoldMap>(`/api/hold-maps/${mapId}/holds/${id}`, { method: "DELETE" }),
+};
+
+export interface Feedback { decision: "unreviewed" | "will_try" | "intentional" | "disagree" | "cannot_tell"; trial_outcome: "not_tried" | "helped" | "no_change" | "worse" | "unclear"; note: string }
+export interface CoachingOption { limb: string; hold_index: number; hold_id: string; step_L: number; margin_L: number | null; gain_L: number | null; x: number; y: number }
+export interface CoachingCard {
+  id: string; kind: string; title: string; start_ms: number; end_ms: number; status_label: string; limbs: string[]; moment: string; why: string; try_this: string; keep_if: string;
+  measurements: { label: string; value: string; criterion: string }[]; uncertainty: string[]; sources: string[]; alternatives: CoachingOption[]; map_action: string | null;
+  alternative_summary?: string; alternative_note?: string | null; observed_margin_L?: number; target: { limb: string; ms: number } | null; feedback: Feedback;
+}
+export interface PlacementReview { status: "unreviewed" | "on_marked_hold" | "on_unmarked_hold" | "intentional_smear" | "not_placed" | "cannot_tell"; hold_id: string | null; note: string }
+export interface Placement { id: string; limb: string; event_id: string; landing_ms: number; review_ms: number; x: number; y: number; anchor: string; proximity: string; settle_excursion_L: number; nearest_hold: { hold_index: number; hold_id: string; edge_L: number } | null; review: PlacementReview }
+export interface HoldMapSummary { id: string; name: string; hold_count: number; reference_frame_ms: number; usable: boolean; message: string; frame_url: string; holds: Hold[]; alignment: { status: string; max_corner_motion_px: number | null; frames_measured: number; frames_checked: number } | null }
+export interface Coaching {
+  available: boolean; reason?: string; needs_reanalysis?: boolean; version: string; disclaimer: string; cards: CoachingCard[]; cards_omitted: number;
+  not_flagged: { start_ms: number; text: string }[]; cannot_evaluate: { start_ms: number; text: string }[]; placements: Placement[]; hold_map: HoldMapSummary | null;
+  plan: { chosen: { id: string; title: string; start_ms: number; try_this: string; trial_outcome: string }[]; suggested: { id: string; title: string; start_ms: number; try_this: string } | null } | null;
+  sources: Record<string, { title: string; url: string }>;
+}
+export interface BetaStep { limb: string; from_hold: number; to_hold: number; distance_L: number; margin_L: number; tight: boolean }
+export interface BetaCandidate { id: string; profile: string; label: string; start: Record<string, number>; start_margin_L: number; steps: BetaStep[]; move_count: number; total_distance_L: number; largest_move_L: number; tightest_margin_L: number; tight_moves: number; feedback: Feedback }
+export interface BetaResult { status: "ready" | "setup_needed" | "no_candidate" | "no_map"; needs: string[]; candidates: BetaCandidate[]; hold_map: HoldMapSummary | null; assumptions?: string[]; note?: string }
+export interface ComparisonResult {
+  status: "needs_labels" | "no_match" | "ready"; meaning: string;
+  attempts: { id: string; title: string; outcome: string; is_current: boolean; metrics: { attempt_ms: number; foot_coverage: (number | null)[]; coverage_ok: boolean; foot_moves_per_analyzable_minute: number | null; reaches_evaluated: number; reaches_with_foot_setup: number | null } | null }[];
+}
+export const performanceApi = {
+  coaching: (runId: string) => request<Coaching>(`/api/analyses/${runId}/coaching`),
+  putDecision: (runId: string, cueId: string, body: Feedback) => request<Feedback>(`/api/analyses/${runId}/coaching/${cueId}`, jsonInit("PUT", body)),
+  putPlacement: (runId: string, id: string, body: PlacementReview) => request<PlacementReview>(`/api/analyses/${runId}/placements/${id}`, jsonInit("PUT", body)),
+  checkAlignment: (runId: string, mapId: string) => request<unknown>(`/api/analyses/${runId}/hold-maps/${mapId}/alignment`, { method: "POST" }),
+  candidateBeta: (runId: string) => request<BetaResult>(`/api/analyses/${runId}/candidate-beta`),
+  comparison: (attemptId: string) => request<ComparisonResult>(`/api/attempts/${attemptId}/comparison`),
 };
 
 export const clock = (ms: number | null | undefined): string => {

@@ -65,7 +65,7 @@ export function AttemptPage({ id }: { id: string }) {
             <p className="muted small-text">Each analysis keeps its own event judgments and notes. Reanalyzing never changes an older one.</p>
           </section>
         )}
-        <Review key={shown.id} attempt={attempt} run={shown} onReanalyze={() => { setChosenRun(null); setShowSetup(true); }} />
+        <Review key={shown.id} attempt={attempt} run={shown} onReanalyze={() => { setChosenRun(null); setShowSetup(true); }} onAttemptChanged={() => void load()} />
       </>
     );
   } else {

@@ -109,7 +109,41 @@ CREATE TABLE IF NOT EXISTS holds (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS holds_map ON holds(map_id, created_at);
+CREATE TABLE IF NOT EXISTS coaching_feedback (
+  run_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  cue_id TEXT NOT NULL,
+  decision TEXT NOT NULL DEFAULT 'unreviewed',
+  trial_outcome TEXT NOT NULL DEFAULT 'not_tried',
+  note TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (run_id, cue_id)
+);
+CREATE TABLE IF NOT EXISTS foot_placement_reviews (
+  run_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  placement_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'unreviewed',
+  hold_id TEXT,
+  note TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (run_id, placement_id)
+);
+CREATE TABLE IF NOT EXISTS hold_map_alignment (
+  map_id TEXT NOT NULL REFERENCES hold_maps(id) ON DELETE CASCADE,
+  run_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  status TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (map_id, run_id)
+);
+CREATE TABLE IF NOT EXISTS candidate_ids (
+  run_id TEXT PRIMARY KEY REFERENCES jobs(id) ON DELETE CASCADE,
+  detail TEXT NOT NULL
+);
 """
+ADDED_COLUMNS = {
+    "holds": {"role": "TEXT NOT NULL DEFAULT ''", "use": "TEXT NOT NULL DEFAULT ''"},
+    "attempts": {"problem_label": "TEXT NOT NULL DEFAULT ''", "climber_label": "TEXT NOT NULL DEFAULT ''"},
+}
 ACTIVE = ("queued", "running")
 
 
@@ -147,12 +181,23 @@ def _migrate_annotation_types(connection: sqlite3.Connection) -> None:
         raise
 
 
+def _add_missing_columns(connection: sqlite3.Connection) -> None:
+    """Additive only: existing rows keep their values and new columns start empty."""
+    for table, columns in ADDED_COLUMNS.items():
+        existing = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+        for name, definition in columns.items():
+            if name not in existing:
+                connection.execute(f'ALTER TABLE {table} ADD COLUMN "{name}" {definition}')
+    connection.commit()
+
+
 def initialize(path: Path) -> None:
     connection = _connect(path)
     try:
         connection.executescript(SCHEMA)
         connection.commit()
         _migrate_annotation_types(connection)
+        _add_missing_columns(connection)
     finally:
         connection.close()
 

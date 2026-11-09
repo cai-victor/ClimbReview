@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { OverlaySample } from "./api";
+import { Hold, OverlaySample } from "./api";
 
 const BONES: [string, string][] = [
   ["left_shoulder", "right_shoulder"], ["left_hip", "right_hip"], ["left_shoulder", "left_hip"], ["right_shoulder", "right_hip"],
@@ -32,15 +32,16 @@ function nearest(samples: OverlaySample[], ms: number): OverlaySample | null {
 export interface PlayerHandle { seek: (ms: number) => void; video: HTMLVideoElement | null }
 interface Props {
   src: string; samples: OverlaySample[]; showSkeleton: boolean; onTime: (ms: number) => void;
-  loop: { start: number; end: number } | null; focus?: Focus; trail?: Trail | null;
+  loop: { start: number; end: number } | null; focus?: Focus; trails?: Trail[]; holds?: Hold[]; marks?: Mark[];
 }
+export interface Mark { x: number; y: number; label: string }
 
-export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, samples, showSkeleton, onTime, loop, focus = "all", trail = null }, ref) {
+export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, samples, showSkeleton, onTime, loop, focus = "all", trails = [], holds = [], marks = [] }, ref) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [rate, setRate] = useState(1);
-  const latest = useRef({ samples, showSkeleton, loop, onTime, focus, trail });
-  latest.current = { samples, showSkeleton, loop, onTime, focus, trail };
+  const latest = useRef({ samples, showSkeleton, loop, onTime, focus, trails, holds, marks });
+  latest.current = { samples, showSkeleton, loop, onTime, focus, trails, holds, marks };
 
   useImperativeHandle(ref, () => ({
     seek: (ms) => { if (video.current) video.current.currentTime = ms / 1000; },
@@ -54,7 +55,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
     let frame = 0;
 
     const draw = () => {
-      const { samples, showSkeleton, onTime, focus, trail } = latest.current;
+      const { samples, showSkeleton, onTime, focus, trails, holds, marks } = latest.current;
       const ms = element.currentTime * 1000;
       onTime(ms);
       const dpr = window.devicePixelRatio || 1;
@@ -72,10 +73,27 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
       const scale = Math.min(width / element.videoWidth, height / element.videoHeight);
       const contentW = element.videoWidth * scale, contentH = element.videoHeight * scale;
       const offsetX = (width - contentW) / 2, offsetY = (height - contentH) / 2;
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Marked holds appear only when the caller has verified that this reference frame lines up with the video.
+      surface.dataset.holds = String(holds.length);
+      holds.forEach((hold, index) => {
+        const cx = offsetX + hold.x * contentW, cy = offsetY + hold.y * contentH;
+        context.strokeStyle = hold.role === "start" ? "#2fbf71" : hold.role === "finish" ? "#e0245e" : "#ffc800";
+        context.lineWidth = 2;
+        context.beginPath(); context.arc(cx, cy, hold.radius * contentW, 0, Math.PI * 2); context.stroke();
+        context.font = "600 11px system-ui, sans-serif"; context.fillStyle = "#fff"; context.fillText(String(index + 1), cx - 4, cy + 4);
+      });
+      surface.dataset.marks = String(marks.length);
+      marks.forEach((mark) => {
+        const cx = offsetX + mark.x * contentW, cy = offsetY + mark.y * contentH;
+        context.strokeStyle = "#fff"; context.lineWidth = 3; context.setLineDash([4, 4]);
+        context.beginPath(); context.arc(cx, cy, 13, 0, Math.PI * 2); context.stroke(); context.setLineDash([]);
+        context.font = "600 12px system-ui, sans-serif"; context.lineWidth = 3; context.strokeStyle = "rgba(0,0,0,.8)"; context.strokeText(mark.label, cx + 16, cy + 4);
+        context.fillStyle = "#fff"; context.fillText(mark.label, cx + 16, cy + 4);
+      });
       const sample = samples.length ? nearest(samples, ms) : null;
       if (!sample) return;
       surface.dataset.sampleT = String(sample.t); // lets verification compare the drawn pose time with media time
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
       const at = (name: string): [number, number] | null => {
         const joint = sample.joints[name];
         return joint ? [offsetX + joint[0] * contentW, offsetY + joint[1] * contentH] : null;
@@ -83,11 +101,12 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
       context.lineWidth = 3;
       context.lineCap = "round";
       surface.dataset.focus = focus;
-      if (trail) {
-        // The tracked point's path during the selected episode, drawn only up to the current moment.
+      let drawnTrail = 0;
+      for (const trail of trails) {
+        // The tracked point's path during the selected moment, drawn only up to the current time.
         const shown = trail.points.filter((point) => point.t <= ms);
         const place = (point: { x: number; y: number }): [number, number] => [offsetX + point.x * contentW, offsetY + point.y * contentH];
-        surface.dataset.trail = String(shown.length);
+        drawnTrail += shown.length;
         context.strokeStyle = side(`${trail.side}_`);
         context.lineWidth = 4;
         context.setLineDash([2, 6]);
@@ -97,7 +116,8 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
         context.setLineDash([]);
         if (shown[0]) { const [x, y] = place(shown[0]); context.strokeStyle = "#fff"; context.lineWidth = 2; context.beginPath(); context.arc(x, y, 7, 0, Math.PI * 2); context.stroke(); }
         context.lineWidth = 3;
-      } else surface.dataset.trail = "";
+      }
+      surface.dataset.trail = trails.length ? String(drawnTrail) : "";
       for (const [a, b] of BONES) {
         if (!inFocus(focus, a) || !inFocus(focus, b)) continue;
         const p = at(a), q = at(b);

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { api, Attempt, ClimbEvent, clock, DetectorCoverage, Gap, Job, Limb, Movement, OverlaySample, percent, Result, Summary } from "./api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { api, Attempt, ClimbEvent, Coaching, CoachingCard, clock, DetectorCoverage, Feedback, Gap, Job, Limb, Movement, OverlaySample, percent, performanceApi, Placement, PlacementReview, Result, Summary } from "./api";
 import { DigestPanel } from "./DigestPanel";
 import { EventCard, eventTitle } from "./EventCard";
 import { isUncertain, limbOf, MovementChart } from "./MovementChart";
-import { Focus, Player, PlayerHandle, Trail } from "./Player";
+import { BetaPanel, CoachingCardView, ComparePanel, FootPlacements, NextAttempt, ReviewedLists } from "./Performance";
+import { Focus, Mark, Player, PlayerHandle, Trail } from "./Player";
 
 const CONTEXT_MS = 1000;
 const REASONS: Record<string, string> = {
@@ -23,7 +24,9 @@ const ROWS: { key: RowKey; label: string; detector: string }[] = [
 const FEET: RowKey[] = ["left_foot", "right_foot"], HANDS: RowKey[] = ["left_wrist", "right_wrist"], ALL: RowKey[] = ROWS.map((r) => r.key);
 const rowOf = (event: ClimbEvent): RowKey => limbOf(event) ?? "low";
 
-export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: Job; onReanalyze: () => void }) {
+const LIMB_MAP: Record<string, Limb> = { left_foot: "left_foot", right_foot: "right_foot", left_wrist: "left_wrist", right_wrist: "right_wrist", left_hand: "left_wrist", right_hand: "right_wrist" };
+
+export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attempt: Attempt; run: Job; onReanalyze: () => void; onAttemptChanged: () => void }) {
   const [result, setResult] = useState<Result | null>(null);
   const [events, setEvents] = useState<ClimbEvent[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -38,7 +41,25 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
   const [shown, setShown] = useState<RowKey[]>(ALL);
   const [hideUncertain, setHideUncertain] = useState(false);
   const [focus, setFocus] = useState<Focus>("all");
+  const [coaching, setCoaching] = useState<Coaching | null>(null);
+  const [cue, setCue] = useState<string | null>(null);
+  const [placementMark, setPlacementMark] = useState<Placement | null>(null);
+  const [betaKey, setBetaKey] = useState(0);
+  const checkedMaps = useRef(new Set<string>());
   const player = useRef<PlayerHandle>(null);
+
+  const loadCoaching = useCallback(async () => {
+    const data = await performanceApi.coaching(run.id);
+    const map = data.available ? data.hold_map : null;
+    if (map && !map.alignment && !checkedMaps.current.has(map.id)) {
+      // Whether marks line up with the video is measured for each analysis, not assumed.
+      checkedMaps.current.add(map.id);
+      await performanceApi.checkAlignment(run.id, map.id);
+      setCoaching(await performanceApi.coaching(run.id));
+      setBetaKey((key) => key + 1);
+    } else setCoaching(data);
+  }, [run.id]);
+  useEffect(() => { loadCoaching().catch((e) => setError(e.message)); }, [loadCoaching]);
 
   useEffect(() => {
     Promise.all([api.getAnalysis(run.id), api.getEvents(run.id), api.getPoses(run.id), api.getMovement(run.id)])
@@ -57,23 +78,52 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
       setLooping(false);
     }
   }, [selectedEvent, shown, hideUncertain]);
+  const selectedCue: CoachingCard | null = coaching?.available ? coaching.cards.find((c) => c.id === cue) ?? null : null;
   const loopRange = useMemo(() => {
-    if (!looping || !selectedEvent || !bounds) return null;
-    return { start: Math.max(bounds.start, selectedEvent.start_ms - CONTEXT_MS), end: Math.min(bounds.end, selectedEvent.end_ms + CONTEXT_MS) };
-  }, [looping, selectedEvent, bounds]);
+    const focusWindow = selectedEvent ?? selectedCue;
+    if (!looping || !focusWindow || !bounds) return null;
+    return { start: Math.max(bounds.start, focusWindow.start_ms - CONTEXT_MS), end: Math.min(bounds.end, focusWindow.end_ms + CONTEXT_MS) };
+  }, [looping, selectedEvent, selectedCue, bounds]);
 
-  const trail = useMemo<Trail | null>(() => {
+  const trails = useMemo<Trail[]>(() => {
+    if (!movement.available) return [];
+    const pathOf = (limb: Limb, start: number, end: number): Trail => {
+      const data = movement.limbs[limb];
+      const points = movement.t.flatMap((t, i) => (t >= start && t <= end && data.x[i] !== null ? [{ t, x: data.x[i]!, y: data.y[i]! }] : []));
+      return { points, side: limb.startsWith("left") ? "left" : "right" };
+    };
     const limb = selectedEvent && limbOf(selectedEvent);
-    if (!selectedEvent || !limb || !movement.available || !selectedEvent.hand) return null;
-    const data = movement.limbs[limb];
-    const points = movement.t.flatMap((t, i) => (t >= selectedEvent.start_ms && t <= selectedEvent.end_ms && data.x[i] !== null ? [{ t, x: data.x[i]!, y: data.y[i]! }] : []));
-    return { points, side: selectedEvent.hand };
-  }, [selectedEvent, movement]);
+    if (selectedEvent && limb) return [pathOf(limb, selectedEvent.start_ms, selectedEvent.end_ms)];
+    if (selectedCue) return selectedCue.limbs.map((name) => pathOf(LIMB_MAP[name], selectedCue.start_ms, selectedCue.end_ms));
+    return [];
+  }, [selectedEvent, selectedCue, movement]);
+
+  const marks = useMemo<Mark[]>(() => {
+    if (placementMark) return [{ x: placementMark.x, y: placementMark.y, label: `${placementMark.anchor} point` }];
+    return selectedCue?.alternatives.map((option) => ({ x: option.x, y: option.y, label: `try H${option.hold_index + 1}` })) ?? [];
+  }, [selectedCue, placementMark]);
 
   const select = (event: ClimbEvent) => {
-    setSelected(event.id); setGapInfo(null);
+    setSelected(event.id); setGapInfo(null); setCue(null); setPlacementMark(null);
     if (bounds) player.current?.seek(Math.max(bounds.start, event.start_ms - CONTEXT_MS));
     document.getElementById(`card-${event.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+
+  const openCue = (id: string) => {
+    const card = coaching?.cards.find((c) => c.id === id);
+    if (!card || !bounds) return;
+    setCue(id); setSelected(null); setGapInfo(null); setPlacementMark(null);
+    player.current?.seek(Math.max(bounds.start, card.start_ms - CONTEXT_MS));
+    document.getElementById(`cue-${id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+  const saveFeedback = async (card: CoachingCard, next: Feedback) => {
+    try { await performanceApi.putDecision(run.id, card.id, next); await loadCoaching(); }
+    catch (e) { setError((e as Error).message); }
+  };
+  const seekPlacement = (item: Placement) => { setPlacementMark(item); setCue(null); setSelected(null); setFocus("feet"); player.current?.seek(item.review_ms); };
+  const savePlacement = async (item: Placement, review: PlacementReview) => {
+    try { await performanceApi.putPlacement(run.id, item.id, review); await loadCoaching(); }
+    catch (e) { setError((e as Error).message); }
   };
 
   if (error) return <p className="error" role="alert">{error}</p>;
@@ -99,10 +149,10 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
   return (
     <div className="review">
       <div className="review-main">
-        <Player ref={player} src={attempt.video_url!} samples={samples} showSkeleton={skeleton} onTime={setTime} loop={loopRange} focus={focus} trail={trail} />
+        <Player ref={player} src={attempt.video_url!} samples={samples} showSkeleton={skeleton} onTime={setTime} loop={loopRange} focus={focus} trails={trails} marks={marks} holds={coaching?.available && coaching.hold_map?.usable ? coaching.hold_map.holds : []} />
         <div className="row tight">
           <label className="check"><input type="checkbox" checked={skeleton} onChange={(e) => setSkeleton(e.target.checked)} /> Body skeleton</label>
-          <label className="check"><input type="checkbox" checked={looping} disabled={!selectedEvent} onChange={(e) => setLooping(e.target.checked)} /> Loop selected event (±1 s)</label>
+          <label className="check"><input type="checkbox" checked={looping} disabled={!selectedEvent && !selectedCue} onChange={(e) => setLooping(e.target.checked)} /> Loop selected event (±1 s)</label>
           <label className="check">Show on video
             <select data-testid="overlay-focus" value={focus} onChange={(e) => setFocus(e.target.value as Focus)}>
               <option value="all">Whole body</option><option value="feet">Legs and feet</option><option value="hands">Arms and hands</option>
@@ -110,6 +160,11 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
           </label>
           <span className="muted">Left is orange and right is blue, as labeled by the pose model. A selected movement draws its tracked path.</span>
         </div>
+
+        {coaching?.available && <NextAttempt coaching={coaching} onCue={openCue} />}
+        {coaching?.available && <FootPlacements coaching={coaching} onSeek={seekPlacement} onSave={savePlacement} attemptId={attempt.id} />}
+        {coaching?.available && <BetaPanel attempt={attempt} runId={run.id} reloadKey={betaKey} onFeedback={() => void loadCoaching()} />}
+        {coaching?.available && <ComparePanel attempt={attempt} onSaved={onAttemptChanged} />}
 
         {!footAvailable && (
           <section className="card notice" data-testid="old-run-notice" role="status">
@@ -209,6 +264,13 @@ export function Review({ attempt, run, onReanalyze }: { attempt: Attempt; run: J
         </section>
       </div>
       <aside className="review-side" aria-label="Events">
+        <h2>Performance opportunities {coaching?.available ? `(${coaching.cards.length})` : ""}</h2>
+        {coaching && !coaching.available && <p className="muted" data-testid="coaching-unavailable">{coaching.reason}</p>}
+        {coaching?.available && coaching.cards.length === 0 && <p className="muted" data-testid="no-cards">No suggestion met its rules in this attempt. That is not a judgment of the climb; see what was checked below.</p>}
+        {coaching?.available && coaching.cards.map((card) => (
+          <CoachingCardView key={card.id} card={card} selected={cue === card.id} onSelect={() => openCue(card.id)} onFeedback={(next) => void saveFeedback(card, next)} />
+        ))}
+        {coaching?.available && <ReviewedLists coaching={coaching} />}
         <h2>Events ({visibleEvents.length}{visibleEvents.length !== events.length ? ` of ${events.length}` : ""})</h2>
         {events.length === 0 && (
           <p className="muted">

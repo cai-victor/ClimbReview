@@ -8,7 +8,7 @@ from __future__ import annotations
 import subprocess
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
@@ -37,6 +37,8 @@ class Hold(BaseModel):
     radius: float = Field(gt=0, le=RADIUS_MAX, description="Fraction of image width")
     route: str = Field(default="", max_length=60)
     hold_type: str = Field(default="", max_length=40)
+    role: Literal["", "start", "finish"] = ""
+    use: Literal["", "hand", "foot", "both"] = ""
 
 
 def _extract_frame(canonical: Path, output: Path, seconds: float) -> None:
@@ -49,6 +51,16 @@ def _extract_frame(canonical: Path, output: Path, seconds: float) -> None:
         temporary.unlink(missing_ok=True)
         raise HTTPException(500, "The reference frame could not be extracted.")
     temporary.replace(output)
+
+
+def frame_path(settings: Settings, attempt: dict[str, Any], ms: int) -> Path:
+    """The cached still image for this canonical time, extracted on first use."""
+    index = int(ms * attempt["fps"] / 1000)
+    directory = settings.attempt_dir(attempt["id"])
+    output = directory / "frames" / f"{index:06d}.jpg"
+    if not output.exists():
+        _extract_frame(directory / "canonical.mp4", output, index / attempt["fps"])
+    return output
 
 
 def register_holds(app: FastAPI, get_settings) -> None:
@@ -79,12 +91,7 @@ def register_holds(app: FastAPI, get_settings) -> None:
             target = attempt(connection, attempt_id)
         if ms >= target["duration_ms"]:
             raise HTTPException(422, "That time is outside the video.")
-        index = int(ms * target["fps"] / 1000)
-        directory = settings.attempt_dir(attempt_id)
-        output = directory / "frames" / f"{index:06d}.jpg"
-        if not output.exists():
-            _extract_frame(directory / "canonical.mp4", output, index / target["fps"])
-        return FileResponse(output, media_type="image/jpeg")
+        return FileResponse(frame_path(settings, target, ms), media_type="image/jpeg")
 
     @router.post("/api/attempts/{attempt_id}/hold-maps", status_code=201)
     def create_map(attempt_id: str, body: MapCreate, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
@@ -123,8 +130,8 @@ def register_holds(app: FastAPI, get_settings) -> None:
     def add_hold(map_id: str, body: Hold, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
         with db.session(settings.database) as connection:
             row = get_map(connection, map_id)
-            connection.execute("INSERT INTO holds(id, map_id, x, y, radius, route, hold_type, created_at) VALUES (?,?,?,?,?,?,?,?)",
-                               (uuid.uuid4().hex, map_id, body.x, body.y, body.radius, body.route, body.hold_type, db.now()))
+            connection.execute("""INSERT INTO holds(id, map_id, x, y, radius, route, hold_type, role, "use", created_at) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                               (uuid.uuid4().hex, map_id, body.x, body.y, body.radius, body.route, body.hold_type, body.role, body.use, db.now()))
             connection.execute("UPDATE hold_maps SET updated_at=? WHERE id=?", (db.now(), map_id))
             return public_map(connection, row)
 
@@ -132,8 +139,8 @@ def register_holds(app: FastAPI, get_settings) -> None:
     def edit_hold(map_id: str, hold_id: str, body: Hold, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
         with db.session(settings.database) as connection:
             row = get_map(connection, map_id)
-            updated = connection.execute("UPDATE holds SET x=?, y=?, radius=?, route=?, hold_type=? WHERE id=? AND map_id=?",
-                                         (body.x, body.y, body.radius, body.route, body.hold_type, require_id(hold_id), map_id))
+            updated = connection.execute("""UPDATE holds SET x=?, y=?, radius=?, route=?, hold_type=?, role=?, "use"=? WHERE id=? AND map_id=?""",
+                                         (body.x, body.y, body.radius, body.route, body.hold_type, body.role, body.use, require_id(hold_id), map_id))
             if updated.rowcount == 0:
                 raise HTTPException(404, "Hold not found.")
             return public_map(connection, row)

@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import db, report
 from .annotations import register_annotations
+from .coaching_api import register_coaching
 from .holds import register_holds
 from .worker import IMPORT_CANCELLED_MESSAGE
 from .settings import PROJECT_ROOT, InvalidIdError, Settings, load_pipeline_config, load_settings, require_id
@@ -32,6 +33,8 @@ class AttemptPatch(StrictModel):
     grade: str | None = Field(default=None, max_length=50)
     outcome: str | None = Field(default=None, max_length=200)
     focus: str | None = Field(default=None, max_length=500)
+    problem_label: str | None = Field(default=None, max_length=120)
+    climber_label: str | None = Field(default=None, max_length=60)
     single_climber_confirmed: bool | None = None
     fixed_camera_confirmed: bool | None = None
     attempt_start_ms: int | None = Field(default=None, ge=0)
@@ -93,7 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "SELECT * FROM jobs WHERE attempt_id=? ORDER BY created_at DESC", (attempt["id"],))]
         import_job = next((j for j in jobs if j["kind"] == "import"), None)
         return {
-            **{k: attempt[k] for k in ("id", "title", "route_name", "grade", "outcome", "focus", "status", "error",
+            **{k: attempt[k] for k in ("id", "title", "route_name", "grade", "outcome", "focus", "problem_label", "climber_label", "status", "error",
                                        "width", "height", "fps", "frame_count", "duration_ms", "attempt_start_ms",
                                        "attempt_end_ms", "created_at", "original_filename")},
             "single_climber_confirmed": bool(attempt["single_climber_confirmed"]),
@@ -351,6 +354,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_annotations(app, get_settings)
     register_holds(app, get_settings)
+    register_coaching(app, get_settings)
 
     @app.middleware("http")
     async def _reject_oversized_uploads(request: Request, call_next):
