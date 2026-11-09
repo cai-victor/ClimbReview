@@ -1,0 +1,17 @@
+# Experimental self-supervised forecast of body-relative wrist movement.
+# Separate from pose inference (frozen MediaPipe) and from the event rules.
+version: forecast-v1
+sample_period_ms: 100
+history_steps: 10            # 11 samples, t-1.0 s to t
+step_tolerance_ms: 40
+horizon_steps: 5             # t+0.5 s
+horizon_ms: 500
+min_torso_fraction_of_diagonal: 0.02
+torso_ratio_min: 0.5         # any sample versus the history median
+torso_ratio_max: 2.0
+camera_max_speed_L_per_s: 0.15
+camera_min_correlation_response: 0.3
+ridge_alphas: [0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0]
+constant_velocity_windows_ms: [100, 200, 300, 500]
+cv_folds: 4
+seed: 317
