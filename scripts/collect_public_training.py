@@ -28,6 +28,7 @@ ROOT = PROJECT_ROOT / "data" / "public_training"
 CAP_BYTES = 500_000_000
 PAUSE_BETWEEN_DOWNLOADS_S = 8
 MAX_ATTEMPTS = 5
+MAX_RETRY_AFTER_S = 1200  # honored in full; longer waits stop the script
 UA = {"User-Agent": "ClimbReview-student-project/0.2 (local research tool)"}
 CONTEXT = ssl.create_default_context(cafile=certifi.where())
 CONVERSION_ARGS = ["-map", "0:v:0", "-an", "-map_metadata", "-1", "-fps_mode", "passthrough",
@@ -44,7 +45,9 @@ def polite_download(url: str) -> bytes:
                 raise
             wait = int(error.headers.get("Retry-After") or 0) or 30 * (attempt + 1)
             print(f"rate limited; waiting {wait} s", flush=True)
-            time.sleep(min(wait, 180))
+            if wait > MAX_RETRY_AFTER_S:
+                raise SystemExit(f"Server asked to wait {wait} s, beyond the {MAX_RETRY_AFTER_S} s limit. Stopping.")
+            time.sleep(wait)
     raise AssertionError("unreachable")
 
 

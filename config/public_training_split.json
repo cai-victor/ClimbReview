@@ -1,0 +1,113 @@
+{
+ "clips": {
+  "pub01_anna_stoehr": {
+   "event_id": "bw_2012",
+   "group_id": "anna_stoehr",
+   "split": "test"
+  },
+  "pub02_dmitrii_sherafutdi": {
+   "event_id": "bw_2012",
+   "group_id": "dmitrii_sherafutdinov",
+   "split": "train"
+  },
+  "pub03_melissa_le_neve": {
+   "event_id": "bw_2012",
+   "group_id": "melissa_le_neve",
+   "split": "train"
+  },
+  "pub04_rustam_gelmanov": {
+   "event_id": "bw_2012",
+   "group_id": "rustam_gelmanov",
+   "split": "train"
+  },
+  "pub05_sean_mccoll": {
+   "event_id": "bw_2012",
+   "group_id": "sean_mccoll",
+   "split": "train"
+  },
+  "pub06_unknown_finale_w_6": {
+   "event_id": "schlottmann_finale_quali",
+   "group_id": "unknown_finale_w_6604",
+   "split": "train"
+  },
+  "pub07_unknown_finale_m_6": {
+   "event_id": "schlottmann_finale_quali",
+   "group_id": "unknown_finale_m_6666",
+   "split": "test"
+  },
+  "pub08_unknown_quali_w_65": {
+   "event_id": "schlottmann_finale_quali",
+   "group_id": "unknown_quali_w_6518",
+   "split": "train"
+  },
+  "pub09_unknown_quali_m_64": {
+   "event_id": "schlottmann_finale_quali",
+   "group_id": "unknown_quali_m_6488",
+   "split": "train"
+  },
+  "pub10_evgeniya_malamid": {
+   "event_id": "jmm_2013_annecy",
+   "group_id": "evgeniya_malamid",
+   "split": "train"
+  },
+  "pub11_evgeniya_malamid": {
+   "event_id": "jmm_2013_annecy",
+   "group_id": "evgeniya_malamid",
+   "split": "train"
+  },
+  "pub12_mina_markovic": {
+   "event_id": "jmm_2013_annecy",
+   "group_id": "mina_markovic",
+   "split": "test"
+  },
+  "pub13_klemen_becan": {
+   "event_id": "jmm_2013_annecy",
+   "group_id": "klemen_becan",
+   "split": "train"
+  },
+  "pub14_jakob_schubert": {
+   "event_id": "jmm_2013_annecy",
+   "group_id": "jakob_schubert",
+   "split": "train"
+  },
+  "pub15_jakob_schubert": {
+   "event_id": "jmm_2013_annecy",
+   "group_id": "jakob_schubert",
+   "split": "train"
+  },
+  "pub16_anna_stoehr": {
+   "event_id": "jmm_2013_annecy",
+   "group_id": "anna_stoehr",
+   "split": "test"
+  },
+  "pub17_sergei_luzhetskii": {
+   "event_id": "ifsc_euros_2020_lead",
+   "group_id": "sergei_luzhetskii",
+   "split": "test"
+  },
+  "pub18_elena_krasovskaia": {
+   "event_id": "ifsc_euros_2020_lead",
+   "group_id": "elena_krasovskaia",
+   "split": "train"
+  }
+ },
+ "groups": {
+  "anna_stoehr": "test",
+  "dmitrii_sherafutdinov": "train",
+  "elena_krasovskaia": "train",
+  "evgeniya_malamid": "train",
+  "jakob_schubert": "train",
+  "klemen_becan": "train",
+  "melissa_le_neve": "train",
+  "mina_markovic": "test",
+  "rustam_gelmanov": "train",
+  "sean_mccoll": "train",
+  "sergei_luzhetskii": "test",
+  "unknown_finale_m_6666": "test",
+  "unknown_finale_w_6604": "train",
+  "unknown_quali_m_6488": "train",
+  "unknown_quali_w_6518": "train"
+ },
+ "rule": "Within each primary event, groups ordered by sha256(seed|group_id); first round(25%) (min 1) are test.",
+ "seed": 317
+}
