@@ -48,7 +48,7 @@ def group_chart(section: dict) -> str:
         values = [section["per_group"][g][method]["mae_L"] for g in groups]
         positions = np.arange(len(groups)) + (offset - 1) * width
         axis.bar(positions, values, width * 0.92, color=COLORS[method], label=LABELS[method])
-    axis.set_xticks(np.arange(len(groups)), [g.replace("_", " ") for g in groups], color=INK, fontsize=9)
+    axis.set_xticks(np.arange(len(groups)), [g.replace("_", "\n", 1).replace("_", " ") for g in groups], color=INK, fontsize=9)
     axis.set_ylabel("Mean endpoint error (torso lengths)", color=MUTED, fontsize=9)
     style(axis)
     axis.legend(frameon=False, ncol=3, loc="upper center", bbox_to_anchor=(0.5, 1.16), fontsize=9)
