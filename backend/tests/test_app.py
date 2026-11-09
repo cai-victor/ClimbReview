@@ -93,7 +93,7 @@ def test_oversized_upload_is_rejected_and_leaves_nothing(tmp_path, monkeypatch):
     response = upload(client, big)
     assert response.status_code == 413 and "limit" in response.json()["detail"]
     assert list(settings.attempts_dir.iterdir()) == []
-    assert real.analysis.max_upload_mb == 250
+    assert real.analysis.max_upload_mb == 2500 and real.analysis.max_duration_s == 300
 
 
 def test_rejects_wrong_extension_and_empty_upload(env, tmp_path):

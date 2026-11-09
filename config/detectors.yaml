@@ -5,8 +5,8 @@ analysis:
   canonical_fps: 30
   inference_fps: 10            # must divide canonical_fps exactly
   longest_side_px: 1280
-  max_duration_s: 120
-  max_upload_mb: 250           # decimal megabytes (1 MB = 1,000,000 bytes)
+  max_duration_s: 300
+  max_upload_mb: 2500          # decimal megabytes (1 MB = 1,000,000 bytes); about 5 minutes of 4K HDR
 pose_model:
   model_path: models/pose_landmarker_heavy.task
   manifest_path: config/model_manifest.json

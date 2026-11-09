@@ -31,7 +31,7 @@ export function Library() {
       <section className="card">
         <h1>Add an attempt</h1>
         <p className="muted">
-          Use an MP4 or MOV up to 120 seconds and 250 MB, with one climber and a camera on a tripod. Keep hands and feet in frame.
+          Use an MP4 or MOV up to 5 minutes and 2.5 GB, with one climber and a camera on a tripod. Keep hands and feet in frame.
         </p>
         <div className="row">
           <label className="grow">Title (optional)

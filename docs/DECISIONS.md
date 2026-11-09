@@ -145,3 +145,4 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 
 **D64. Attempts are comparable only through explicit labels.** The same problem and climber text must both be entered. Outcome stays the user's own text, tracking proxies need 60% foot coverage, and no success model is trained without outcome data.
 
+**D65. Input limits raised to 5 minutes and 2.5 GB.** The earlier 120 s and 250 MB limits rejected real climbing footage, and 4K HDR phone video runs at about 400 MB per minute. Size does not affect analysis, which always uses a copy of at most 1280 pixels on the long side at 30 fps. The cost is disk space, because each original is kept so an import can be retried. Earlier runs keep their recorded configuration.

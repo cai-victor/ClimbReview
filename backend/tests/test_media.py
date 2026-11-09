@@ -169,11 +169,11 @@ def test_container_is_probed_not_trusted_from_extension(tmp_path, config):
 
 
 def test_duration_and_size_limits(config):
-    v.validate_source(_probe_like(duration_ms=120_000.0, size_bytes=250_000_000), config.analysis)
+    v.validate_source(_probe_like(duration_ms=300_000.0, size_bytes=2_500_000_000), config.analysis)
     with pytest.raises(v.SourceVideoError, match="limit"):
-        v.validate_source(_probe_like(duration_ms=120_001.0), config.analysis)
+        v.validate_source(_probe_like(duration_ms=300_001.0), config.analysis)
     with pytest.raises(v.SourceVideoError, match="limit"):
-        v.validate_source(_probe_like(size_bytes=250_000_001), config.analysis)
+        v.validate_source(_probe_like(size_bytes=2_500_000_001), config.analysis)
 
 
 def test_warnings_flag_hdr_slow_motion_and_sparse_frames(config):

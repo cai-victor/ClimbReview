@@ -88,8 +88,8 @@ analysis:
   canonical_fps: 30
   inference_fps: 10
   longest_side_px: 1280
-  max_duration_s: 120
-  max_upload_mb: 250
+  max_duration_s: 300
+  max_upload_mb: 2500
 quality:
   min_visibility: 0.6
   min_presence_if_available: 0.6
