@@ -1,6 +1,6 @@
 # Decision log
 
-Format: decision, then reason. All numeric settings are provisional engineering choices. **No event semantics have been implemented yet**; the required-landmark sets below come directly from `docs/PROJECT_SPEC.md` §6.
+Format: decision, then reason. All numeric settings are provisional engineering choices. The required-landmark sets below come directly from `docs/PROJECT_SPEC.md` §6. Detector and eligibility semantics are recorded in D26-D31.
 
 ## Environment
 
@@ -30,7 +30,7 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 
 **D12. Limits use decimal megabytes.** 250 MB means 250,000,000 bytes, resolving the question in `docs/DATA_CONTRACTS.md`.
 
-**D13. HDR and sparse frames warn instead of failing.** The build cannot tone-map HDR (`zscale` is absent). Geometry and time remain valid, so the run proceeds with a recorded warning. Frame gaps longer than the sample period are likewise flagged because repeated frames could later resemble stillness.
+**D13 (superseded by D28, D29). HDR and sparse frames warn instead of failing.** The build cannot tone-map HDR (`zscale` is absent). Geometry and time remain valid, so the run proceeds with a recorded warning. Frame gaps longer than the sample period are likewise flagged because repeated frames could later resemble stillness.
 
 ## Data and coverage
 
@@ -50,8 +50,34 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 
 **D21. Overlay video is 10 fps and uses the exact frames that were analyzed.** At 30 fps, poses would have to be held or interpolated. Timestamps are burned in using canonical milliseconds. Joints and bones are hidden when unavailable.
 
-**D22. Automatic identity-swap and jump detection was deferred.** Without real data, any threshold would be invented. Human review of overlays handles this for Milestone 0.
+**D22. Automatic identity-swap and jump detection was deferred (partly addressed by D26).** Without real data, any threshold would be invented. Human review of overlays handles this for Milestone 0.
 
 **D23. The official MediaPipe photo is an integration-test fixture labeled `synthetic_test_media`.** It lets tests exercise the path where landmarks are actually returned. It is not climbing footage and cannot satisfy real-video acceptance criteria.
 
 **D24. Output directories appear only after complete success.** Work happens in a temporary sibling directory, and `--overwrite` replaces only an earlier run directory.
+
+## Overnight run (2026-11-09): real footage, detectors, and application
+
+**D25. Public clips use a `public_development_sample` provenance.** They are development stress cases only: not the user's footage, not a test set, and not human evaluation. Sources, hashes, and licenses are in `config/public_samples.json`.
+
+**D26. Whole-pose implausibility rule, from observed failures.** On a public clip showing only legs, MediaPipe returned a collapsed skeleton with both wrists marked visible (torso 0.42 of the attempt scale). Visibility cannot catch this, so a pose whose torso is under 0.5 L or over 2.0 L is unavailable. This tightens eligibility. It catches only gross collapses; a hallucinated pose at 0.69 L still passed.
+
+**D27. Camera motion breaks eligibility (changes coverage semantics).** Eligibility now also requires that the estimated background shift between samples stays at or below 0.15 L/s, the same scale as the stillness threshold, when phase-correlation response is at least 0.3. A camera following a climber can make real movement look still, and vice versa. Consequence: handheld clips lose much coverage. The fixed-camera excerpt lost about 4% of intervals, whereas handheld clips lost 23-37%. Rotation and zoom are not modeled, and this estimator has no independent accuracy measurement.
+
+**D28. Repeated source frames break eligibility.** A sample that shows the same source frame as the previous sample carries no new observation, so that interval is excluded instead of looking still. This replaces the earlier warning-only behavior for detectors. No current clip triggered it.
+
+**D29. HLG HDR is converted, not relabeled.** The FFmpeg build lacks `zscale`, and `libplacebo` needs a GPU path. A generated 3D LUT applies BT.2100 HLG, a 1000-nit OOTF, scaling reference white near SDR white, a highlight knee, BT.2020 to BT.709 primaries, and BT.1886 encoding. Tests check known operating points through the real FFmpeg path. It is a documented approximation; PQ HDR still only warns. A three-clip comparison of relabeled versus tone-mapped input showed no consistent tracking difference, so correct color was kept.
+
+**D30. IMG_1314 excerpt uses stream copy.** The attempt window is snapped back to the preceding keyframe, avoiding re-encoding HDR. `original_ms = canonical_ms + 57,940`. The excerpt's first frame was compared with the original at that offset (mean absolute difference 0.0). Limits were not raised.
+
+**D31. Detector discrete-time rules (`detectors-v1`).** Smoothing is a centered 0.3 s time-window mean inside a segment. Speed is finite difference across samples within +/-150 ms, using actual elapsed time, which is 200 ms at 10 Hz; a span under 100 ms gives no speed. Low movement: all six joints valid, maximum joint speed strictly below 0.15 L/s, at least 2.0 s; runs merge only across interruptions of at most 200 ms inside the same fully observed segment. Wrist episodes: start above 0.35 L/s, end at the first sample of a below-0.20 L/s run lasting 0.25 s, at least 0.3 s and 0.2 L displacement from start. Episodes cut by the segment or attempt end stay but are marked truncated with a cause. All thresholds remain unvalidated.
+
+**D32. Single job table plus a file-locked worker.** Imports and analyses share lifecycle, claiming, and restart handling. A file lock gives one worker; an atomic `UPDATE ... RETURNING` claims each job. Running rows found at worker start become `interrupted`.
+
+**D33. Import normalizes before bounds are set.** The user previews the exact canonical video the analysis will use. Changing bounds requires a new analysis run; old reviews stay with their run.
+
+**D34. Tracking-quality label.** Median of the lowest required-joint visibility across the event: at least 0.85 good, at least 0.70 fair, otherwise weak. Descriptive only and marked not calibrated.
+
+**D35. Unscorable overlap rule for evaluation.** A prediction is excluded when at least half of it falls in a human-unscorable interval for that detector. Matching is greedy by descending tIoU at 0.30. Both are fixed before any labels exist.
+
+**D36. Not implemented tonight: camera-motion compensation.** Subtracting estimated background motion might make handheld clips usable, but it adds an unvalidated step that could create false stillness. A tripod is the safer next step.

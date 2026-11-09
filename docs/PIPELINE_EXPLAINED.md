@@ -30,6 +30,15 @@ We also compute torso length `L`, the median distance in pixels from the shoulde
 
 **5. Record the run (`pipeline.py`).** `run.json` stores the source hash, the exact transform and FFmpeg arguments, model checksum and options, library versions, configuration hash, runtimes, coverage, and warnings. Its `visual_alignment_review` field stays `not_reviewed`.
 
+## From coverage to events
+
+Inside each stretch where the needed joints are valid, positions are averaged over 0.3 s, and speed is measured in torso lengths per second using actual elapsed time.
+
+- **Low visible movement:** the fastest of the six tracked joints stays below 0.15 L/s for at least 2 seconds. Because the fastest joint decides, one moving limb prevents the event.
+- **Wrist movement:** starts when a wrist exceeds 0.35 L/s and ends once it stays under 0.20 L/s for 0.25 s. Using two thresholds prevents flicker. It must last 0.3 s and move at least 0.2 L.
+
+An interval also stops counting if the camera seems to move, or if the video merely repeated a frame, because neither is a real observation of the climber. These thresholds are starting hypotheses, not validated values.
+
 ## Reading the output folder
 
 | File | Use |
@@ -53,4 +62,4 @@ We also compute torso length `L`, the median distance in pixels from the shoulde
 
 **How do you know the tests mean anything?** They check behavior such as pixel positions after rotation and brightness-coded timing. Eight deliberately injected defects each caused a failure. They still cannot establish pose accuracy on climbing footage.
 
-**What is not known yet?** Whether this works on real climbing video. No real clip has been processed.
+**What is not known yet?** How accurate the events are. There are no independent human labels yet. Sampled overlays on real phone clips looked aligned, but handheld camera movement currently blocks most stillness analysis.
