@@ -83,7 +83,7 @@ Left-wrist and low-movement coverage on IMG_4301 fell, because the heavy model r
 | Browser specs on the final build, including real IMG_4301 import to review, filters, seek, loop, charts, persistence, exports, phone width, and a run rewritten to the old format in the test data folder | 6 passed |
 | Real v1 run of IMG_7238 in the live app | Opened with the notice and its 2 events. JSON, CSV and HTML exports returned. Reanalysis added a new run and left it in place |
 | Pipeline on both clips, by CLI and through the live worker | Completed with matching event counts |
-| Clean copy from tracked files, full setup | See `docs/STATUS.md` |
+| Clean copy of tracked files (no media), full setup including the heavy model download | Setup exit 0, 216 backend tests passed, type-check OK, app started with API 200. Installed packages match the project environment |
 
 All test motion and test labels are synthetic. Software tests do not establish pose accuracy.
 

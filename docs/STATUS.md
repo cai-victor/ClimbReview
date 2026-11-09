@@ -10,7 +10,7 @@ The local app, analysis pipeline, two detectors, review flow, exports, evaluatio
 
 Added and tested: background-only camera measurement, the official heavy pose model, separately gated left and right foot episodes, per-limb series, specific event explanations with limb context, an attempt-level digest, filters, foot overlay and path, speed and distance charts, foot exports, foot reference labels and evaluation, and old-run compatibility. Details and before/after numbers: `docs/FOOTWORK_REPORT.md`.
 
-**Current verification:** `pytest` 216 passed. Playwright, 6 specs, passed on the final build, including real IMG_4301 import to review. The real v1 run of IMG_7238 opened in the live app with its results and exports, and reanalysis added a new run beside it. Event accuracy remains unmeasured. Tripod coverage also does not meet the provisional low-movement target (19.4% and 15.6% against 70%).
+**Current verification:** `pytest` 216 passed. Playwright, 6 specs, passed on the final build, including real IMG_4301 import to review. The real v1 run of IMG_7238 opened in the live app with its results and exports, and reanalysis added a new run beside it. A clean copy of tracked files (no media) passed full setup with the heavy model, 216 tests, type-check, and app start; its packages match the project environment. Event accuracy remains unmeasured. Tripod coverage also does not meet the provisional low-movement target (19.4% and 15.6% against 70%).
 
 Footwork commands actually run:
 
