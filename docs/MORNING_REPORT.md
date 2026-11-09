@@ -24,7 +24,7 @@ Then open http://127.0.0.1:8317. It runs on this computer only. Your five develo
 
 ### Your phone clips (development only)
 
-IMG_2532 and IMG_2748 were never opened or used. These are full-attempt results with the final rules.
+IMG_2532 and IMG_2748 were not viewed, analyzed, or used for tuning. IMG_2532 was only checksummed at the end, and its SHA-256 still matches your inventory. These are full-attempt results with the final rules.
 
 | Clip | View | Pose returned | Low-movement coverage | Left / right wrist coverage | Camera-moved intervals | Low-movement events | Wrist events (L/R) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
