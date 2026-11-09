@@ -125,6 +125,22 @@ export const annotationApi = {
     request<AnnotationSet>(`/api/annotation-sets/${id}/intervals/${intervalId}`, { method: "DELETE" }),
 };
 
+export interface Hold { id: string; x: number; y: number; radius: number; route: string; hold_type: string }
+export interface HoldMap {
+  id: string; attempt_id: string; name: string; reference_frame_ms: number; width: number; height: number;
+  holds: Hold[]; scope_note: string; frame_url: string;
+}
+export type HoldBody = Omit<Hold, "id">;
+export const holdApi = {
+  list: (attemptId: string) => request<HoldMap[]>(`/api/attempts/${attemptId}/hold-maps`),
+  create: (attemptId: string, body: { name: string; reference_frame_ms: number }) =>
+    request<HoldMap>(`/api/attempts/${attemptId}/hold-maps`, jsonInit("POST", body)),
+  remove: (mapId: string) => request<void>(`/api/hold-maps/${mapId}`, { method: "DELETE" }),
+  addHold: (mapId: string, body: HoldBody) => request<HoldMap>(`/api/hold-maps/${mapId}/holds`, jsonInit("POST", body)),
+  editHold: (mapId: string, id: string, body: HoldBody) => request<HoldMap>(`/api/hold-maps/${mapId}/holds/${id}`, jsonInit("PUT", body)),
+  removeHold: (mapId: string, id: string) => request<HoldMap>(`/api/hold-maps/${mapId}/holds/${id}`, { method: "DELETE" }),
+};
+
 export const clock = (ms: number | null | undefined): string => {
   if (ms == null) return "n/a";
   const total = ms / 1000;

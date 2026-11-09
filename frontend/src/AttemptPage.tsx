@@ -66,6 +66,7 @@ export function AttemptPage({ id }: { id: string }) {
         <a href="#/">← Attempts</a>
         <h1>{attempt.title}</h1>
         {attempt.status === "ready" && <a className="button" href={`#/annotate/${attempt.id}`}>Reference labeling</a>}
+        {attempt.status === "ready" && <a className="button" href={`#/holds/${attempt.id}`}>Mark holds</a>}
         <button className="button danger" onClick={remove} disabled={Boolean(importing || analyzing)}>Delete</button>
       </div>
       {error && <p className="error" role="alert">{error}</p>}

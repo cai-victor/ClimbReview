@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import db, report
 from .annotations import register_annotations
+from .holds import register_holds
 from .worker import IMPORT_CANCELLED_MESSAGE
 from .settings import PROJECT_ROOT, InvalidIdError, Settings, load_pipeline_config, load_settings, require_id
 
@@ -341,6 +342,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             headers={"Content-Disposition": f'attachment; filename="climbreview_report_{short}.html"'})
 
     register_annotations(app, get_settings)
+    register_holds(app, get_settings)
 
     @app.middleware("http")
     async def _reject_oversized_uploads(request: Request, call_next):

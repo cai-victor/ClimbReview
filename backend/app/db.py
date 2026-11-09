@@ -86,6 +86,29 @@ CREATE TABLE IF NOT EXISTS annotation_intervals (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS annotation_intervals_set ON annotation_intervals(set_id, start_ms);
+CREATE TABLE IF NOT EXISTS hold_maps (
+  id TEXT PRIMARY KEY,
+  attempt_id TEXT NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  reference_frame_ms INTEGER NOT NULL,
+  frame_index INTEGER NOT NULL,
+  canonical_sha256 TEXT NOT NULL,
+  width INTEGER NOT NULL,
+  height INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS holds (
+  id TEXT PRIMARY KEY,
+  map_id TEXT NOT NULL REFERENCES hold_maps(id) ON DELETE CASCADE,
+  x REAL NOT NULL,
+  y REAL NOT NULL,
+  radius REAL NOT NULL,
+  route TEXT NOT NULL DEFAULT '',
+  hold_type TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS holds_map ON holds(map_id, created_at);
 """
 ACTIVE = ("queued", "running")
 
