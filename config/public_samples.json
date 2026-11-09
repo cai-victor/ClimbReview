@@ -1,0 +1,47 @@
+{
+  "note": "Openly licensed development samples. Competition/third-party footage: NOT the user's own footage, NOT a held-out test set, NOT human evaluation.",
+  "samples": [
+    {
+      "clip_id": "public_khazanov_v3",
+      "commons_file": "2020-11-28_-_IFSC_Euros_-_Combined_M-B_-_Alex_Khazanov_-_Video_3.webm",
+      "page_url": "https://commons.wikimedia.org/wiki/File:2020-11-28_-_IFSC_Euros_-_Combined_M-B_-_Alex_Khazanov_-_Video_3.webm",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/e/e0/2020-11-28_-_IFSC_Euros_-_Combined_M-B_-_Alex_Khazanov_-_Video_3.webm",
+      "sha1": "65d807062b29666c94a5a4a228d8088ea8ccf975",
+      "size_bytes": 10929714,
+      "author": "Voltmetro",
+      "license": "CC0 1.0",
+      "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "description": "2020 European Championship, combined bouldering, men; competition footage",
+      "camera_view": "unknown_until_inspected",
+      "conditions": "competition setting, 1920x1080"
+    },
+    {
+      "clip_id": "public_caulier",
+      "commons_file": "2020-11-28_-_IFSC_Euros_-_Combined_W-B_-_Chloé_Caulier.ogv",
+      "page_url": "https://commons.wikimedia.org/wiki/File:2020-11-28_-_IFSC_Euros_-_Combined_W-B_-_Chlo%C3%A9_Caulier.ogv",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/0/03/2020-11-28_-_IFSC_Euros_-_Combined_W-B_-_Chlo%C3%A9_Caulier.ogv",
+      "sha1": "725dfdbcd071602103714f6c85b970718a947f83",
+      "size_bytes": 15019001,
+      "author": "Voltmetro",
+      "license": "CC0 1.0",
+      "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "description": "2020 European Championship, combined bouldering, women; competition footage",
+      "camera_view": "unknown_until_inspected",
+      "conditions": "competition setting, 1920x1080"
+    },
+    {
+      "clip_id": "public_rockspot_v3",
+      "commons_file": "Indoor_Bouldering_V3_Rock_Spot.webm",
+      "page_url": "https://commons.wikimedia.org/wiki/File:Indoor_Bouldering_V3_Rock_Spot.webm",
+      "download_url": "https://upload.wikimedia.org/wikipedia/commons/5/5c/Indoor_Bouldering_V3_Rock_Spot.webm",
+      "sha1": "6092f4a121f69e002d409b0343420b698618ab6d",
+      "size_bytes": 1933025,
+      "author": "Cryptic C62",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0",
+      "description": "V3 indoor boulder problem, Rock Spot, Hyde Park MA; phone footage (iPhone 5), 204x360",
+      "camera_view": "unknown_until_inspected",
+      "conditions": "gym, low-resolution phone clip; difficult case"
+    }
+  ]
+}

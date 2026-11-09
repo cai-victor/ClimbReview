@@ -43,11 +43,12 @@ def _text(image: np.ndarray, text: str, origin: tuple[int, int], scale: float, c
     cv2.putText(image, text, origin, cv2.FONT_HERSHEY_SIMPLEX, scale, color, thickness, cv2.LINE_AA)
 
 
-def draw_skeleton(image: np.ndarray, record: dict[str, Any], cfg: QualityConfig) -> None:
+def draw_skeleton(image: np.ndarray, record: dict[str, Any], cfg: QualityConfig,
+                  reasons: dict[str, str] | None = None) -> None:
     """Draw only valid joints, and bones only when both ends are valid."""
     height, width = image.shape[:2]
     lookup = landmark_lookup(record)
-    invalid = invalid_reasons(record, LANDMARK_NAMES, cfg)
+    invalid = invalid_reasons(record, LANDMARK_NAMES, cfg) if reasons is None else reasons
     usable = {
         name: tuple(int(round(v)) for v in to_pixels(lm, width, height))
         for name, lm in lookup.items() if name not in invalid
@@ -66,7 +67,8 @@ def draw_skeleton(image: np.ndarray, record: dict[str, Any], cfg: QualityConfig)
             _text(image, LABELS[name], (point[0] + 8, point[1] - 8), font, _color(name))
 
 
-def draw_status(image: np.ndarray, record: dict[str, Any], cfg: QualityConfig) -> None:
+def draw_status(image: np.ndarray, record: dict[str, Any], cfg: QualityConfig,
+                reasons: dict[str, str] | None = None) -> None:
     """Burn in media time and each detector's required-landmark state."""
     height, width = image.shape[:2]
     font = max(0.4, width / 1800)
@@ -79,15 +81,17 @@ def draw_status(image: np.ndarray, record: dict[str, Any], cfg: QualityConfig) -
         _text(image, f"{time_text}  L=orange R=blue (model labels)", (8, line), font)
     states = []
     for detector, names in DETECTOR_LANDMARKS.items():
-        state = "ok" if not invalid_reasons(record, names, cfg) else "UNAVAIL"
+        unavailable = (invalid_reasons(record, names, cfg) if reasons is None
+                       else [n for n in names if n in reasons])
+        state = "ok" if not unavailable else "UNAVAIL"
         states.append(f"{SHORT_NAMES[detector]}:{state}")
     _text(image, "  ".join(states), (8, 2 * line), font)
 
 
-def _annotated(rgb: np.ndarray, record: dict[str, Any], cfg: QualityConfig) -> np.ndarray:
+def _annotated(rgb: np.ndarray, record: dict[str, Any], cfg: QualityConfig, reasons: dict[str, str] | None) -> np.ndarray:
     image = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-    draw_skeleton(image, record, cfg)
-    draw_status(image, record, cfg)
+    draw_skeleton(image, record, cfg, reasons)
+    draw_status(image, record, cfg, reasons)
     return image
 
 
@@ -102,12 +106,13 @@ def _contact_sheet(cells: Sequence[np.ndarray], path: Path) -> None:
 
 def render_overlay(
     video: Path, size: tuple[int, int], records: Sequence[dict[str, Any]], cfg: QualityConfig,
-    inference_fps: int, overlay_path: Path, sheet_path: Path,
+    inference_fps: int, overlay_path: Path, sheet_path: Path, reasons: Sequence[dict[str, str]] | None = None,
 ) -> None:
     if not records:
         raise ClimbReviewError("No sampled frames to render.")
     width, height = size
     by_index = {r["frame_index"]: r for r in records}
+    reason_by_index = {r["frame_index"]: reasons[i] for i, r in enumerate(records)} if reasons is not None else {}
     picks = {records[round(i * (len(records) - 1) / max(1, SHEET_FRAMES - 1))]["frame_index"]
              for i in range(SHEET_FRAMES)}
     encoder = subprocess.Popen(
@@ -124,7 +129,7 @@ def render_overlay(
         record = by_index.get(index)
         if record is None:
             continue
-        image = _annotated(rgb, record, cfg)
+        image = _annotated(rgb, record, cfg, reason_by_index.get(index))
         encoder.stdin.write(image.tobytes())
         written += 1
         if index in picks:

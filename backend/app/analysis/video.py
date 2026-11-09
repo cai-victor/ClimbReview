@@ -10,10 +10,12 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from dataclasses import asdict, dataclass
 from fractions import Fraction
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 import numpy as np
 
@@ -170,6 +172,26 @@ def _packet_seconds(path: Path, time_base: str) -> list[Fraction]:
     return sorted(Fraction(int(x)) * base for x in pts)
 
 
+def source_times_ms(path: Path, time_base: str) -> list[float]:
+    """Source frame presentation times relative to the first frame."""
+    times = _packet_seconds(path, time_base)
+    return [float((t - times[0]) * 1000) for t in times] if times else []
+
+
+def repeated_sample_flags(source_ms: list[float], sample_ms: list[int], canonical_fps: int) -> list[bool]:
+    """True where a sample shows the same source frame as the previous sample.
+
+    Constant-rate conversion repeats frames when the source has large frame gaps.
+    A repeated frame carries no new observation, so it must not look like stillness.
+    """
+    if not source_ms:
+        return [False] * len(sample_ms)
+    source = np.asarray(source_ms)
+    half_frame = 500 / canonical_fps
+    ids = np.searchsorted(source, np.asarray(sample_ms, dtype=float) + half_frame, side="right") - 1
+    return [False, *[bool(a == b) for a, b in zip(ids, ids[1:])]][: len(sample_ms)]
+
+
 def source_frame_timing(path: Path, p: VideoProbe) -> dict[str, Any]:
     """Describe the source's real frame spacing so variable timing is explicit."""
     times = _packet_seconds(path, p.time_base)
@@ -246,13 +268,30 @@ def normalization_args(geometry: CanonicalGeometry, canonical_fps: int) -> list[
     ]
 
 
-def normalize(source: Path, output: Path, geometry: CanonicalGeometry, canonical_fps: int) -> list[str]:
+def normalize(
+    source: Path, output: Path, geometry: CanonicalGeometry, canonical_fps: int,
+    check_cancel: Callable[[], None] | None = None,
+) -> list[str]:
+    """Create the canonical file. `check_cancel` may raise to stop FFmpeg."""
     args = normalization_args(geometry, canonical_fps)
     command = [tool_path("ffmpeg"), "-nostdin", "-v", "error", "-y", "-i", str(source), *args, str(output)]
-    result = subprocess.run(command, capture_output=True, text=True)
-    if result.returncode != 0:
-        output.unlink(missing_ok=True)
-        raise SourceVideoError(f"Video could not be decoded: {result.stderr.strip()[-600:]}")
+    with tempfile.TemporaryFile() as stderr:
+        process = subprocess.Popen(command, stderr=stderr, stdout=subprocess.DEVNULL)
+        try:
+            while process.poll() is None:
+                if check_cancel is not None:
+                    check_cancel()
+                time.sleep(0.1)
+        except BaseException:
+            process.kill()
+            process.wait()
+            output.unlink(missing_ok=True)
+            raise
+        if process.returncode != 0:
+            output.unlink(missing_ok=True)
+            stderr.seek(0)
+            detail = stderr.read().decode(errors="replace").strip()[-600:]
+            raise SourceVideoError(f"Video could not be decoded: {detail}")
     return args
 
 

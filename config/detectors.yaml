@@ -1,6 +1,6 @@
 # Feasibility-milestone configuration. Every number here is a provisional
 # engineering setting, not a validated climbing or pose-quality standard.
-# Detector speed/duration thresholds are added with the detectors (Milestone 2).
+# Detector thresholds are unvalidated hypotheses: tune on development data, freeze before held-out tests.
 analysis:
   canonical_fps: 30
   inference_fps: 10            # must divide canonical_fps exactly
@@ -23,5 +23,23 @@ quality:
   max_sample_gap_factor: 1.5   # consecutive samples farther apart break eligibility
   min_scale_samples: 10
   min_torso_fraction_of_diagonal: 0.02
+  min_torso_ratio_to_attempt_scale: 0.5   # below this a whole pose is implausible (seen on public clips)
+  max_torso_ratio_to_attempt_scale: 2.0
+  camera_max_speed_L_per_s: 0.15          # estimated background speed above this breaks eligibility
+  camera_min_correlation_response: 0.3    # weaker phase-correlation peaks are treated as unknown
+features:
+  smoothing_window_s: 0.3
+  speed_window_s: 0.3
+  min_speed_span_s: 0.1
+low_movement:
+  max_joint_speed_L_per_s: 0.15
+  min_duration_s: 2.0
+  max_fully_observed_interruption_s: 0.2
+wrist_motion:
+  onset_speed_L_per_s: 0.35
+  offset_speed_L_per_s: 0.20
+  offset_dwell_s: 0.25
+  min_duration_s: 0.3
+  min_displacement_L: 0.2
 feasibility:
   low_movement_target_fraction: 0.70   # provisional target from docs/EVALUATION.md

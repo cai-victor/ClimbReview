@@ -20,7 +20,7 @@ from app.analysis.pose import read_jsonl
 from conftest import PROJECT_ROOT, encode_frames, tag_rotation
 
 POSE_IMAGE = PROJECT_ROOT / "data" / "test_assets" / "pose.jpg"
-ARTIFACTS = {"canonical.mp4", "poses.jsonl", "coverage.json", "coverage_timeline.csv", "overlay.mp4",
+ARTIFACTS = {"canonical.mp4", "poses.jsonl", "coverage.json", "coverage_timeline.csv", "events.json", "overlay.mp4",
              "contact_sheet.jpg", "report.md", "run.json"}
 
 

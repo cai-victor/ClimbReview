@@ -56,6 +56,36 @@ class QualityConfig(_Strict):
     max_sample_gap_factor: float = Field(ge=1)
     min_scale_samples: int = Field(ge=1)
     min_torso_fraction_of_diagonal: float = Field(ge=0)
+    min_torso_ratio_to_attempt_scale: float = Field(ge=0)
+    max_torso_ratio_to_attempt_scale: float = Field(gt=0)
+    camera_max_speed_L_per_s: float = Field(gt=0)
+    camera_min_correlation_response: float = Field(ge=0, le=1)
+
+
+class FeaturesConfig(_Strict):
+    smoothing_window_s: float = Field(ge=0)
+    speed_window_s: float = Field(gt=0)
+    min_speed_span_s: float = Field(gt=0)
+
+
+class LowMovementConfig(_Strict):
+    max_joint_speed_L_per_s: float = Field(gt=0)
+    min_duration_s: float = Field(gt=0)
+    max_fully_observed_interruption_s: float = Field(ge=0)
+
+
+class WristMotionConfig(_Strict):
+    onset_speed_L_per_s: float = Field(gt=0)
+    offset_speed_L_per_s: float = Field(gt=0)
+    offset_dwell_s: float = Field(ge=0)
+    min_duration_s: float = Field(gt=0)
+    min_displacement_L: float = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _hysteresis_order(self) -> "WristMotionConfig":
+        if self.offset_speed_L_per_s > self.onset_speed_L_per_s:
+            raise ValueError("offset speed must not exceed onset speed")
+        return self
 
 
 class FeasibilityConfig(_Strict):
@@ -66,6 +96,9 @@ class PipelineConfig(_Strict):
     analysis: AnalysisConfig
     pose_model: PoseModelConfig
     quality: QualityConfig
+    features: FeaturesConfig
+    low_movement: LowMovementConfig
+    wrist_motion: WristMotionConfig
     feasibility: FeasibilityConfig
 
     def content_hash(self) -> str:

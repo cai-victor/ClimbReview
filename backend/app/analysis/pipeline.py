@@ -17,13 +17,15 @@ import numpy as np
 from . import PIPELINE_VERSION, SCHEMA_VERSION, ClimbReviewError
 from . import overlay as overlay_module
 from . import pose as pose_module
+from . import detectors as detectors_module
 from . import quality, video
+from .feedback import feedback_for
 
 ALIGNMENT_NOT_REVIEWED = {
     "status": "not_reviewed",
     "note": "Software cannot establish alignment. A person must inspect overlay.mp4 and contact_sheet.jpg.",
 }
-PROVENANCE_CHOICES = ("user_supplied_unverified", "synthetic_test_media")
+PROVENANCE_CHOICES = ("user_supplied_unverified", "public_development_sample", "synthetic_test_media")
 
 
 def _resolve_bounds(start: int | None, end: int | None, duration_ms: int) -> tuple[int, int]:
@@ -58,6 +60,51 @@ def source_warnings(p: video.VideoProbe, timing: dict[str, Any], cfg, canonical_
     if p.duration_ms is not None and abs(canonical_ms - p.duration_ms) > 2000 / cfg.analysis.canonical_fps:
         warnings.append(f"Canonical duration {canonical_ms} ms differs from source {p.duration_ms:.0f} ms.")
     return warnings
+
+
+CAMERA_MOTION_WARNING_FRACTION = 0.1
+
+
+def analysis_warnings(coverage: dict[str, Any]) -> list[str]:
+    warnings: list[str] = []
+    fraction = coverage.get("camera_motion_interval_fraction")
+    if fraction is not None and fraction > CAMERA_MOTION_WARNING_FRACTION:
+        warnings.append(
+            f"The camera appears to move in {fraction * 100:.0f}% of sampled intervals. Those intervals are excluded, "
+            "because image-space stillness or motion cannot be trusted while the camera moves. Use a fixed camera."
+        )
+    return warnings
+
+
+def analyze_canonical(
+    canonical: Path, size: tuple[int, int], frames: video.FrameMap, indices: list[int], start_ms: int, end_ms: int,
+    config, detector: Any, source_ms: list[float], on_progress: Callable[[int, int], None] | None = None,
+    stage: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
+    """Pose extraction, validity, coverage, and detection. Used by the CLI and the worker."""
+    sample_ms = [frames.timestamps_ms[i] for i in indices]
+    repeated = video.repeated_sample_flags(source_ms, sample_ms, config.analysis.canonical_fps)
+    records = pose_module.extract_poses(canonical, size, frames, indices, detector, repeated, on_progress)
+    if stage:
+        stage("computing_features")
+    period = config.analysis.sample_period_ms
+    validity = quality.derive_validity(records, size[0], size[1], config.quality, period)
+    coverage = quality.compute_coverage(records, size[0], size[1], start_ms, end_ms, config.quality, period,
+                                        config.feasibility.low_movement_target_fraction, validity)
+    if stage:
+        stage("detecting_events")
+    detection = detectors_module.run_detectors(records, validity, size[0], size[1], coverage, config)
+    for event in detection["events"]:
+        event["feedback"] = feedback_for(event)
+    return {"records": records, "validity": validity, "coverage": coverage, "detection": detection}
+
+
+def write_analysis_files(directory: Path, analysis: dict[str, Any], config) -> None:
+    pose_module.write_jsonl(analysis["records"], directory / "poses.jsonl")
+    rows = quality.timeline_rows(analysis["records"], config.quality, analysis["validity"])
+    _write_timeline(rows, directory / "coverage_timeline.csv")
+    (directory / "coverage.json").write_text(json.dumps(analysis["coverage"], indent=2, allow_nan=False) + "\n")
+    (directory / "events.json").write_text(json.dumps(analysis["detection"], indent=2, allow_nan=False) + "\n")
 
 
 def environment_record() -> dict[str, Any]:
@@ -105,6 +152,7 @@ def render_report(run: dict[str, Any]) -> str:
         f"- Sampled frames: {coverage['sampled_frames']}; pose returned on "
         f"{coverage['pose_detected_samples']} ({_percent(coverage['pose_detected_fraction'])})",
         f"- Attempt scale: {scale['status']}, L = {scale['L_px']} px from {scale['reliable_samples']} samples",
+        f"- Excluded intervals: {coverage.get('excluded_intervals', {})}",
         f"- Inference: {run['runtime_s']['pose_extraction']:.2f} s, "
         f"{run['runtime_s']['inference_samples_per_s']:.1f} samples/s on {run['pose_model']['options']['delegate']}",
         "",
@@ -194,23 +242,21 @@ def _run_stages(
     began = time.perf_counter()
     factory = detector_factory or (lambda: pose_module.MediaPipePoseDetector(model_path, config.pose_model))
     with factory() as detector:
-        records = pose_module.extract_poses(canonical_path, size, frames, indices, detector)
+        source_ms = video.source_times_ms(source, source_probe.time_base)
+        analysis = analyze_canonical(canonical_path, size, frames, indices, start_ms, end_ms, config, detector, source_ms)
+    records = analysis["records"]
     runtime["pose_extraction"] = time.perf_counter() - began
     runtime["inference_samples_per_s"] = len(records) / runtime["pose_extraction"] if records else 0.0
-    pose_module.write_jsonl(records, work / "poses.jsonl")
 
-    print("[3/5] Computing tracking coverage", flush=True)
-    coverage = quality.compute_coverage(
-        records, size[0], size[1], start_ms, end_ms, config.quality, config.analysis.sample_period_ms,
-        config.feasibility.low_movement_target_fraction,
-    )
-    _write_timeline(quality.timeline_rows(records, config.quality), work / "coverage_timeline.csv")
-    (work / "coverage.json").write_text(json.dumps(coverage, indent=2, allow_nan=False) + "\n")
+    print("[3/5] Computing tracking coverage and events", flush=True)
+    coverage = analysis["coverage"]
+    detection = analysis["detection"]
+    write_analysis_files(work, analysis, config)
 
     print("[4/5] Rendering diagnostic overlay", flush=True)
     began = time.perf_counter()
     overlay_module.render_overlay(canonical_path, size, records, config.quality, config.analysis.inference_fps,
-                                  work / "overlay.mp4", work / "contact_sheet.jpg")
+                                  work / "overlay.mp4", work / "contact_sheet.jpg", analysis["validity"].reasons)
     runtime["overlay_render"] = time.perf_counter() - began
 
     print("[5/5] Writing run record", flush=True)
@@ -252,8 +298,9 @@ def _run_stages(
         "environment": environment_record(),
         "runtime_s": runtime,
         "coverage": coverage,
-        "warnings": source_warnings(source_probe, timing, config, frames.duration_ms),
-        "artifacts": ["canonical.mp4", "poses.jsonl", "coverage.json", "coverage_timeline.csv",
+        "detection_summary": {"detector_version": detection["detector_version"], "detectors": detection["detectors"]},
+        "warnings": [*source_warnings(source_probe, timing, config, frames.duration_ms), *analysis_warnings(coverage)],
+        "artifacts": ["canonical.mp4", "poses.jsonl", "coverage.json", "coverage_timeline.csv", "events.json",
                       "overlay.mp4", "contact_sheet.jpg", "report.md", "run.json"],
     }
     (work / "run.json").write_text(json.dumps(run, indent=2, allow_nan=False, default=_json_default) + "\n")

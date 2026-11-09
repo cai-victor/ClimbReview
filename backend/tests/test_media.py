@@ -187,3 +187,14 @@ def test_warnings_flag_hdr_slow_motion_and_sparse_frames(config):
 def test_invalid_attempt_bounds_are_rejected(start, end):
     with pytest.raises(ClimbReviewError):
         pipeline._resolve_bounds(start, end, 1000)
+
+
+def test_sparse_source_marks_repeated_samples():
+    source_ms = [0.0, 500.0, 1000.0]  # 2 fps source; several 10 Hz samples show the same frame
+    flags = v.repeated_sample_flags(source_ms, list(range(0, 1100, 100)), 30)
+    assert flags == [False, True, True, True, True, False, True, True, True, True, False]
+
+
+def test_dense_source_has_no_repeated_samples():
+    source_ms = [i * 1000 / 30 for i in range(40)]
+    assert not any(v.repeated_sample_flags(source_ms, list(range(0, 1300, 100)), 30))

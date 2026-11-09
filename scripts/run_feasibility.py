@@ -10,7 +10,7 @@ from pathlib import Path
 from _bootstrap import PROJECT_ROOT
 from app.analysis import ClimbReviewError
 from app.analysis.config import load_config
-from app.analysis.pipeline import run_analysis
+from app.analysis.pipeline import PROVENANCE_CHOICES, run_analysis
 
 REQUIRED_COLUMNS = {"clip_id", "filename", "attempt_start_ms", "attempt_end_ms"}
 SUMMARY_COLUMNS = [
@@ -48,6 +48,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, default=PROJECT_ROOT / "data" / "raw" / "manifest.csv")
     parser.add_argument("--output-root", type=Path, default=PROJECT_ROOT / "data" / "feasibility")
+    parser.add_argument("--provenance", choices=PROVENANCE_CHOICES, default="user_supplied_unverified")
     parser.add_argument("--overwrite", action="store_true", help="Replace earlier runs of these clips")
     args = parser.parse_args()
 
@@ -77,7 +78,7 @@ def main() -> int:
                 raise ClimbReviewError(f"{filename} is outside {raw_dir}")
             run = run_analysis(source, args.output_root.resolve() / clip_id, config, PROJECT_ROOT, clip_id,
                                _optional_int(row["attempt_start_ms"]), _optional_int(row["attempt_end_ms"]),
-                               overwrite=args.overwrite)
+                               args.provenance, args.overwrite)
         except (ClimbReviewError, ValueError) as exc:
             error = str(exc)
             print(f"error: {error}", file=sys.stderr)

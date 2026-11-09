@@ -6,6 +6,7 @@ calibrated probability, and it cannot show that landmarks are correctly aligned.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Any, Sequence
 
 import numpy as np
@@ -93,16 +94,20 @@ def torso_scale(records: Sequence[dict[str, Any]], width: int, height: int, cfg:
     }
 
 
-def eligible_segments(times_ms: Sequence[int], valid: Sequence[bool], max_gap_ms: float) -> list[tuple[int, int]]:
+def eligible_segments(
+    times_ms: Sequence[int], valid: Sequence[bool], max_gap_ms: float, blocked: Sequence[str | None] | None = None,
+) -> list[tuple[int, int]]:
     """Merge intervals between consecutive samples that are both valid.
 
     An interval earns credit only when both endpoints are valid and the samples
     are close enough to count as continuous. A lone valid sample earns none, and
-    no interval is ever carried across an invalid sample.
+    no interval is ever carried across an invalid sample or a blocked interval.
     """
     segments: list[tuple[int, int]] = []
     for i in range(len(times_ms) - 1):
         if not (valid[i] and valid[i + 1] and times_ms[i + 1] - times_ms[i] <= max_gap_ms):
+            continue
+        if blocked is not None and blocked[i] is not None:
             continue
         if segments and segments[-1][1] == times_ms[i]:
             segments[-1] = (segments[-1][0], times_ms[i + 1])
@@ -124,16 +129,66 @@ def coverage_gaps(
     return gaps
 
 
+def _torso_length_px(record: dict[str, Any], width: int, height: int) -> float | None:
+    lookup = landmark_lookup(record)
+    if any(lookup.get(n, {}).get("x") is None or lookup.get(n, {}).get("y") is None for n in SCALE_LANDMARKS):
+        return None
+    left_s, right_s, left_h, right_h = (np.array(to_pixels(lookup[n], width, height)) for n in SCALE_LANDMARKS)
+    return float(np.linalg.norm((left_s + right_s) / 2 - (left_h + right_h) / 2))
+
+
+@dataclass(frozen=True)
+class TrackValidity:
+    """Derived usability of each sample; the single source of truth for later stages."""
+    scale: dict[str, Any]
+    reasons: list[dict[str, str]]        # per sample: landmark name -> reason unavailable
+    blocked: list[str | None]            # per interval between samples i and i + 1
+
+
+def derive_validity(
+    records: Sequence[dict[str, Any]], width: int, height: int, cfg: QualityConfig, sample_period_ms: float,
+) -> TrackValidity:
+    """Per-landmark reasons, pose plausibility, and interval-level exclusions."""
+    from .pose import LANDMARK_NAMES
+
+    scale = torso_scale(records, width, height, cfg)
+    length = scale["L_px"]
+    reasons: list[dict[str, str]] = []
+    for record in records:
+        sample = invalid_reasons(record, LANDMARK_NAMES, cfg)
+        if length:
+            torso = _torso_length_px(record, width, height)
+            if torso is not None and not (cfg.min_torso_ratio_to_attempt_scale
+                                          <= torso / length <= cfg.max_torso_ratio_to_attempt_scale):
+                sample = {name: sample.get(name, "implausible_torso_scale") for name in LANDMARK_NAMES}
+        reasons.append(sample)
+
+    blocked: list[str | None] = []
+    for before, after in zip(records, records[1:]):
+        reason = None
+        elapsed_s = (after["timestamp_ms"] - before["timestamp_ms"]) / 1000
+        shift, response = after.get("camera_shift_px"), after.get("camera_shift_response")
+        if after.get("repeated_source_frame"):
+            reason = "repeated_source_frame"
+        elif (length and shift is not None and response is not None and elapsed_s > 0
+              and response >= cfg.camera_min_correlation_response
+              and shift / elapsed_s / length > cfg.camera_max_speed_L_per_s):
+            reason = "camera_motion"
+        blocked.append(reason)
+    return TrackValidity(scale, reasons, blocked)
+
+
 def _detector_coverage(
     names: Sequence[str], records: Sequence[dict[str, Any]], start_ms: int, end_ms: int,
-    scale_available: bool, cfg: QualityConfig, sample_period_ms: float,
+    validity: TrackValidity, cfg: QualityConfig, sample_period_ms: float,
 ) -> dict[str, Any]:
     attempt_ms = end_ms - start_ms
     times = [r["timestamp_ms"] for r in records]
-    per_sample = [invalid_reasons(r, names, cfg) for r in records]
+    per_sample = [{n: sample[n] for n in names if n in sample} for sample in validity.reasons]
     valid = [not reasons for reasons in per_sample]
-    segments = eligible_segments(times, valid, sample_period_ms * cfg.max_sample_gap_factor)
+    segments = eligible_segments(times, valid, sample_period_ms * cfg.max_sample_gap_factor, validity.blocked)
     observed_ms = sum(b - a for a, b in segments)
+    scale_available = validity.scale["status"] == "available"
 
     per_landmark: dict[str, Any] = {}
     for name in names:
@@ -179,15 +234,21 @@ def _detector_coverage(
 def compute_coverage(
     records: Sequence[dict[str, Any]], width: int, height: int, start_ms: int, end_ms: int,
     cfg: QualityConfig, sample_period_ms: float, low_movement_target: float,
+    validity: TrackValidity | None = None,
 ) -> dict[str, Any]:
-    scale = torso_scale(records, width, height, cfg)
+    validity = validity or derive_validity(records, width, height, cfg, sample_period_ms)
     detected = sum(r["pose_detected"] for r in records)
     detectors = {
-        name: _detector_coverage(landmarks, records, start_ms, end_ms, scale["status"] == "available",
-                                 cfg, sample_period_ms)
+        name: _detector_coverage(landmarks, records, start_ms, end_ms, validity, cfg, sample_period_ms)
         for name, landmarks in DETECTOR_LANDMARKS.items()
     }
     low_fraction = detectors["low_movement"]["fraction"]
+    blocked_counts: dict[str, int] = {}
+    for reason in validity.blocked:
+        if reason:
+            blocked_counts[reason] = blocked_counts.get(reason, 0) + 1
+    interval_count = max(len(records) - 1, 0)
+    camera_count = blocked_counts.get("camera_motion", 0)
     return {
         "attempt_bounds_ms": {"start": start_ms, "end": end_ms},
         "timebase": "canonical_video_ms",
@@ -195,7 +256,9 @@ def compute_coverage(
         "sampled_frames": len(records),
         "pose_detected_samples": detected,
         "pose_detected_fraction": round(detected / len(records), 4) if records else None,
-        "attempt_scale": scale,
+        "attempt_scale": validity.scale,
+        "excluded_intervals": blocked_counts,
+        "camera_motion_interval_fraction": round(camera_count / interval_count, 4) if interval_count else None,
         "detectors": detectors,
         "provisional_coverage_target": {
             "detector": "low_movement",
@@ -206,12 +269,17 @@ def compute_coverage(
     }
 
 
-def timeline_rows(records: Sequence[dict[str, Any]], cfg: QualityConfig) -> list[dict[str, Any]]:
+def timeline_rows(
+    records: Sequence[dict[str, Any]], cfg: QualityConfig, validity: TrackValidity | None = None,
+) -> list[dict[str, Any]]:
     """One row per sample for the coverage timeline CSV."""
     all_required = sorted({n for names in DETECTOR_LANDMARKS.values() for n in names} | set(SCALE_LANDMARKS))
     rows = []
-    for record in records:
-        unavailable = invalid_reasons(record, all_required, cfg)
+    for position, record in enumerate(records):
+        if validity is None:
+            unavailable = invalid_reasons(record, all_required, cfg)
+        else:
+            unavailable = {n: validity.reasons[position][n] for n in all_required if n in validity.reasons[position]}
         row = {"frame_index": record["frame_index"], "timestamp_ms": record["timestamp_ms"],
                "pose_detected": int(record["pose_detected"])}
         for detector, names in DETECTOR_LANDMARKS.items():

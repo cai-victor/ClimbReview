@@ -10,7 +10,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Any, Iterable, Protocol, Sequence
+from typing import Any, Callable, Iterable, Protocol, Sequence
 
 import numpy as np
 
@@ -99,13 +99,43 @@ def sample_frame_indices(frames: FrameMap, stride: int, start_ms: int, end_ms: i
     return [i for i in range(0, frames.frame_count, stride) if start_ms <= frames.timestamps_ms[i] < end_ms]
 
 
+CAMERA_ANALYSIS_LONG_SIDE_PX = 160
+
+
+def _camera_gray(rgb: np.ndarray) -> tuple[np.ndarray, float]:
+    import cv2
+
+    height, width = rgb.shape[:2]
+    factor = min(1.0, CAMERA_ANALYSIS_LONG_SIDE_PX / max(width, height))
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    small = cv2.resize(gray, None, fx=factor, fy=factor, interpolation=cv2.INTER_AREA)
+    return small.astype(np.float64), factor
+
+
+def estimate_camera_shift(previous: np.ndarray, current: np.ndarray, factor: float) -> tuple[float, float]:
+    """Dominant image translation between frames, in canonical pixels, with peak response.
+
+    A diagnostic for the stationary-camera assumption. Rotation and zoom are not
+    modeled, and a uniform wall offers little texture to correlate.
+    """
+    import cv2
+
+    window = cv2.createHanningWindow(current.shape[::-1], cv2.CV_64F)
+    (dx, dy), response = cv2.phaseCorrelate(previous, current, window)
+    return float(np.hypot(dx, dy) / factor), float(response)
+
+
 def extract_poses(
     video: Path, size: tuple[int, int], frames: FrameMap, indices: Iterable[int], detector: PoseDetector,
+    repeated: Sequence[bool] | None = None,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> list[dict[str, Any]]:
+    """Run inference on the requested frames. `on_progress` may raise to cancel."""
     wanted = list(indices)
     wanted_set = set(wanted)
     records: list[dict[str, Any]] = []
     previous_ms = -1
+    previous_gray: np.ndarray | None = None
     width, height = size
     for index, rgb in iter_rgb_frames(video, width, height):
         if index in wanted_set:
@@ -113,7 +143,18 @@ def extract_poses(
             if timestamp_ms <= previous_ms:
                 raise ClimbReviewError(f"Non-increasing frame timestamp at frame {index}: {timestamp_ms} ms.")
             previous_ms = timestamp_ms
-            records.append(frame_record(index, timestamp_ms, detector.detect(rgb, timestamp_ms)))
+            record = frame_record(index, timestamp_ms, detector.detect(rgb, timestamp_ms))
+            gray, factor = _camera_gray(rgb)
+            shift, response = None, None
+            if previous_gray is not None:
+                shift, response = estimate_camera_shift(previous_gray, gray, factor)
+            previous_gray = gray
+            record["camera_shift_px"] = finite_or_none(shift)
+            record["camera_shift_response"] = finite_or_none(response)
+            record["repeated_source_frame"] = bool(repeated[len(records)]) if repeated is not None else False
+            records.append(record)
+            if on_progress is not None:
+                on_progress(len(records), len(wanted))
             if len(records) == len(wanted):
                 break
     if len(records) != len(wanted):
