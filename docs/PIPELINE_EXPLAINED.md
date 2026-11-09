@@ -39,6 +39,19 @@ Inside each stretch where the needed joints are valid, positions are averaged ov
 
 An interval also stops counting if the camera seems to move, or if the video merely repeated a frame, because neither is a real observation of the climber. These thresholds are starting hypotheses, not validated values.
 
+## Four different kinds of result
+
+Keep these separate when you present the project.
+
+| Kind | What produces it | Status |
+| --- | --- | --- |
+| Pose inference | MediaPipe's pretrained model, with frozen weights | Runs on real clips; never retrained here |
+| Rule-based events | Thresholds and logic written for this project | Implemented; accuracy not yet measured |
+| Learned motion forecast | A Ridge model fitted on public clips to predict later tracked wrist motion | Experimental; predicts tracked motion, not technique |
+| Interpretation and coaching | Fixed wording prompting reflection | Unvalidated by design; it asks questions rather than judges |
+
+Forecast error is measured against later pose estimates, which are themselves noisy. A low error says nothing about whether a movement was good.
+
 ## Reading the output folder
 
 | File | Use |
@@ -59,6 +72,8 @@ An interval also stops counting if the camera seems to move, or if the video mer
 **Why not fill small tracking gaps?** Interpolation invents observations. A gap in tracking could hide movement, and bridging it could create a false low-movement interval.
 
 **Why these thresholds?** They are starting hypotheses from the project plan, not validated standards. They are to be tuned on development clips and frozen before held-out testing.
+
+**Can the app use handheld video?** Only partly. Intervals with camera motion are excluded by default. An experiment that estimates background motion looked plausible, but it remains off because no human labels exist to check it.
 
 **How do you know the tests mean anything?** They check behavior such as pixel positions after rotation and brightness-coded timing. Eight deliberately injected defects each caused a failure. They still cannot establish pose accuracy on climbing footage.
 

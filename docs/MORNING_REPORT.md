@@ -2,6 +2,12 @@
 
 **The app works end to end on your real clips, but it cannot yet support the stillness analysis on handheld video, and event accuracy is unmeasured.** No human labels or user study exist. The provisional feasibility gate is not met.
 
+## Phase 2 checkpoint (in progress)
+
+**Done:** blind reference-labeling page, manual hold editor, and a time-boxed camera-compensation experiment. Their browser and API checks pass. The import Cancel button is now verified in a browser.
+
+**Forecast experiment:** 18 licensed public clips were downloaded and processed. Public competition video almost always has a moving camera, so very few steady-camera windows exist. The final results will be in `docs/TRAINING_REPORT.md`.
+
 ## 1. What works, what is experimental, what is unverified
 
 **Works and was tested:** importing MP4/MOV, HDR conversion, upright normalization, attempt bounds, pose analysis in a separate worker, retry and cancel handling, synchronized skeleton playback, timeline, tracking-gap explanations, event cards, separate correctness and usefulness judgments, notes, reflection, JSON/CSV/HTML export, deletion, phone-width layout.
