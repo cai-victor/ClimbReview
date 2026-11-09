@@ -61,6 +61,31 @@ CREATE TABLE IF NOT EXISTS reflections (
   next_focus TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS annotation_sets (
+  id TEXT PRIMARY KEY,
+  attempt_id TEXT NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,
+  rater_alias TEXT NOT NULL,
+  clip_id TEXT NOT NULL,
+  climber_id TEXT NOT NULL DEFAULT '',
+  route_id TEXT NOT NULL DEFAULT '',
+  split TEXT NOT NULL DEFAULT '',
+  synthetic_test_fixture INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE (attempt_id, rater_alias)
+);
+CREATE TABLE IF NOT EXISTS annotation_intervals (
+  id TEXT PRIMARY KEY,
+  set_id TEXT NOT NULL REFERENCES annotation_sets(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL CHECK (event_type IN ('low_movement','wrist_motion','unscorable')),
+  hand TEXT CHECK (hand IN ('left','right')),
+  start_ms INTEGER NOT NULL,
+  end_ms INTEGER NOT NULL,
+  applies_to TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS annotation_intervals_set ON annotation_intervals(set_id, start_ms);
 """
 ACTIVE = ("queued", "running")
 

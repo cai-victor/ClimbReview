@@ -101,6 +101,30 @@ export const api = {
     }),
 };
 
+export type IntervalType = "low_movement" | "wrist_motion" | "unscorable";
+export interface AnnotationInterval {
+  id: string; event_type: IntervalType; hand: "left" | "right" | null; start_ms: number; end_ms: number; applies_to: string[]; notes: string;
+}
+export interface AnnotationSet {
+  id: string; attempt_id: string; rater_alias: string; clip_id: string; climber_id: string; route_id: string; split: string;
+  synthetic_test_fixture: boolean; kind: string; intervals: AnnotationInterval[];
+}
+export interface AnnotationSetSummary { id: string; rater_alias: string; synthetic_test_fixture: boolean; interval_count: number; updated_at: string }
+export type IntervalBody = Omit<AnnotationInterval, "id">;
+
+export const annotationApi = {
+  listSets: (attemptId: string) => request<AnnotationSetSummary[]>(`/api/attempts/${attemptId}/annotation-sets`),
+  createSet: (attemptId: string, body: Record<string, unknown>) =>
+    request<AnnotationSet>(`/api/attempts/${attemptId}/annotation-sets`, jsonInit("POST", body)),
+  getSet: (id: string) => request<AnnotationSet>(`/api/annotation-sets/${id}`),
+  deleteSet: (id: string) => request<void>(`/api/annotation-sets/${id}`, { method: "DELETE" }),
+  addInterval: (id: string, body: IntervalBody) => request<AnnotationSet>(`/api/annotation-sets/${id}/intervals`, jsonInit("POST", body)),
+  editInterval: (id: string, intervalId: string, body: IntervalBody) =>
+    request<AnnotationSet>(`/api/annotation-sets/${id}/intervals/${intervalId}`, jsonInit("PUT", body)),
+  deleteInterval: (id: string, intervalId: string) =>
+    request<AnnotationSet>(`/api/annotation-sets/${id}/intervals/${intervalId}`, { method: "DELETE" }),
+};
+
 export const clock = (ms: number | null | undefined): string => {
   if (ms == null) return "n/a";
   const total = ms / 1000;
