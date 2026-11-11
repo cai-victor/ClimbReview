@@ -78,47 +78,93 @@ def climber_mask(shape: tuple[int, int], joints: dict[str, Sequence[float]] | No
     return None if background is None else background == 0
 
 
+REGISTER_MIN_INLIERS = 60
+REGISTER_MIN_INLIER_RATIO = 0.5
+REGISTER_MAX_RESIDUAL_PX = 1.5        # median, at the analysis size
+REGISTER_MAX_CORNER_SHIFT = 0.15      # of image width; larger means a different view, not a small shift
+MOVED_PX = 2.0                        # frames shifted more than this count as lined up, not as still
+
+
+def register_to_reference(reference_gray: np.ndarray, frame_gray: np.ndarray, scale: float, width: int, height: int,
+                          climber: np.ndarray | None) -> tuple[np.ndarray, float] | None:
+    """Homography taking full-size frame pixels to reference pixels, with its largest corner shift. None when unreliable."""
+    allowed = np.full(reference_gray.shape, 255, np.uint8)
+    if climber is not None:
+        allowed[cv2.resize(climber.astype(np.uint8), reference_gray.shape[::-1], interpolation=cv2.INTER_NEAREST) > 0] = 0
+    corners = cv2.goodFeaturesToTrack(frame_gray, maxCorners=600, qualityLevel=0.01, minDistance=7, mask=allowed)
+    if corners is None or len(corners) < REGISTER_MIN_INLIERS:
+        return None
+    tracked, status, _ = cv2.calcOpticalFlowPyrLK(frame_gray, reference_gray, corners, None, winSize=(31, 31), maxLevel=4)
+    good = status.ravel() == 1
+    if good.sum() < REGISTER_MIN_INLIERS:
+        return None
+    source, target = corners[good].reshape(-1, 2), tracked[good].reshape(-1, 2)
+    matrix, inliers = cv2.findHomography(source, target, cv2.RANSAC, 2.0)
+    if matrix is None or inliers is None:
+        return None
+    kept = inliers.ravel() == 1
+    if kept.sum() < REGISTER_MIN_INLIERS or kept.mean() < REGISTER_MIN_INLIER_RATIO:
+        return None
+    projected = cv2.perspectiveTransform(source[kept].reshape(-1, 1, 2), matrix).reshape(-1, 2)
+    if float(np.median(np.linalg.norm(projected - target[kept], axis=1))) > REGISTER_MAX_RESIDUAL_PX:
+        return None
+    shrink = np.diag([scale, scale, 1.0])
+    full = np.linalg.inv(shrink) @ matrix @ shrink
+    box = np.float32([[0, 0], [width, 0], [0, height], [width, height]]).reshape(-1, 1, 2)
+    shift = float(np.max(np.linalg.norm(cv2.perspectiveTransform(box, full).reshape(-1, 2) - box.reshape(-1, 2), axis=1)))
+    return (full, shift) if shift <= REGISTER_MAX_CORNER_SHIFT * width else None
+
+
 def clean_wall(reference_bgr: np.ndarray, frames_bgr: Sequence[np.ndarray],
                climber_masks: Sequence[np.ndarray | None] | None = None) -> tuple[np.ndarray, dict[str, Any]]:
-    """Combine frames into one picture of the wall without the climber.
+    """Stitch frames into one picture of the wall, in the reference frame's coordinates, without the climber.
 
-    Frames are used only if a background transform shows the camera did not move. With `climber_masks`
-    (True where the tracked climber is), each pixel takes the median of the frames where it was clear, so
-    a climber who stays in one place for a long time is still removed. Pixels that were never clear fall
-    back to the plain median and are reported. With too few usable frames the reference frame is returned.
+    Each frame is lined up with the reference using background features, so a small camera shift is corrected
+    and a frame that cannot be lined up reliably is left out. With `climber_masks` (True where the tracked climber
+    is), each pixel takes the median of the frames where it was clear, so a climber who stays in one place is
+    still removed. Pixels that were never clear keep the reference frame's own content and are reported. With too few
+    usable frames the reference frame is returned unchanged.
     """
     height, width = reference_bgr.shape[:2]
     reference, scale = cc.frame_gray(cv2.cvtColor(reference_bgr, cv2.COLOR_BGR2RGB))
-    everything = np.full(reference.shape, 255, np.uint8)
-    aligned, masks = [], []
+    aligned, hidden, shifted = [], [], 0
     for index, frame in enumerate(frames_bgr):
         if frame is None or frame.shape != reference_bgr.shape:
             continue
+        climber = None if climber_masks is None else climber_masks[index]
         current, _ = cc.frame_gray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        result = cc.estimate_interval(reference, current, everything, scale, cc.TransformLimits())
-        if result["accepted"] and cc.largest_corner_motion_px(result["matrix"], width, height, scale) <= CLEAN_MAX_CORNER_MOTION_PX:
-            aligned.append(frame)
-            masks.append(None if climber_masks is None else climber_masks[index])
+        registered = register_to_reference(reference, current, scale, width, height, climber)
+        if registered is None:
+            continue
+        matrix, shift = registered
+        blocked = np.zeros((height, width), np.uint8) if climber is None else climber.astype(np.uint8)
+        if shift > MOVED_PX:
+            shifted += 1
+            frame = cv2.warpPerspective(frame, matrix, (width, height), flags=cv2.INTER_LINEAR)
+            inside = cv2.warpPerspective(np.full((height, width), 255, np.uint8), matrix, (width, height), flags=cv2.INTER_NEAREST)
+            blocked = cv2.warpPerspective(blocked * 255, matrix, (width, height), flags=cv2.INTER_NEAREST) // 255
+            blocked[inside == 0] = 1                 # nothing was seen outside the shifted frame
+        aligned.append(frame)
+        hidden.append(blocked.astype(bool))
     if len(aligned) < CLEAN_MIN_FRAMES:
-        return reference_bgr, {"basis": "reference_frame", "frames_used": 1, "never_clear_fraction": None,
-                               "detail": "This is a single video frame, because the camera moved or too few frames could be combined. Holds behind the climber stay hidden."}
+        return reference_bgr, {"basis": "reference_frame", "frames_used": 1, "frames_realigned": 0, "never_clear_fraction": None,
+                               "detail": "This is a single video frame, because too few frames could be lined up with it. Holds behind the climber stay hidden."}
     stack = np.stack(aligned).astype(np.float32)
-    plain = np.median(stack, axis=0)
+    masks = np.stack(hidden)
+    stack[masks] = np.nan
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        combined = np.nanmedian(stack, axis=0)
+    unclear = (~masks).sum(axis=0) < MIN_CLEAR_SAMPLES
+    combined[unclear] = reference_bgr[unclear]          # shown as the original frame, and reported below
+    moved = f" {shifted} of them were shifted to line up, because the camera moved slightly." if shifted else ""
     if climber_masks is None:
-        return plain.astype(np.uint8), {"basis": "clean_wall_median", "frames_used": len(aligned), "never_clear_fraction": None,
-                                        "detail": f"Combined from {len(aligned)} video frames. Without body tracking, a climber who stays in one place may still show."}
-    hidden = np.stack([np.zeros((height, width), bool) if m is None else m for m in masks])
-    clear_count = (~hidden).sum(axis=0)
-    stack[hidden] = np.nan
-    with np.errstate(all="ignore"):
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            combined = np.nanmedian(stack, axis=0)
-    unclear = clear_count < MIN_CLEAR_SAMPLES
-    combined[unclear] = plain[unclear]
+        return combined.astype(np.uint8), {"basis": "clean_wall_median", "frames_used": len(aligned), "frames_realigned": shifted, "never_clear_fraction": None,
+                                           "detail": f"Combined from {len(aligned)} video frames.{moved} Without body tracking, a climber who stays in one place may still show."}
     fraction = float(unclear.mean())
-    detail = f"Combined from {len(aligned)} video frames, with the tracked climber cut out of each one."
+    detail = f"Combined from {len(aligned)} video frames, with the tracked climber cut out of each one.{moved}"
     if fraction > 0.001:
-        detail += f" About {fraction * 100:.1f}% of the picture was never clear of the climber, so the climber may still show there."
-    return combined.astype(np.uint8), {"basis": "clean_wall_pose_masked", "frames_used": len(aligned), "never_clear_fraction": round(fraction, 4), "detail": detail}
+        detail += f" About {fraction * 100:.1f}% of the picture was never clear of the climber or was outside the lined-up frames. Those parts show the original frame, so the climber may still appear there."
+    return combined.astype(np.uint8), {"basis": "clean_wall_pose_masked", "frames_used": len(aligned), "frames_realigned": shifted,
+                                       "never_clear_fraction": round(fraction, 4), "detail": detail}

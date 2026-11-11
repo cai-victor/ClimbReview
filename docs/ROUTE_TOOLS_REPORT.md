@@ -56,12 +56,14 @@ The browser photo is a drawn synthetic wall. No real wall photo was imported, an
 
 The hold editor and planner now show one picture of the wall combined from across the video, instead of a single frame with the climber in it. It takes up to 25 moments from the analysis, cuts the tracked climber out of each using a box around the tracked joints, and keeps the median of the clear views for every pixel. A "Clear wall picture" checkbox switches back to the original frame.
 
-- **Requires a still camera.** Every frame used must match the reference frame within 8 pixels of background movement. If fewer than 5 qualify, the editor shows the single frame and says so.
+- **Small camera shifts are corrected.** Each frame is lined up with the reference frame using background features before combining, and a frame that cannot be lined up reliably is left out. If fewer than 5 remain, the editor shows the single frame and says so. Large pans or a walking camera are not supported.
 - **Works best with an analysis.** Without one, a plain median is used, which can leave a ghost where the climber stays for a long time.
-- **Reports what it could not clear.** A pixel needs 3 clear views. The share of the picture that never had them is stated under the picture.
+- **Reports what it could not clear.** A pixel needs 3 clear views. Areas without them show the original frame, and their share is stated under the picture.
 - **Limits.** A second person, a swinging rope, or chalk marks that change during the climb are not removed. The picture reflects typical lighting across the clip, not one instant.
 
 On your two tripod clips, both pictures used 25 frames and every pixel was clear at least 3 times. In an AI-assisted look at the two results, the climber was fully removed on both, and the earlier untracked method had left a visible ghost on IMG_7238. Comparison image: `data/tripod_nov09/wall_pictures/compare.jpg`. Building takes about 5 seconds the first time and is then cached.
 
 Verification after this addition: 274 backend tests and 11 browser specs passed, including the editor showing the combined picture for real IMG_4301.
+
+On IMG_7768, whose map uses the very first frame, the camera shifted about 35 pixels afterward. 24 of 25 frames were shifted into line, the climber was removed, and holds she had covered became visible (AI-assisted look at one image: `data/tripod_nov09/wall_pictures/7768_compare.jpg`). About 2.9% of that picture, mainly an edge strip, shows the original frame. Final verification: 276 backend tests and 11 browser specs passed.
 

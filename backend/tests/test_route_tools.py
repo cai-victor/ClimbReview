@@ -82,11 +82,34 @@ def test_clean_wall_removes_a_moving_climber():
     assert np.abs(image[260, 40].astype(int) - base[260, 40].astype(int)).max() < 12        # where the climber stood in the reference
 
 
-def test_clean_wall_falls_back_when_the_camera_moved():
+def test_clean_wall_falls_back_when_frames_show_a_different_view():
     base = textured()
-    moved = [cv2.warpAffine(base, np.float32([[1, 0, 25 * (i + 1)], [0, 1, 0]]), (320, 568), borderMode=cv2.BORDER_REFLECT) for i in range(9)]
-    image, info = hs.clean_wall(base, moved)
+    other = [textured(seed=50 + i) for i in range(9)]                       # nothing in common with the reference
+    image, info = hs.clean_wall(base, other)
     assert info["basis"] == "reference_frame" and np.array_equal(image, base)
+
+
+def test_small_camera_shift_is_lined_up_before_combining():
+    base = textured()
+    reference = base.copy()
+    cv2.rectangle(reference, (140, 240), (180, 330), (0, 255, 0), -1)        # the climber hides this part of the reference
+    frames = []
+    for i in range(9):
+        moved = cv2.warpAffine(base, np.float32([[1, 0, 12 + i], [0, 1, -8]]), (320, 568), borderMode=cv2.BORDER_CONSTANT)
+        cv2.rectangle(moved, (20 + i * 5, 400), (50 + i * 5, 470), (0, 255, 0), -1)
+        frames.append(moved)
+    image, info = hs.clean_wall(reference, frames)
+    assert info["frames_realigned"] >= 5 and "shifted to line up" in info["detail"]
+    for y, x in ((285, 160), (100, 60), (500, 250)):                         # behind the reference climber and elsewhere
+        assert np.abs(image[y, x].astype(int) - base[y, x].astype(int)).max() < 30, (y, x)
+
+
+def test_rotation_and_zoom_between_frames_are_corrected():
+    base = textured()
+    frames = [cv2.warpAffine(base, cv2.getRotationMatrix2D((160, 284), 0.6 + 0.1 * i, 1.01), (320, 568), borderMode=cv2.BORDER_CONSTANT) for i in range(8)]
+    image, info = hs.clean_wall(base, frames)
+    assert info["frames_realigned"] >= 5
+    assert np.abs(image[200:400:40, 100:250:30].astype(int) - base[200:400:40, 100:250:30].astype(int)).mean() < 14
 
 
 # ---- measurements and scale
