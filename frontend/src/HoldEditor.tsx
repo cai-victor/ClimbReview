@@ -1,5 +1,5 @@
 import { MouseEvent, useCallback, useEffect, useRef, useState } from "react";
-import { api, Attempt, clock, Hold, holdApi, HoldMap, HoldSuggestion } from "./api";
+import { api, Attempt, clock, Hold, holdApi, HoldMap, HoldSuggestion, WallInfo } from "./api";
 
 type Mode = "add" | "suggest" | "scale";
 
@@ -27,6 +27,13 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
   const [scalePoints, setScalePoints] = useState<{ x: number; y: number }[]>([]);
   const [scaleCm, setScaleCm] = useState("");
   const [busy, setBusy] = useState(false);
+  const [wall, setWall] = useState<WallInfo | null>(null);
+  const [showWall, setShowWall] = useState(true);
+  const activeId = active?.id;
+  useEffect(() => {
+    setWall(null);
+    if (activeId) holdApi.wallInfo(activeId).then(setWall).catch(() => setWall(null));   // the single frame stays usable if this fails
+  }, [activeId]);
 
   const load = useCallback(async () => {
     try { setAttempt(await api.getAttempt(attemptId)); setMaps(await holdApi.list(attemptId)); }
@@ -97,7 +104,8 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
 
   if (!attempt) return <div className="page">{error ? <p className="error" role="alert">{error}</p> : <p className="muted">Loading…</p>}</div>;
   const width = active?.width ?? attempt.width ?? 1, height = active?.height ?? attempt.height ?? 1;
-  const image = active ? active.frame_url : `/api/attempts/${attemptId}/frame?ms=${Math.min(previewMs, (attempt.duration_ms ?? 1) - 1)}`;
+  const useWall = Boolean(active && wall?.combined && showWall);
+  const image = useWall ? wall!.image_url : active ? active.frame_url : `/api/attempts/${attemptId}/frame?ms=${Math.min(previewMs, (attempt.duration_ms ?? 1) - 1)}`;
 
   return (
     <div className="page">
@@ -109,7 +117,7 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
       <div className="hold-layout">
         <section className="card">
           <div className="hold-stage" data-testid="hold-stage">
-            <img src={image} alt={`Reference frame at ${clock(active?.reference_frame_ms ?? previewMs)}`} data-testid="hold-image" />
+            <img src={image} alt={useWall ? "Wall picture combined from the video, with the climber removed" : `Reference frame at ${clock(active?.reference_frame_ms ?? previewMs)}`} data-testid="hold-image" />
             {active && (
               <svg ref={svg} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" data-testid="hold-svg" onClick={addAt}>
                 {active.holds.map((item, index) => (
@@ -136,6 +144,13 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
               </svg>
             )}
           </div>
+          {active && !wall && <p className="muted small-text" role="status">Building a clear wall picture from the video…</p>}
+          {active && wall && (
+            <p className="small-text" data-testid="wall-status">
+              {wall.combined && <label className="choice"><input type="checkbox" checked={showWall} data-testid="wall-toggle" onChange={(e) => setShowWall(e.target.checked)} /> Clear wall picture</label>}
+              {wall.detail}{wall.combined ? " Marks line up with the video because the camera did not move." : ""}
+            </p>
+          )}
           {active
             ? <p className="muted small-text">{mode === "suggest" ? "Click directly on one hold of your route to find others of the same color. " : mode === "scale" ? "Click two points on the wall whose real distance apart you know. " : ""}Click the picture to add a hold. With a hold focused (Tab), arrow keys move it and Delete removes it. Frame {clock(active.reference_frame_ms)}.</p>
             : <p className="muted small-text">Choose the frame, then create a hold map.</p>}

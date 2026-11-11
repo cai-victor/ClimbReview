@@ -66,26 +66,59 @@ def suggest(image_bgr: np.ndarray, x: float, y: float, tolerance: str = "normal"
             "note": "Suggestions share the tapped color. They are not confirmed holds, may include other objects, and can miss holds in shadow or of mixed color."}
 
 
-def clean_wall(reference_bgr: np.ndarray, frames_bgr: Sequence[np.ndarray]) -> tuple[np.ndarray, dict[str, Any]]:
-    """Per-pixel median of frames that line up with the reference, which removes a climber who keeps moving.
+CLIMBER_MARGIN = cc.TransformLimits(climber_margin_fraction=0.2)
+MIN_CLEAR_SAMPLES = 3
 
-    Frames are used only if a background transform shows the camera did not move. With too few such frames
-    the reference frame is returned unchanged, and the result says so.
+
+def climber_mask(shape: tuple[int, int], joints: dict[str, Sequence[float]] | None) -> np.ndarray | None:
+    """True where the tracked climber may be. None when no body was tracked in this frame."""
+    if not joints:
+        return None
+    background = cc.climber_mask(shape, [{"landmarks": [{"x": x, "y": y} for x, y in joints.values()]}], CLIMBER_MARGIN)
+    return None if background is None else background == 0
+
+
+def clean_wall(reference_bgr: np.ndarray, frames_bgr: Sequence[np.ndarray],
+               climber_masks: Sequence[np.ndarray | None] | None = None) -> tuple[np.ndarray, dict[str, Any]]:
+    """Combine frames into one picture of the wall without the climber.
+
+    Frames are used only if a background transform shows the camera did not move. With `climber_masks`
+    (True where the tracked climber is), each pixel takes the median of the frames where it was clear, so
+    a climber who stays in one place for a long time is still removed. Pixels that were never clear fall
+    back to the plain median and are reported. With too few usable frames the reference frame is returned.
     """
     height, width = reference_bgr.shape[:2]
     reference, scale = cc.frame_gray(cv2.cvtColor(reference_bgr, cv2.COLOR_BGR2RGB))
     everything = np.full(reference.shape, 255, np.uint8)
-    aligned = []
-    for frame in frames_bgr:
-        if frame.shape != reference_bgr.shape:
+    aligned, masks = [], []
+    for index, frame in enumerate(frames_bgr):
+        if frame is None or frame.shape != reference_bgr.shape:
             continue
         current, _ = cc.frame_gray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         result = cc.estimate_interval(reference, current, everything, scale, cc.TransformLimits())
         if result["accepted"] and cc.largest_corner_motion_px(result["matrix"], width, height, scale) <= CLEAN_MAX_CORNER_MOTION_PX:
             aligned.append(frame)
+            masks.append(None if climber_masks is None else climber_masks[index])
     if len(aligned) < CLEAN_MIN_FRAMES:
-        return reference_bgr, {"basis": "reference_frame", "frames_used": 1,
-                               "detail": "Using the reference frame only, so holds hidden behind the climber cannot be suggested."}
-    median = np.median(np.stack(aligned), axis=0).astype(np.uint8)
-    return median, {"basis": "clean_wall_median", "frames_used": len(aligned),
-                    "detail": f"Using a wall picture built from {len(aligned)} video frames, so a moving climber is mostly removed."}
+        return reference_bgr, {"basis": "reference_frame", "frames_used": 1, "never_clear_fraction": None,
+                               "detail": "This is a single video frame, because the camera moved or too few frames could be combined. Holds behind the climber stay hidden."}
+    stack = np.stack(aligned).astype(np.float32)
+    plain = np.median(stack, axis=0)
+    if climber_masks is None:
+        return plain.astype(np.uint8), {"basis": "clean_wall_median", "frames_used": len(aligned), "never_clear_fraction": None,
+                                        "detail": f"Combined from {len(aligned)} video frames. Without body tracking, a climber who stays in one place may still show."}
+    hidden = np.stack([np.zeros((height, width), bool) if m is None else m for m in masks])
+    clear_count = (~hidden).sum(axis=0)
+    stack[hidden] = np.nan
+    with np.errstate(all="ignore"):
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            combined = np.nanmedian(stack, axis=0)
+    unclear = clear_count < MIN_CLEAR_SAMPLES
+    combined[unclear] = plain[unclear]
+    fraction = float(unclear.mean())
+    detail = f"Combined from {len(aligned)} video frames, with the tracked climber cut out of each one."
+    if fraction > 0.001:
+        detail += f" About {fraction * 100:.1f}% of the picture was never clear of the climber, so the climber may still show there."
+    return combined.astype(np.uint8), {"basis": "clean_wall_pose_masked", "frames_used": len(aligned), "never_clear_fraction": round(fraction, 4), "detail": detail}

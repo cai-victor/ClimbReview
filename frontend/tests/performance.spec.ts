@@ -76,6 +76,20 @@ test("coaching cards, placements, candidate beta, and matched comparison", async
   const marks = [[0.08, 0.62, "start", "hand"], [0.2, 0.60, "start", "hand"], [0.1, 0.78, "", "foot"], [0.2, 0.76, "", "foot"], [0.16, 0.68, "", "both"], [0.24, 0.66, "", "foot"],
     [0.16, 0.54, "", "hand"], [0.2, 0.48, "finish", "hand"]] as const;
   for (const [x, y, role, use] of marks) await request.post(`/api/hold-maps/${map.id}/holds`, { data: { x, y, radius: 0.035, route: "fixture", hold_type: "", role, use } });
+  // The editor shows a wall picture combined from the real video, with the tracked climber cut out.
+  const wall = await (await request.get(`/api/hold-maps/${map.id}/wall-info`)).json();
+  console.log(`wall ${JSON.stringify(wall)}`);
+  expect(wall.basis).toBe("clean_wall_pose_masked");
+  expect(wall.frames_used).toBeGreaterThanOrEqual(5);
+  const editor = await page.context().newPage();
+  await editor.goto(`/#/holds/${attemptId}`);
+  await editor.getByRole("button", { name: /Open map/ }).click();
+  await expect(editor.getByTestId("wall-toggle")).toBeChecked({ timeout: 30_000 });
+  await expect(editor.getByTestId("hold-image")).toHaveAttribute("src", /wall-image/);
+  expect(await editor.getByTestId("hold-image").evaluate((n) => (n as HTMLImageElement).naturalWidth)).toBe(720);
+  await editor.getByTestId("wall-toggle").uncheck();
+  await expect(editor.getByTestId("hold-image")).toHaveAttribute("src", /frame\?ms=/);
+  await editor.close();
   await page.reload();
   await expect(page.getByTestId("beta-figure")).toBeVisible();
   await expect(page.getByTestId("beta-steps").getByRole("listitem").first()).toBeVisible({ timeout: 20_000 });

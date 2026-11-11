@@ -156,3 +156,5 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 **D68. A photo is imported as a one-second still clip.** This reuses normalization, frames, hold maps, and deletion without a parallel data model. Photo attempts refuse analysis.
 
 **D69. Planning without a video uses entered height and wingspan plus a user-marked scale line.** Lengths use average segment proportions and are disclosed as estimates. One scale applies to the whole picture and perspective is not corrected, which is stated with each plan. Measurements are kept in the browser, not the database.
+
+**D70. The hold editor shows a pose-masked wall composite when the camera is still.** Each pixel is the median of frames where it lay outside a box around the tracked joints (20% margin), needing 3 clear views; otherwise the plain median is used and the uncovered share is reported. It supersedes the plain 15-frame median of D67 for analyzed videos. Marks stay valid because only frames aligned with the reference frame are combined.

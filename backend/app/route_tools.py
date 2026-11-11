@@ -10,7 +10,10 @@ from typing import Any, Literal
 
 import cv2
 import numpy as np
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import db
@@ -18,7 +21,7 @@ from .analysis import beta, hold_suggest
 from .holds import frame_path
 from .settings import Settings, require_id
 
-CLEAN_WALL_FRAMES = 15
+WALL_FRAMES = 25
 MIN_SCALE_LINE_PX = 20
 
 
@@ -38,6 +41,39 @@ class Scale(BaseModel):
     cm: float = Field(ge=5, le=2000)
 
 
+def wall_paths(settings: Settings, row: dict[str, Any], attempt: dict[str, Any], run: dict[str, Any] | None):
+    """Cache location. It names the analysis used, so a newer analysis rebuilds the picture."""
+    stem = settings.attempt_dir(attempt["id"]) / "frames" / f"wall_{row['id']}_{run['id'][:12] if run else 'untracked'}"
+    return stem.with_suffix(".png"), stem.with_suffix(".json")
+
+
+def build_wall_image(settings: Settings, attempt: dict[str, Any], reference_ms: int, cache: Path | None, run_id: str | None) -> tuple[np.ndarray, dict[str, Any]]:
+    """The clearest available picture of the wall for one reference frame, combined from across the video when possible."""
+    info_path = None if cache is None else cache.with_suffix(".json")
+    if cache is not None and cache.exists() and info_path.exists():
+        return cv2.imread(str(cache)), json.loads(info_path.read_text())
+    reference = cv2.imread(str(frame_path(settings, attempt, reference_ms)))
+    frames: list[np.ndarray] = []
+    masks: list[np.ndarray | None] | None = None
+    if attempt["duration_ms"] > 3000:               # a photo has nothing to combine
+        overlay = None if run_id is None else settings.run_dir(attempt["id"], run_id) / "overlay.json"
+        if overlay is not None and overlay.exists():
+            samples = json.loads(overlay.read_text())["samples"]
+            chosen = [samples[int(i)] for i in np.linspace(0, len(samples) - 1, min(WALL_FRAMES, len(samples)))] if samples else []
+            masks = []
+            for sample in chosen:                    # only moments where the tracker looked for the climber
+                frames.append(cv2.imread(str(frame_path(settings, attempt, sample["t"]))))
+                masks.append(hold_suggest.climber_mask(reference.shape[:2], sample["joints"]))
+        else:
+            frames = [cv2.imread(str(frame_path(settings, attempt, int(ms)))) for ms in np.linspace(0, attempt["duration_ms"] - 200, WALL_FRAMES)]
+    image, info = hold_suggest.clean_wall(reference, frames, masks)
+    if cache is not None:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(cache), image)
+        info_path.write_text(json.dumps(info))
+    return image, info
+
+
 def register_route_tools(app: FastAPI, get_settings) -> None:
     router = APIRouter()
 
@@ -50,19 +86,28 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
         return row, attempt, holds
 
     def wall_image(settings: Settings, row: dict[str, Any], attempt: dict[str, Any]) -> tuple[np.ndarray, dict[str, Any]]:
-        directory = settings.attempt_dir(attempt["id"])
-        reference = cv2.imread(str(frame_path(settings, attempt, row["reference_frame_ms"])))
-        cached, info_path = directory / "frames" / f"clean_{row['id']}.png", directory / "frames" / f"clean_{row['id']}.json"
-        if cached.exists() and info_path.exists():
-            return cv2.imread(str(cached)), json.loads(info_path.read_text())
-        frames = []
-        if attempt["duration_ms"] > 3000:           # a photo has nothing to combine
-            for ms in np.linspace(0, attempt["duration_ms"] - 200, CLEAN_WALL_FRAMES):
-                frames.append(cv2.imread(str(frame_path(settings, attempt, int(ms)))))
-        image, info = hold_suggest.clean_wall(reference, frames)
-        cv2.imwrite(str(cached), image)
-        info_path.write_text(json.dumps(info))
+        with db.session(settings.database) as connection:
+            run = db.row(connection.execute(
+                "SELECT id FROM jobs WHERE attempt_id=? AND kind='analysis' AND status='complete' ORDER BY created_at DESC LIMIT 1", (attempt["id"],)).fetchone())
+        path = wall_paths(settings, row, attempt, run)[0]
+        image, info = build_wall_image(settings, attempt, row["reference_frame_ms"], path, run["id"] if run else None)
         return image, info
+
+    @router.get("/api/hold-maps/{map_id}/wall-image")
+    def get_wall_image(map_id: str, settings: Settings = Depends(get_settings)) -> FileResponse:
+        with db.session(settings.database) as connection:
+            row, attempt, _ = load(connection, map_id)
+            run = db.row(connection.execute(
+                "SELECT id FROM jobs WHERE attempt_id=? AND kind='analysis' AND status='complete' ORDER BY created_at DESC LIMIT 1", (attempt["id"],)).fetchone())
+        wall_image(settings, row, attempt)
+        return FileResponse(wall_paths(settings, row, attempt, run)[0], media_type="image/png", headers={"Cache-Control": "no-cache"})
+
+    @router.get("/api/hold-maps/{map_id}/wall-info")
+    def get_wall_info(map_id: str, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
+        with db.session(settings.database) as connection:
+            row, attempt, _ = load(connection, map_id)
+        _, info = wall_image(settings, row, attempt)
+        return {**info, "image_url": f"/api/hold-maps/{map_id}/wall-image", "combined": info["basis"] != "reference_frame"}
 
     @router.post("/api/hold-maps/{map_id}/suggestions")
     def suggestions(map_id: str, body: SuggestRequest, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
@@ -96,7 +141,7 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
         with db.session(settings.database) as connection:
             row, attempt, holds = load(connection, map_id)
         public = {"id": row["id"], "name": row["name"], "hold_count": len(holds), "reference_frame_ms": row["reference_frame_ms"], "usable": False,
-                  "message": "", "alignment": None, "frame_url": f"/api/attempts/{attempt['id']}/frame?ms={row['reference_frame_ms']}",
+                  "message": "", "alignment": None, "frame_url": f"/api/hold-maps/{map_id}/wall-image",
                   "holds": [{k: h[k] for k in ("id", "x", "y", "radius", "route", "hold_type", "role", "use")} for h in holds],
                   "width": row["width"], "height": row["height"]}
         scale = json.loads(row["scale"]) if row["scale"] else None

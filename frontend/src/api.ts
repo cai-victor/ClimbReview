@@ -148,6 +148,7 @@ export interface HoldMap {
   id: string; attempt_id: string; name: string; reference_frame_ms: number; width: number; height: number;
   holds: Hold[]; scope_note: string; frame_url: string; scale: MapScale | null;
 }
+export interface WallInfo { basis: string; frames_used: number; never_clear_fraction: number | null; detail: string; image_url: string; combined: boolean }
 export interface MapScale { x1: number; y1: number; x2: number; y2: number; cm: number }
 export interface HoldSuggestion { x: number; y: number; radius: number }
 export interface SuggestionResult { suggestions: HoldSuggestion[]; seed_color: string; note: string; image: { basis: string; detail: string } }
@@ -163,6 +164,7 @@ export const holdApi = {
   suggest: (mapId: string, body: { x: number; y: number; tolerance: string }) => request<SuggestionResult>(`/api/hold-maps/${mapId}/suggestions`, jsonInit("POST", body)),
   putScale: (mapId: string, body: MapScale) => request<MapScale>(`/api/hold-maps/${mapId}/scale`, jsonInit("PUT", body)),
   get: (mapId: string) => request<HoldMap>(`/api/hold-maps/${mapId}`),
+  wallInfo: (mapId: string) => request<WallInfo>(`/api/hold-maps/${mapId}/wall-info`),
   plan: (mapId: string, heightCm: number, wingspanCm: number) => request<PlanResult>(`/api/hold-maps/${mapId}/plan?height_cm=${heightCm}&wingspan_cm=${wingspanCm}`),
   removeHold: (mapId: string, id: string) => request<HoldMap>(`/api/hold-maps/${mapId}/holds/${id}`, { method: "DELETE" }),
 };

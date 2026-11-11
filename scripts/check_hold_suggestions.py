@@ -34,7 +34,7 @@ def main() -> int:
     attempt = dict(connection.execute("SELECT * FROM attempts WHERE id=?", (row["attempt_id"],)).fetchone())
     holds = [dict(h) for h in connection.execute("SELECT * FROM holds WHERE map_id=? ORDER BY created_at, id", (args.map,))]
     reference = cv2.imread(str(frame_path(settings, attempt, row["reference_frame_ms"])))
-    frames = [cv2.imread(str(frame_path(settings, attempt, int(ms)))) for ms in np.linspace(0, attempt["duration_ms"] - 200, 15)]
+    frames = [cv2.imread(str(frame_path(settings, attempt, int(ms)))) for ms in np.linspace(0, attempt["duration_ms"] - 200, 25)]
     image, info = hold_suggest.clean_wall(reference, frames)
     width, height = row["width"], row["height"]
     per_seed = []

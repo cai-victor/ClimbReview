@@ -51,3 +51,17 @@
 | Browser specs, including a new photo flow: upload, refused wall tap, suggestions, confirm one and all, manual hold, missing-scale message, two-click scale, plan, shorter climber gets no sequence, phone width | 11 passed |
 
 The browser photo is a drawn synthetic wall. No real wall photo was imported, and no plan from measurements was tried on a real route, because your maps have no start, finish, or scale yet. Database backup before the change: `data/app/backups/climbreview_before_route_tools.sqlite`.
+
+## Clear wall picture (added November 11)
+
+The hold editor and planner now show one picture of the wall combined from across the video, instead of a single frame with the climber in it. It takes up to 25 moments from the analysis, cuts the tracked climber out of each using a box around the tracked joints, and keeps the median of the clear views for every pixel. A "Clear wall picture" checkbox switches back to the original frame.
+
+- **Requires a still camera.** Every frame used must match the reference frame within 8 pixels of background movement. If fewer than 5 qualify, the editor shows the single frame and says so.
+- **Works best with an analysis.** Without one, a plain median is used, which can leave a ghost where the climber stays for a long time.
+- **Reports what it could not clear.** A pixel needs 3 clear views. The share of the picture that never had them is stated under the picture.
+- **Limits.** A second person, a swinging rope, or chalk marks that change during the climb are not removed. The picture reflects typical lighting across the clip, not one instant.
+
+On your two tripod clips, both pictures used 25 frames and every pixel was clear at least 3 times. In an AI-assisted look at the two results, the climber was fully removed on both, and the earlier untracked method had left a visible ghost on IMG_7238. Comparison image: `data/tripod_nov09/wall_pictures/compare.jpg`. Building takes about 5 seconds the first time and is then cached.
+
+Verification after this addition: 274 backend tests and 11 browser specs passed, including the editor showing the combined picture for real IMG_4301.
+

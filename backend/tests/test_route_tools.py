@@ -187,3 +187,51 @@ def test_suggest_confirm_scale_and_plan_on_a_photo(env, tmp_path):
     assert plan["candidates"][0]["steps"][-1]["limb"].endswith("hand")
     assert client.get(f"/api/hold-maps/{mid}/plan?height_cm=40&wingspan_cm=172").status_code == 422
     assert client.get(f"/api/hold-maps/{mid}").json()["scale"]["cm"] == 240
+
+
+# ---- combined wall picture
+
+def parked_climber_frames(base, count=12, parked=9):
+    """A green block stays at one place for most frames, then moves away."""
+    frames, masks = [], []
+    for i in range(count):
+        x = 100 if i < parked else 220
+        frame = base.copy()
+        cv2.rectangle(frame, (x, 200), (x + 40, 320), (0, 255, 0), -1)
+        mask = np.zeros(base.shape[:2], bool)
+        mask[190:330, x - 10:x + 50] = True
+        frames.append(frame)
+        masks.append(mask)
+    return frames, masks
+
+
+def test_tracked_masks_remove_a_climber_who_stays_in_one_place():
+    base = textured()
+    frames, masks = parked_climber_frames(base)
+    plain, plain_info = hs.clean_wall(frames[0], frames)
+    assert plain_info["basis"] == "clean_wall_median" and plain[260, 120].tolist() == [0, 255, 0]          # the plain median keeps the ghost
+    image, info = hs.clean_wall(frames[0], frames, masks)
+    assert info["basis"] == "clean_wall_pose_masked" and info["never_clear_fraction"] == 0
+    assert np.abs(image[260, 120].astype(int) - base[260, 120].astype(int)).max() < 12
+
+
+def test_region_never_clear_is_reported_not_hidden():
+    base = textured()
+    frames, masks = parked_climber_frames(base, parked=12)                   # never moves away
+    _, info = hs.clean_wall(frames[0], frames, masks)
+    assert info["never_clear_fraction"] > 0.03 and "never clear of the climber" in info["detail"]
+
+
+def test_frame_without_a_tracked_body_is_used_whole():
+    assert hs.climber_mask((100, 100), {}) is None
+    mask = hs.climber_mask((100, 100), {"nose": [0.5, 0.4], "left_ankle": [0.55, 0.7]})
+    assert mask[50, 52] and not mask[5, 5]
+
+
+def test_photo_wall_picture_is_the_photo_itself(env, tmp_path):
+    _, client, _ = env
+    attempt = photo_attempt(env, tmp_path)
+    mid = client.post(f"/api/attempts/{attempt['id']}/hold-maps", json={"name": "Blue", "reference_frame_ms": 0}).json()["id"]
+    info = client.get(f"/api/hold-maps/{mid}/wall-info").json()
+    assert info["combined"] is False and info["basis"] == "reference_frame"
+    assert client.get(f"/api/hold-maps/{mid}/wall-image").headers["content-type"] == "image/png"
