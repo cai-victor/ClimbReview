@@ -5,6 +5,7 @@ video, nothing here detects holds, and nothing links a wrist to a hold.
 """
 from __future__ import annotations
 
+import json
 import subprocess
 import uuid
 from pathlib import Path
@@ -82,7 +83,7 @@ def register_holds(app: FastAPI, get_settings) -> None:
 
     def public_map(connection, row: dict[str, Any]) -> dict[str, Any]:
         holds = [dict(h) for h in connection.execute("SELECT * FROM holds WHERE map_id=? ORDER BY created_at, id", (row["id"],))]
-        return {**row, "holds": holds, "coordinate_system": "normalized canonical frame; radius is a fraction of width",
+        return {**row, "scale": json.loads(row["scale"]) if row.get("scale") else None, "holds": holds, "coordinate_system": "normalized canonical frame; radius is a fraction of width",
                 "scope_note": SCOPE_NOTE, "frame_url": f"/api/attempts/{row['attempt_id']}/frame?ms={row['reference_frame_ms']}"}
 
     @router.get("/api/attempts/{attempt_id}/frame")

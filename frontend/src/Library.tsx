@@ -31,15 +31,15 @@ export function Library() {
       <section className="card">
         <h1>Add an attempt</h1>
         <p className="muted">
-          Use an MP4 or MOV up to 5 minutes and 2.5 GB, with one climber and a camera on a tripod. Keep hands and feet in frame.
+          Use an MP4 or MOV up to 5 minutes and 2.5 GB, with one climber and a camera on a tripod. Keep hands and feet in frame. To plan a route without a video, choose a JPG or PNG photo of the wall.
         </p>
         <div className="row">
           <label className="grow">Title (optional)
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Blue problem, attempt 2" />
           </label>
           <label className="button primary">
-            Choose video
-            <input ref={input} type="file" accept="video/mp4,video/quicktime,.mp4,.mov" hidden
+            Choose video or photo
+            <input ref={input} type="file" accept="video/mp4,video/quicktime,image/jpeg,image/png,.mp4,.mov,.jpg,.jpeg,.png" hidden
               data-testid="file-input" onChange={(e) => upload(e.target.files?.[0])} disabled={uploading !== null} />
           </label>
         </div>

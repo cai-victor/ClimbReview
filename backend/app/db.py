@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS candidate_ids (
 );
 """
 ADDED_COLUMNS = {
+    "hold_maps": {"scale": "TEXT"},
     "holds": {"role": "TEXT NOT NULL DEFAULT ''", "use": "TEXT NOT NULL DEFAULT ''"},
     "attempts": {"problem_label": "TEXT NOT NULL DEFAULT ''", "climber_label": "TEXT NOT NULL DEFAULT ''"},
 }

@@ -413,3 +413,27 @@ def iter_rgb_frames(path: Path, width: int, height: int) -> Iterator[tuple[int, 
         process.stdout.close()
         process.terminate()
         process.wait()
+
+
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+STILL_CLIP_SECONDS = 1
+
+
+def still_to_clip(image_path: Path, output: Path, fps: int) -> Path:
+    """Turn a photo into a one-second clip, so the same normalization, frame, and hold tools apply to it."""
+    import cv2
+
+    image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)      # applies the photo's stored orientation
+    if image is None:
+        raise SourceVideoError("The photo could not be read. Provide a JPG or PNG file.")
+    height, width = image.shape[:2]
+    image = image[: height // 2 * 2, : width // 2 * 2]         # H.264 needs even dimensions
+    upright = output.with_suffix(".upright.png")
+    cv2.imwrite(str(upright), image)
+    result = subprocess.run(
+        [tool_path("ffmpeg"), "-nostdin", "-v", "error", "-y", "-loop", "1", "-framerate", str(fps), "-t", str(STILL_CLIP_SECONDS), "-i", str(upright),
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "12", str(output)], capture_output=True, text=True)
+    upright.unlink(missing_ok=True)
+    if result.returncode != 0:
+        raise SourceVideoError(f"The photo could not be prepared: {result.stderr.strip()[-200:]}")
+    return output

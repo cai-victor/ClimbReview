@@ -98,6 +98,8 @@ class Worker:
         source = directory / f"source{attempt['source_ext']}"
         analysis_config = self.config.analysis
         self._update(job_id, stage="normalizing")
+        if attempt["source_ext"] in video.IMAGE_EXTENSIONS:
+            source = video.still_to_clip(source, directory / "source_from_photo.mp4", analysis_config.canonical_fps)
         probe = video.probe(source)
         video.validate_source(probe, analysis_config)
         timing = video.source_frame_timing(source, probe)

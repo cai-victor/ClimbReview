@@ -376,6 +376,7 @@ def test_columns_are_added_to_a_database_without_them(tmp_path):
     connection = sqlite3.connect(path)
     connection.executescript("""CREATE TABLE holds(id TEXT PRIMARY KEY, map_id TEXT, x REAL, y REAL, radius REAL, route TEXT, hold_type TEXT, created_at TEXT);
                                 CREATE TABLE attempts(id TEXT PRIMARY KEY, title TEXT);
+                                CREATE TABLE hold_maps(id TEXT PRIMARY KEY, name TEXT);
                                 INSERT INTO holds VALUES ('h','m',0.1,0.2,0.03,'r','t','now');""")
     connection.commit()
     connection.close()
@@ -384,4 +385,5 @@ def test_columns_are_added_to_a_database_without_them(tmp_path):
     db._add_missing_columns(connection)
     row = dict(connection.execute("SELECT * FROM holds").fetchone())
     assert row["x"] == 0.1 and row["role"] == "" and row["use"] == ""
+    assert "scale" in {r["name"] for r in connection.execute("PRAGMA table_info(hold_maps)")}
     connection.close()

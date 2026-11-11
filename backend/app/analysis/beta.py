@@ -250,3 +250,41 @@ def candidate_sequences(holds: Sequence[dict[str, Any]], width: int, height: int
         return {**base, "status": "no_candidate", "needs": [], "assumptions": [*ASSUMPTIONS, *extra],
                 "note": "No sequence stayed within this 2D reach model. That does not mean the problem is impossible; dynamic moves and missing holds are not modeled."}
     return {**base, "status": "ready", "needs": [], "assumptions": [*ASSUMPTIONS, *extra], "body": body.public(), "candidates": found}
+
+
+# ---- reach lengths from the climber's own height and wingspan, for planning without a tracked video
+
+TORSO_OF_HEIGHT = 0.288           # shoulder joint to hip joint
+LEG_OF_HEIGHT = 0.491             # hip joint to ankle, matching the tracked hip-knee-ankle length
+ARM_OF_WINGSPAN = 0.339           # shoulder joint to the middle of the palm
+HEIGHT_RANGE_CM = (100.0, 230.0)
+WINGSPAN_RANGE_CM = (100.0, 250.0)
+MEASURED_ASSUMPTIONS = [
+    "Arm, leg, and torso lengths are estimated from your height and wingspan using average body proportions, so yours may differ by several centimeters.",
+    "One scale is used for the whole picture. A photo taken from below shrinks the upper wall, so reaches near the top are really longer than they look here.",
+]
+
+
+@dataclass(frozen=True)
+class MeasuredBody:
+    body: Body
+    torso_cm: float
+    arm_cm: float
+    leg_cm: float
+
+    def public(self) -> dict[str, Any]:
+        return {"torso_cm": round(self.torso_cm, 1), "arm_cm": round(self.arm_cm, 1), "leg_cm": round(self.leg_cm, 1),
+                "arm_L": round(self.body.arm_L, 3), "leg_L": round(self.body.leg_L, 3),
+                "method": "average body proportions (Drillis and Contini segment ratios) applied to entered height and wingspan"}
+
+
+def body_from_measurements(height_cm: float, wingspan_cm: float) -> MeasuredBody:
+    torso = TORSO_OF_HEIGHT * height_cm
+    arm, leg = ARM_OF_WINGSPAN * wingspan_cm, LEG_OF_HEIGHT * height_cm
+    return MeasuredBody(Body(arm / torso, leg / torso, 0, 0), torso, arm, leg)
+
+
+def torso_px(scale: dict[str, float], width: int, height: int, torso_cm: float) -> float:
+    """Pixels per torso length from a user-marked line of known real length. Uses pixel distance, so aspect ratio is kept."""
+    line_px = float(np.hypot((scale["x2"] - scale["x1"]) * width, (scale["y2"] - scale["y1"]) * height))
+    return line_px / scale["cm"] * torso_cm

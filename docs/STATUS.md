@@ -1,12 +1,22 @@
 # ClimbReview status
 
-Last updated 2026-11-09 after the performance phase. Start with `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
+Last updated 2026-11-11 after adding route tools. Start with `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
 
 ## Bottom line
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Performance phase (latest)
+## Route tools (latest, 2026-11-11)
+
+Added and tested: color-based hold suggestions confirmed by the user, photo import for marking and planning, a scale line on hold maps, and candidate sequences from entered height and wingspan on a new Plan a route page. Input limits are 5 minutes and 2.5 GB. Details: `docs/ROUTE_TOOLS_REPORT.md`.
+
+**Current verification:** `pytest` 270 passed. Playwright, 11 specs, passed. Suggestions were compared with one hand-marked route as a development check; no real photo and no real planned route were tried. Suggestion accuracy and plan usefulness are unmeasured.
+
+```bash
+.venv/bin/python scripts/check_hold_suggestions.py --map bdafbf1504724a5884a5d377d74c3b53 --tolerance normal --output data/tripod_nov09/hold_suggestion_check_normal.json
+```
+
+## Performance phase
 
 Added and tested: timestamped coaching hypotheses with counterexamples and unknowns, foot placement review confirmed only by the user, hold roles and uses, background-measured hold-map alignment, candidate 2D sequences on marked holds, explicit same-problem comparison, decision and trial recording, and coaching in JSON and HTML exports. Coaching is computed from stored analysis files, so 0.2.0 and later runs did not need reprocessing. Details: `docs/PERFORMANCE_REPORT.md`. Human evaluation plan: `docs/COACHING_EVALUATION.md`.
 

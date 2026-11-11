@@ -146,3 +146,13 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 **D64. Attempts are comparable only through explicit labels.** The same problem and climber text must both be entered. Outcome stays the user's own text, tracking proxies need 60% foot coverage, and no success model is trained without outcome data.
 
 **D65. Input limits raised to 5 minutes and 2.5 GB.** The earlier 120 s and 250 MB limits rejected real climbing footage, and 4K HDR phone video runs at about 400 MB per minute. Size does not affect analysis, which always uses a copy of at most 1280 pixels on the long side at 30 fps. The cost is disk space, because each original is kept so an import can be retried. Earlier runs keep their recorded configuration.
+
+## Route tools (2026-11-11)
+
+**D66. Hold suggestion is color grouping that the user confirms.** A tapped seed color, a Lab distance with lightness at half weight, and connected regions give outlines. Nothing is stored until accepted. A region over 4% of the picture is refused as wall. No trained hold detector is used, because no labeled wall images exist to train or evaluate one.
+
+**D67. Video suggestions use a median wall picture only when the camera is measured as still.** Frames must fit the reference frame within 8 pixels of corner motion, and at least 5 must qualify. Otherwise the reference frame is used and the result says so.
+
+**D68. A photo is imported as a one-second still clip.** This reuses normalization, frames, hold maps, and deletion without a parallel data model. Photo attempts refuse analysis.
+
+**D69. Planning without a video uses entered height and wingspan plus a user-marked scale line.** Lengths use average segment proportions and are disclosed as estimates. One scale applies to the whole picture and perspective is not corrected, which is stated with each plan. Measurements are kept in the browser, not the database.

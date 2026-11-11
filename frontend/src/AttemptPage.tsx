@@ -45,6 +45,15 @@ export function AttemptPage({ id }: { id: string }) {
         <button className="button" onClick={() => api.retryImport(id).then(load).catch((e) => setError(e.message))}>Retry import</button>
       </section>
     );
+  } else if (attempt.kind === "photo") {
+    body = (
+      <section className="card" data-testid="photo-attempt">
+        <h2>Photo of a climb</h2>
+        <p className="muted">A photo has no movement to analyze. Mark its holds, then plan candidate sequences with your height and wingspan.</p>
+        <img className="photo-preview" src={`/api/attempts/${attempt.id}/frame?ms=0`} alt={`Photo: ${attempt.title}`} />
+        <div className="row tight"><a className="button primary" href={`#/holds/${attempt.id}`}>Mark holds</a><a className="button" data-testid="photo-plan" href={`#/plan/${attempt.id}`}>Plan a route</a></div>
+      </section>
+    );
   } else if (analyzing && latest) body = <Progress job={latest} onChange={load} title="Analyzing the attempt" />;
   else if (latest?.status === "complete" && !showSetup) {
     const completed = attempt.analyses.filter((job) => job.status === "complete");
@@ -86,7 +95,8 @@ export function AttemptPage({ id }: { id: string }) {
       <div className="page-head">
         <a href="#/">← Attempts</a>
         <h1>{attempt.title}</h1>
-        {attempt.status === "ready" && <a className="button" href={`#/annotate/${attempt.id}`}>Reference labeling</a>}
+        {attempt.status === "ready" && attempt.kind !== "photo" && <a className="button" href={`#/annotate/${attempt.id}`}>Reference labeling</a>}
+        {attempt.status === "ready" && <a className="button" href={`#/plan/${attempt.id}`}>Plan a route</a>}
         {attempt.status === "ready" && <a className="button" href={`#/holds/${attempt.id}`}>Mark holds</a>}
         <button className="button danger" onClick={remove} disabled={Boolean(importing || analyzing)}>Delete</button>
       </div>

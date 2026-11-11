@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Attempt, BetaCandidate, BetaResult, Coaching, CoachingCard, clock, ComparisonResult, Feedback, performanceApi, Placement, PlacementReview, api, HoldMapSummary } from "./api";
 
-const LIMB_WORD: Record<string, string> = { left_foot: "Left foot", right_foot: "Right foot", left_hand: "Left hand", right_hand: "Right hand", left_wrist: "Left hand", right_wrist: "Right hand" };
-const holdName = (index: number) => `H${index + 1}`;
+export const LIMB_WORD: Record<string, string> = { left_foot: "Left foot", right_foot: "Right foot", left_hand: "Left hand", right_hand: "Right hand", left_wrist: "Left hand", right_wrist: "Right hand" };
+export const holdName = (index: number) => `H${index + 1}`;
 
 function DecisionBar({ feedback, onChange, testid }: { feedback: Feedback; onChange: (next: Feedback) => void; testid: string }) {
   const [note, setNote] = useState(feedback.note);
@@ -131,7 +131,7 @@ export function FootPlacements({ coaching, onSeek, onSave, attemptId }: { coachi
   );
 }
 
-function BetaFigure({ map, candidate, stepIndex, width, height }: { map: HoldMapSummary; candidate: BetaCandidate | null; stepIndex: number; width: number; height: number }) {
+export function BetaFigure({ map, candidate, stepIndex, width, height }: { map: HoldMapSummary; candidate: BetaCandidate | null; stepIndex: number; width: number; height: number }) {
   const point = (index: number) => [map.holds[index].x * width, map.holds[index].y * height] as const;
   const stroke = Math.max(2, width / 300);
   return (

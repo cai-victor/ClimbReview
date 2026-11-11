@@ -16,10 +16,12 @@ from . import db, report
 from .annotations import register_annotations
 from .coaching_api import register_coaching
 from .holds import register_holds
+from .route_tools import register_route_tools
 from .worker import IMPORT_CANCELLED_MESSAGE
 from .settings import PROJECT_ROOT, InvalidIdError, Settings, load_pipeline_config, load_settings, require_id
 
-ALLOWED_EXTENSIONS = {".mp4", ".mov"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}     # a photo of a climb, for marking holds and planning only
+ALLOWED_EXTENSIONS = {".mp4", ".mov", *IMAGE_EXTENSIONS}
 CHUNK_BYTES = 1 << 20
 
 
@@ -99,6 +101,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             **{k: attempt[k] for k in ("id", "title", "route_name", "grade", "outcome", "focus", "problem_label", "climber_label", "status", "error",
                                        "width", "height", "fps", "frame_count", "duration_ms", "attempt_start_ms",
                                        "attempt_end_ms", "created_at", "original_filename")},
+            "kind": "photo" if attempt["source_ext"] in IMAGE_EXTENSIONS else "video",
             "single_climber_confirmed": bool(attempt["single_climber_confirmed"]),
             "fixed_camera_confirmed": bool(attempt["fixed_camera_confirmed"]),
             "warnings": json.loads(attempt["warnings"]),
@@ -149,7 +152,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         filename = Path(file.filename or "video").name
         extension = Path(filename).suffix.lower()
         if extension not in ALLOWED_EXTENSIONS:
-            raise HTTPException(415, "Choose an MP4 or MOV file.")
+            raise HTTPException(415, "Choose an MP4 or MOV video, or a JPG or PNG photo.")
         attempt_id = uuid.uuid4().hex
         directory = settings.attempt_dir(attempt_id)
         directory.mkdir(parents=True)
@@ -269,6 +272,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             attempt = attempt_row(connection, attempt_id)
             if attempt["status"] != "ready":
                 raise HTTPException(409, "The video has not finished importing.")
+            if attempt["source_ext"] in IMAGE_EXTENSIONS:
+                raise HTTPException(409, "A photo has no movement to analyze. Use it to mark holds and plan a route.")
             if db.active_job(connection, attempt_id):
                 raise HTTPException(409, "A job is already active for this attempt.")
             job_id = new_job(connection, attempt_id, "analysis", "queued", attempt["attempt_start_ms"], attempt["attempt_end_ms"])
@@ -358,6 +363,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_annotations(app, get_settings)
     register_holds(app, get_settings)
     register_coaching(app, get_settings)
+    register_route_tools(app, get_settings)
 
     @app.middleware("http")
     async def _reject_oversized_uploads(request: Request, call_next):

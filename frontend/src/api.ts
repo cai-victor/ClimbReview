@@ -9,6 +9,7 @@ export interface Job {
   created_at: string; finished_at: string | null;
 }
 export interface Attempt {
+  kind: "video" | "photo";
   id: string; title: string; route_name: string; grade: string; outcome: string; focus: string; problem_label: string; climber_label: string;
   status: "importing" | "ready" | "failed"; error: string | null; width: number | null; height: number | null;
   duration_ms: number | null; attempt_start_ms: number | null; attempt_end_ms: number | null; created_at: string;
@@ -145,8 +146,12 @@ export const annotationApi = {
 export interface Hold { id: string; x: number; y: number; radius: number; route: string; hold_type: string; role: "" | "start" | "finish"; use: "" | "hand" | "foot" | "both" }
 export interface HoldMap {
   id: string; attempt_id: string; name: string; reference_frame_ms: number; width: number; height: number;
-  holds: Hold[]; scope_note: string; frame_url: string;
+  holds: Hold[]; scope_note: string; frame_url: string; scale: MapScale | null;
 }
+export interface MapScale { x1: number; y1: number; x2: number; y2: number; cm: number }
+export interface HoldSuggestion { x: number; y: number; radius: number }
+export interface SuggestionResult { suggestions: HoldSuggestion[]; seed_color: string; note: string; image: { basis: string; detail: string } }
+export interface PlanResult extends BetaResult { body?: { torso_cm: number; arm_cm: number; leg_cm: number }; hold_map: (HoldMapSummary & { width: number; height: number }) | null }
 export type HoldBody = Omit<Hold, "id">;
 export const holdApi = {
   list: (attemptId: string) => request<HoldMap[]>(`/api/attempts/${attemptId}/hold-maps`),
@@ -155,6 +160,10 @@ export const holdApi = {
   remove: (mapId: string) => request<void>(`/api/hold-maps/${mapId}`, { method: "DELETE" }),
   addHold: (mapId: string, body: HoldBody) => request<HoldMap>(`/api/hold-maps/${mapId}/holds`, jsonInit("POST", body)),
   editHold: (mapId: string, id: string, body: HoldBody) => request<HoldMap>(`/api/hold-maps/${mapId}/holds/${id}`, jsonInit("PUT", body)),
+  suggest: (mapId: string, body: { x: number; y: number; tolerance: string }) => request<SuggestionResult>(`/api/hold-maps/${mapId}/suggestions`, jsonInit("POST", body)),
+  putScale: (mapId: string, body: MapScale) => request<MapScale>(`/api/hold-maps/${mapId}/scale`, jsonInit("PUT", body)),
+  get: (mapId: string) => request<HoldMap>(`/api/hold-maps/${mapId}`),
+  plan: (mapId: string, heightCm: number, wingspanCm: number) => request<PlanResult>(`/api/hold-maps/${mapId}/plan?height_cm=${heightCm}&wingspan_cm=${wingspanCm}`),
   removeHold: (mapId: string, id: string) => request<HoldMap>(`/api/hold-maps/${mapId}/holds/${id}`, { method: "DELETE" }),
 };
 
