@@ -97,6 +97,9 @@ test("photo: suggest holds by color, confirm, set scale, and plan with height an
   await expect(page.getByTestId("plan-body")).toContainText("arm 58.3 cm");
   await expect(page.getByText("average body proportions")).toBeVisible();
   await expect(page.getByTestId("beta-figure")).toBeVisible();
+  // The drawn wall has no bolt holes, so the planner says it could not correct for the wall's angle.
+  await expect(page.getByTestId("perspective-note")).toHaveAttribute("data-applied", "no");
+  await expect(page.getByTestId("perspective-note")).toContainText("Too few bolt holes");
 
   // A much shorter climber gets a different, honest answer for the same marks.
   await page.getByTestId("body-height").fill("120");

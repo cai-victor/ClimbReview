@@ -91,7 +91,7 @@ test("coaching cards, placements, candidate beta, and matched comparison", async
   await expect(editor.getByTestId("hold-image")).toHaveAttribute("src", /frame\?ms=/);
   await editor.close();
   await page.reload();
-  await expect(page.getByTestId("beta-figure")).toBeVisible();
+  await expect(page.getByTestId("beta-figure")).toBeVisible({ timeout: 60_000 });     // the first request builds the wall picture and fits its bolt grid
   await expect(page.getByTestId("beta-steps").getByRole("listitem").first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("beta-panel")).toContainText("none is the best");
   expect(await page.getByTestId("beta-candidate").count()).toBeGreaterThan(0);

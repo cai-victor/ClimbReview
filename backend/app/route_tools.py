@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import db
-from .analysis import beta, hold_suggest
+from .analysis import beta, hold_suggest, wall_grid
 from .holds import frame_path
 from .settings import Settings, require_id
 
@@ -76,6 +76,27 @@ def build_wall_image(settings: Settings, attempt: dict[str, Any], reference_ms: 
     return image, info
 
 
+def wall_geometry(settings: Settings, attempt: dict[str, Any], reference_ms: int, cache: Path, run_id: str | None, holds: list[dict[str, Any]]) -> dict[str, Any]:
+    """The bolt-grid fit for one wall picture, started near the holds. Cached beside the picture."""
+    focus = None if not holds else (float(np.mean([h["x"] for h in holds])) * attempt["width"], float(np.mean([h["y"] for h in holds])) * attempt["height"])
+    key = "any" if focus is None else f"{focus[0] / attempt['width']:.1f}_{focus[1] / attempt['height']:.1f}"
+    path = cache.with_name(f"{cache.stem}_grid_{key}.json")
+    if path.exists():
+        return json.loads(path.read_text())
+    image, _ = build_wall_image(settings, attempt, reference_ms, cache, run_id)
+    fit = wall_grid.fit_grid(wall_grid.detect_bolts(image), attempt["width"], attempt["height"], focus)
+    path.write_text(json.dumps(fit))
+    return fit
+
+
+def planning_geometry(settings: Settings, row: dict[str, Any], attempt: dict[str, Any], run: dict[str, Any] | None, holds: list[dict[str, Any]], rectify: bool):
+    """The wall plane for a hold map when it can be trusted, and what to tell the climber about it."""
+    if not rectify:
+        return None, {"applied": False, "reason": "Wall-angle correction is switched off."}
+    fit = wall_geometry(settings, attempt, row["reference_frame_ms"], wall_paths(settings, row, attempt, run)[0], run["id"] if run else None, holds)
+    return wall_grid.correction_for(fit, holds, row["width"], row["height"])
+
+
 def register_route_tools(app: FastAPI, get_settings) -> None:
     router = APIRouter()
 
@@ -121,6 +142,18 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
         except hold_suggest.SuggestionError as error:
             raise HTTPException(422, str(error)) from error
 
+    @router.get("/api/hold-maps/{map_id}/wall-geometry")
+    def get_wall_geometry(map_id: str, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
+        """The fitted bolt grid for this map's wall picture, so the climber can see whether it sits on the real holes."""
+        with db.session(settings.database) as connection:
+            row, attempt, holds = load(connection, map_id)
+            run = db.row(connection.execute(
+                "SELECT id FROM jobs WHERE attempt_id=? AND kind='analysis' AND status='complete' ORDER BY created_at DESC LIMIT 1", (attempt["id"],)).fetchone())
+        wall_image(settings, row, attempt)
+        fit = wall_geometry(settings, attempt, row["reference_frame_ms"], wall_paths(settings, row, attempt, run)[0], run["id"] if run else None, holds)
+        _, summary = wall_grid.correction_for(fit, holds, row["width"], row["height"])
+        return {"status": fit["status"], "reason": fit.get("reason"), "grid_points": fit.get("grid_points", []), "summary": summary}
+
     @router.put("/api/hold-maps/{map_id}/scale")
     def put_scale(map_id: str, body: Scale, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
         with db.session(settings.database) as connection:
@@ -139,9 +172,11 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
     @router.get("/api/hold-maps/{map_id}/plan")
     def plan(map_id: str, height_cm: float = Query(ge=beta.HEIGHT_RANGE_CM[0], le=beta.HEIGHT_RANGE_CM[1]),
              wingspan_cm: float = Query(ge=beta.WINGSPAN_RANGE_CM[0], le=beta.WINGSPAN_RANGE_CM[1]),
-             settings: Settings = Depends(get_settings)) -> dict[str, Any]:
+             rectify: bool = Query(default=True), settings: Settings = Depends(get_settings)) -> dict[str, Any]:
         with db.session(settings.database) as connection:
             row, attempt, holds = load(connection, map_id)
+            latest = db.row(connection.execute(
+                "SELECT id FROM jobs WHERE attempt_id=? AND kind='analysis' AND status='complete' ORDER BY created_at DESC LIMIT 1", (attempt["id"],)).fetchone())
         public = {"id": row["id"], "name": row["name"], "hold_count": len(holds), "reference_frame_ms": row["reference_frame_ms"], "usable": False,
                   "message": "", "alignment": None, "frame_url": f"/api/hold-maps/{map_id}/wall-image",
                   "holds": [{k: h[k] for k in ("id", "x", "y", "radius", "route", "hold_type", "role", "use")} for h in holds],
@@ -162,7 +197,19 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
         if needs:
             return {"status": "setup_needed", "needs": needs, "candidates": [], "hold_map": public, "body": measured.public(), "method": beta.BETA_VERSION}
         length = beta.torso_px(scale, row["width"], row["height"], measured.torso_cm) if scale else float(tracked_px)
-        output = beta.candidate_sequences(holds, row["width"], row["height"], length, measured.body)
+        plane, perspective = planning_geometry(settings, row, attempt, latest, holds, rectify)
+        points = None
+        if plane is not None:
+            width, height = row["width"], row["height"]
+            if scale:        # the marked line is measured on the wall plane too
+                ends = plane.plane([[scale["x1"] * width, scale["y1"] * height], [scale["x2"] * width, scale["y2"] * height]])
+                torso_units = float(np.linalg.norm(ends[1] - ends[0])) / scale["cm"] * measured.torso_cm
+            else:            # the tracked torso, converted where the holds are
+                centroid = [float(np.mean([h["x"] for h in holds])) * width, float(np.mean([h["y"] for h in holds])) * height]
+                torso_units = float(tracked_px) * plane.local_scale(centroid)
+            points = plane.plane([[h["x"] * width, h["y"] * height] for h in holds]) / torso_units
+        output = beta.candidate_sequences(holds, row["width"], row["height"], length, measured.body, points)
+        output["perspective"] = perspective
         for candidate in output["candidates"]:
             signature = json.dumps([candidate["start"], candidate["steps"]], sort_keys=True)
             candidate["id"] = "plan-" + hashlib.sha256(f"{map_id}|{signature}".encode()).hexdigest()[:12]

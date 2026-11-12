@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, Attempt, holdApi, HoldMap, PlanResult } from "./api";
-import { BetaFigure, holdName, LIMB_WORD } from "./Performance";
+import { BetaFigure, holdName, LIMB_WORD, PerspectiveNote } from "./Performance";
 
 const STORE = "climbreview.body";
 const saved = (): { height: string; wingspan: string } => {
@@ -17,6 +17,7 @@ export function Planner({ attemptId }: { attemptId: string }) {
   const [active, setActive] = useState(0);
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
+  const [rectify, setRectify] = useState(true);
 
   useEffect(() => {
     Promise.all([api.getAttempt(attemptId), holdApi.list(attemptId)])
@@ -30,9 +31,9 @@ export function Planner({ attemptId }: { attemptId: string }) {
     setError("");
     try {
       window.localStorage.setItem(STORE, JSON.stringify(body));     // stays in this browser only
-      setResult(await holdApi.plan(mapId, height, wingspan)); setActive(0); setStep(0);
+      setResult(await holdApi.plan(mapId, height, wingspan, rectify)); setActive(0); setStep(0);
     } catch (e) { setError((e as Error).message); }
-  }, [mapId, height, wingspan, body]);
+  }, [mapId, height, wingspan, body, rectify]);
 
   if (!attempt) return <div className="page">{error ? <p className="error" role="alert">{error}</p> : <p className="muted">Loading…</p>}</div>;
   const candidate = result?.candidates[Math.min(active, result.candidates.length - 1)] ?? null;
@@ -59,6 +60,7 @@ export function Planner({ attemptId }: { attemptId: string }) {
               <label>Wingspan (cm)<input type="number" min="100" max="250" value={body.wingspan} data-testid="body-wingspan" onChange={(e) => setBody({ ...body, wingspan: e.target.value })} /></label>
             </div>
             <p className="muted small-text">Wingspan is fingertip to fingertip with arms out. These stay in this browser and are not stored with the climb.</p>
+            <label className="check"><input type="checkbox" checked={rectify} data-testid="rectify" onChange={(e) => setRectify(e.target.checked)} /> Correct distances for the wall's angle, using its bolt holes</label>
             <button className="button primary" data-testid="run-plan" disabled={!valid || !mapId} onClick={() => void plan()}>Plan</button>
             {!valid && (body.height || body.wingspan) && <p className="muted small-text">Enter a height of 100 to 230 cm and a wingspan of 100 to 250 cm.</p>}
 
@@ -83,6 +85,7 @@ export function Planner({ attemptId }: { attemptId: string }) {
                     <li key={index}><button className={`link ${index === step ? "strong" : ""}`} onClick={() => setStep(index)}>{LIMB_WORD[item.limb]} to {holdName(item.to_hold)}</button> <span className="muted small-text">{item.from_hold < 0 ? "first placement" : `${item.distance_L.toFixed(2)} L move`}, {item.margin_L.toFixed(2)} L margin{item.tight ? ", tight" : ""}</span></li>
                   ))}
                 </ol>
+                <PerspectiveNote perspective={result.perspective} />
                 <details open><summary>Assumptions</summary><ul className="plain-list small-text">{(result.assumptions ?? []).map((text) => <li key={text}>{text}</li>)}</ul></details>
               </>
             )}

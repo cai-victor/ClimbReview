@@ -1,5 +1,6 @@
 import { MouseEvent, useCallback, useEffect, useRef, useState } from "react";
-import { api, Attempt, clock, Hold, holdApi, HoldMap, HoldSuggestion, WallInfo } from "./api";
+import { api, Attempt, clock, Hold, holdApi, HoldMap, HoldSuggestion, WallGeometry, WallInfo } from "./api";
+import { PerspectiveNote } from "./Performance";
 
 type Mode = "add" | "suggest" | "scale";
 
@@ -29,9 +30,12 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
   const [busy, setBusy] = useState(false);
   const [wall, setWall] = useState<WallInfo | null>(null);
   const [showWall, setShowWall] = useState(true);
+  const [geometry, setGeometry] = useState<WallGeometry | null>(null);
+  const [showGrid, setShowGrid] = useState(false);
   const activeId = active?.id;
   useEffect(() => {
     setWall(null);
+    setGeometry(null);
     if (activeId) holdApi.wallInfo(activeId).then(setWall).catch(() => setWall(null));   // the single frame stays usable if this fails
   }, [activeId]);
 
@@ -129,6 +133,7 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
                   <text x={item.x * width} y={item.y * height} textAnchor="middle" dominantBaseline="middle" fontSize={width / 36} fontWeight="700" fill="#fff" stroke="#000" strokeWidth={Math.max(1, width / 700)} paintOrder="stroke" pointerEvents="none">{index + 1}</text>
                   </g>
                 ))}
+                {showGrid && geometry?.grid_points.map(([x, y], index) => <circle key={`g${index}`} cx={x} cy={y} r={Math.max(2.5, width / 240)} fill="#22d35e" stroke="#063" strokeWidth="0.6" pointerEvents="none" data-testid="grid-point" />)}
                 {suggestions.map((item, index) => (
                   <circle key={`s${index}`} cx={item.x * width} cy={item.y * height} r={item.radius * width} fill="rgba(214,51,132,.12)" stroke="#d63384" strokeWidth={Math.max(1.5, width / 400)} strokeDasharray={`${width / 120} ${width / 180}`}
                     role="button" tabIndex={0} aria-label={`Suggested hold ${index + 1}. Activate to add it.`} data-testid="hold-suggestion"
@@ -150,6 +155,17 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
               {wall.combined && <label className="choice"><input type="checkbox" checked={showWall} data-testid="wall-toggle" onChange={(e) => setShowWall(e.target.checked)} /> Clear wall picture</label>}
               {wall.detail}{wall.combined ? " Marks line up with the video because the camera did not move." : ""}
             </p>
+          )}
+          {active && (
+            <div data-testid="grid-status">
+              <label className="choice small-text"><input type="checkbox" checked={showGrid} data-testid="grid-toggle" onChange={(e) => {
+                setShowGrid(e.target.checked);
+                if (e.target.checked && !geometry) holdApi.wallGeometry(active.id).then(setGeometry).catch((error) => setError(error.message));
+              }} /> Show the fitted bolt grid</label>
+              {showGrid && !geometry && <span className="muted small-text" role="status"> Fitting the grid…</span>}
+              {showGrid && geometry && geometry.status !== "ok" && <p className="muted small-text">{geometry.reason}</p>}
+              {showGrid && geometry?.status === "ok" && <><p className="muted small-text">Green dots are the bolt holes the fit used. If they sit on real holes across your route, the wall's angle is being read correctly.</p><PerspectiveNote perspective={geometry.summary} /></>}
+            </div>
           )}
           {active
             ? <p className="muted small-text">{mode === "suggest" ? "Click directly on one hold of your route to find others of the same color. " : mode === "scale" ? "Click two points on the wall whose real distance apart you know. " : ""}Click the picture to add a hold. With a hold focused (Tab), arrow keys move it and Delete removes it. Frame {clock(active.reference_frame_ms)}.</p>

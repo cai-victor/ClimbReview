@@ -172,3 +172,13 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 **D75. The default review is a simple view.** Evidence panels move behind a Detailed switch that is remembered per browser. The first three suggestions shown are one per kind in a fixed order of specificity, which is presentation and not a ranking of importance.
 
 **D76. The planner falls back to the tracked torso for scale** when a map has no scale line and the attempt has an analysis, and says so in its assumptions.
+
+## Wall geometry (2026-11-12)
+
+**D77. Route distances are measured on a wall plane fitted to the bolt grid.** Dots are detected, given grid positions by stepping outward from the holds, and fitted with a RANSAC homography (at least 30 inliers, median error at most 2 px). Holds and the climber's limb lengths are both measured on that plane. The grid is assumed square and the face flat; both are stated with every result.
+
+**D78. The correction needs evidence that the holds are on the fitted face.** At least 80% of holds must lie in the fitted area, within 3 grid steps, or among holes following the same grid. A looser rule was tried and dropped: texture on holds produced stray dots, so a lack of agreement could not separate another face from the same face with hidden holes.
+
+**D79. Wall angle is reported relative to the camera only.** A focal length is solved from the grid under square pixels and a centered lens, and rejected outside 0.4 to 6 times the picture size. No overhang relative to gravity is claimed, because the camera's own tilt is unknown.
+
+**D80. Event detection is unchanged.** Episodes and card rules keep picture distances and one attempt scale, so stored analyses and earlier results stay valid. Cards show the wall-plane distance as an added measurement.

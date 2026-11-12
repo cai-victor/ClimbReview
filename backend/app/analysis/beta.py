@@ -46,22 +46,35 @@ class Body:
                 "method": "95th percentile of tracked shoulder-elbow-wrist and hip-knee-ankle lengths in the picture"}
 
 
-def _segment_sum(joints: dict[str, Sequence[float]], names: Sequence[str], width: int, height: int) -> float | None:
+def _segment_sum(joints: dict[str, Sequence[float]], names: Sequence[str], width: int, height: int, plane=None) -> float | None:
     if any(name not in joints for name in names):
         return None
     points = [np.array([joints[name][0] * width, joints[name][1] * height]) for name in names]
+    if plane is not None:
+        points = list(plane.plane(points))
     return float(sum(np.linalg.norm(b - a) for a, b in zip(points, points[1:])))
 
 
-def body_model(samples: Sequence[dict[str, Any]], width: int, height: int, length_px: float | None) -> Body | None:
-    """None when too few samples show the limbs for a length to mean anything."""
+def plane_torso(samples: Sequence[dict[str, Any]], width: int, height: int, plane) -> float | None:
+    """Median shoulder-to-hip length measured on the wall plane, in the plane's units. Assumes the body is close to the wall."""
+    lengths = []
+    for sample in samples:
+        joints = sample["joints"]
+        if all(name in joints for name in ("left_shoulder", "right_shoulder", "left_hip", "right_hip")):
+            points = plane.plane([[joints[n][0] * width, joints[n][1] * height] for n in ("left_shoulder", "right_shoulder", "left_hip", "right_hip")])
+            lengths.append(float(np.linalg.norm((points[0] + points[1]) / 2 - (points[2] + points[3]) / 2)))
+    return float(np.median(lengths)) if len(lengths) >= MIN_BODY_SAMPLES else None
+
+
+def body_model(samples: Sequence[dict[str, Any]], width: int, height: int, length_px: float | None, plane=None) -> Body | None:
+    """None when too few samples show the limbs for a length to mean anything. With `plane`, lengths are measured on the wall plane."""
     if not length_px:
         return None
     arms, legs = [], []
     for sample in samples:
         for side in ("left", "right"):
-            arm = _segment_sum(sample["joints"], (f"{side}_shoulder", f"{side}_elbow", f"{side}_wrist"), width, height)
-            leg = _segment_sum(sample["joints"], (f"{side}_hip", f"{side}_knee", f"{side}_ankle"), width, height)
+            arm = _segment_sum(sample["joints"], (f"{side}_shoulder", f"{side}_elbow", f"{side}_wrist"), width, height, plane)
+            leg = _segment_sum(sample["joints"], (f"{side}_hip", f"{side}_knee", f"{side}_ankle"), width, height, plane)
             if arm is not None:
                 arms.append(arm)
             if leg is not None:
@@ -223,7 +236,8 @@ def _describe(path, holds, points, body, profile_key) -> dict[str, Any]:
             "tight_moves": sum(s["tight"] for s in steps)}
 
 
-def candidate_sequences(holds: Sequence[dict[str, Any]], width: int, height: int, length_px: float, body: Body | None) -> dict[str, Any]:
+def candidate_sequences(holds: Sequence[dict[str, Any]], width: int, height: int, length_px: float, body: Body | None,
+                        points: np.ndarray | None = None) -> dict[str, Any]:
     """Up to three different feasible sequences, each with its tradeoffs. Refuses instead of guessing when marks are missing."""
     base = {"method": BETA_VERSION, "assumptions": ASSUMPTIONS, "candidates": [], "comfort_margin_L": COMFORT_MARGIN_L,
             "note": "These are untested ideas from 2D geometry. Try them on the wall; none is the best or easiest beta."}
@@ -232,7 +246,8 @@ def candidate_sequences(holds: Sequence[dict[str, Any]], width: int, height: int
         needs.append("This attempt does not show the arms and legs often enough to estimate reach lengths.")
     if needs:
         return {**base, "status": "setup_needed", "needs": needs}
-    points = hold_points(holds, width, height, length_px)
+    if points is None:                      # picture coordinates; pass `points` to plan on the wall plane instead
+        points = hold_points(holds, width, height, length_px)
     cache: dict = {}
     unspecified = sum(1 for h in holds if not h.get("use"))
     extra = ([] if len(holds) < 1 else ["If the feet start off the wall, the sequence assumes you can step from the ground onto the first marked foothold."]) + ([f"{unspecified} marked holds have no hand or foot use set, so they were treated as possible for both. Mark them to refine this."]
@@ -261,7 +276,7 @@ HEIGHT_RANGE_CM = (100.0, 230.0)
 WINGSPAN_RANGE_CM = (100.0, 250.0)
 MEASURED_ASSUMPTIONS = [
     "Arm, leg, and torso lengths are estimated from your height and wingspan using average body proportions, so yours may differ by several centimeters.",
-    "One scale is used for the whole picture. A photo taken from below shrinks the upper wall, so reaches near the top are really longer than they look here.",
+    "One scale is used for the whole picture. Unless the wall-angle correction below was applied, a photo taken from below shrinks the upper wall, so reaches near the top are really longer than they look.",
 ]
 
 

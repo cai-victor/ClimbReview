@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Perspective } from "./api";
 import { Glance, holdApi, ObservedRoute, ProposedHold, RoleProposal, RouteProposal, RouteWall } from "./api";
 import { Attempt, BetaCandidate, BetaResult, Coaching, CoachingCard, clock, ComparisonResult, Feedback, performanceApi, Placement, PlacementReview, api, HoldMapSummary } from "./api";
 
@@ -164,7 +165,7 @@ export function BetaPanel({ attempt, runId, reloadKey, onFeedback }: { attempt: 
   const load = useCallback(() => performanceApi.candidateBeta(runId).then(setResult).catch((e) => setError(e.message)), [runId]);
   useEffect(() => { void load(); }, [load, reloadKey]);
   if (error) return <section className="card"><h2>Alternative beta to try</h2><p className="error" role="alert">{error}</p></section>;
-  if (!result) return null;
+  if (!result) return <section className="card" aria-label="Alternative beta"><h2>Alternative beta to try</h2><p className="muted" role="status" data-testid="beta-loading">Reading the wall and working out your route. The first time takes several seconds.</p></section>;
   const candidate = result.candidates[Math.min(active, result.candidates.length - 1)] ?? null;
   const save = async (next: Feedback) => { if (candidate) { await performanceApi.putDecision(runId, candidate.id, next); await load(); onFeedback(); } };
   return (
@@ -195,6 +196,7 @@ export function BetaPanel({ attempt, runId, reloadKey, onFeedback }: { attempt: 
         </>
       )}
       {result.note && result.status === "ready" && <p className="notice-text small-text">{result.note}</p>}
+      {result.status !== "no_map" && result.status !== "setup_needed" && <PerspectiveNote perspective={result.perspective} />}
       {result.assumptions && result.status !== "setup_needed" && <details><summary>Assumptions</summary><ul className="plain-list small-text">{result.assumptions.map((text) => <li key={text}>{text}</li>)}</ul></details>}
       {result.hold_map && !result.hold_map.usable && <p className="muted small-text">{result.hold_map.message} Candidate sequences stay on the reference frame.</p>}
     </section>
@@ -239,6 +241,20 @@ export function ComparePanel({ attempt, onSaved }: { attempt: Attempt; onSaved: 
         </>
       )}
     </section>
+  );
+}
+
+/** Says whether distances were measured on the wall plane, and what that rests on. */
+export function PerspectiveNote({ perspective }: { perspective?: Perspective | null }) {
+  if (!perspective) return null;
+  const tilt = perspective.tilt;
+  return (
+    <div className="small-text" data-testid="perspective-note" data-applied={perspective.applied ? "yes" : "no"}>
+      <p><strong>{perspective.applied ? "Corrected for the wall's angle." : "Not corrected for the wall's angle."}</strong> {perspective.applied ? perspective.detail : perspective.reason}</p>
+      {tilt?.status === "ok" && <p className="muted">The wall is turned about {tilt.angle_to_camera_deg}° from facing the camera: the top leans {Math.abs(tilt.top_toward_camera_deg!)}° {tilt.top_toward_camera_deg! >= 0 ? "toward" : "away from"} the camera, and it is turned {Math.abs(tilt.turned_sideways_deg!)}° sideways. {tilt.note}</p>}
+      {tilt?.status === "unknown" && perspective.applied && <p className="muted">{tilt.reason}</p>}
+      {perspective.assumption && <p className="muted">{perspective.assumption}</p>}
+    </div>
   );
 }
 

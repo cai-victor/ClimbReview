@@ -1,12 +1,22 @@
 # ClimbReview status
 
-Last updated 2026-11-12 after automation. Start with `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
+Last updated 2026-11-12 after adding wall geometry. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
 
 ## Bottom line
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Automation and hold-aware feedback (latest, 2026-11-12)
+## Wall angle from the bolt grid (latest, 2026-11-12)
+
+Added and tested: bolt-hole detection, a grid fit that recovers the wall plane, route distances and reach measured on that plane, the wall's angle relative to the camera, a grid overlay in the hold editor, and corrected distances shown on suggestion cards. Details and real results: `docs/WALL_GEOMETRY_REPORT.md`.
+
+**Current verification:** `pytest` 303 passed. Playwright, 12 specs, passed, including the correction on real IMG_7238. Accuracy against measured walls is untested.
+
+```bash
+.venv/bin/python scripts/check_wall_geometry.py
+```
+
+## Automation and hold-aware feedback (2026-11-12)
 
 Added and tested: automatic analysis after upload, two-click route setup with proposed finish and uses, role fill-in for hand-marked maps, a tracked-route panel, at-a-glance counts, a simple default view, and a planner scale fallback. Details and measured results: `docs/AUTOMATION_REPORT.md`.
 

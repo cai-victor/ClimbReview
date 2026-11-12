@@ -24,7 +24,7 @@
 
 **Planning from measurements.** Reach lengths come from average body proportions: torso 0.288 of height, hip to ankle 0.491 of height, and shoulder to mid-palm 0.339 of wingspan. The first two are the widely reproduced Drillis and Contini segment ratios as I recall them from Winter's biomechanics text; a search confirmed the source but not the exact figures. The arm figure is this project's own derivation from those ratios, rescaled to measured wingspan. Individual proportions differ, so treat the lengths as estimates within several centimeters. Height and wingspan stay in your browser and are not stored with the climb.
 
-**Scale.** One marked line sets centimeters per pixel for the whole picture. Perspective is not corrected, so a photo taken from below makes upper reaches look shorter than they are, and the plan is optimistic near the top. The planner's other limits are unchanged: no hold quality, wall angle, balance, or dynamic moves, and no candidate is the best or easiest beta.
+**Scale.** One marked line sets the scale. Since November 12, distances are corrected for the wall's angle when its bolt grid can be fitted (see `docs/WALL_GEOMETRY_REPORT.md`); otherwise a photo taken from below still makes upper reaches look shorter than they are. The planner's other limits are unchanged: no hold quality, wall angle, balance, or dynamic moves, and no candidate is the best or easiest beta.
 
 ## Development check on one real route
 

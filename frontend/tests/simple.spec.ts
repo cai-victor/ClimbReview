@@ -79,6 +79,22 @@ test("upload, automatic analysis, simple view, and two-click route setup", async
   const beta = await (await request.get(`/api/analyses/${runId}/candidate-beta`)).json();
   console.log(`candidate status ${beta.status}; candidates ${beta.candidates.length}; needs ${JSON.stringify(beta.needs)}`);
   expect(["ready", "no_candidate"]).toContain(beta.status);
+  // Distances on this real wall are measured on the wall plane recovered from its bolt holes.
+  console.log(`perspective ${JSON.stringify({ applied: beta.perspective.applied, bolts: beta.perspective.bolts_used, change: beta.perspective.scale_change, tilt: beta.perspective.tilt?.angle_to_camera_deg, reason: beta.perspective.reason })}`);
+  expect(beta.perspective.applied).toBe(true);
+  expect(beta.perspective.bolts_used).toBeGreaterThan(100);
+  expect(beta.perspective.scale_change).toBeGreaterThan(1.1);
+  await expect(page.getByTestId("perspective-note")).toHaveAttribute("data-applied", "yes");
+  await expect(page.getByTestId("perspective-note")).toContainText("square grid");
+  const uncorrected = await (await request.get(`/api/analyses/${runId}/candidate-beta?rectify=false`)).json();
+  expect(uncorrected.perspective.applied).toBe(false);
+  const editor = await page.context().newPage();
+  await editor.goto(`/#/holds/${attemptId}`);
+  await editor.getByRole("button", { name: /Open map/ }).click();
+  await editor.getByTestId("grid-toggle").check();
+  await expect(editor.getByTestId("grid-point").first()).toBeVisible({ timeout: 60_000 });
+  expect(await editor.getByTestId("grid-point").count()).toBeGreaterThan(100);
+  await editor.close();
 
   // Detailed view brings the evidence back, and the choice is remembered.
   await page.getByTestId("view-detailed").click();

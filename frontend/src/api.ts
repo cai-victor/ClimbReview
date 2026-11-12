@@ -165,8 +165,9 @@ export const holdApi = {
   suggest: (mapId: string, body: { x: number; y: number; tolerance: string }) => request<SuggestionResult>(`/api/hold-maps/${mapId}/suggestions`, jsonInit("POST", body)),
   putScale: (mapId: string, body: MapScale) => request<MapScale>(`/api/hold-maps/${mapId}/scale`, jsonInit("PUT", body)),
   get: (mapId: string) => request<HoldMap>(`/api/hold-maps/${mapId}`),
+  wallGeometry: (mapId: string) => request<WallGeometry>(`/api/hold-maps/${mapId}/wall-geometry`),
   wallInfo: (mapId: string) => request<WallInfo>(`/api/hold-maps/${mapId}/wall-info`),
-  plan: (mapId: string, heightCm: number, wingspanCm: number) => request<PlanResult>(`/api/hold-maps/${mapId}/plan?height_cm=${heightCm}&wingspan_cm=${wingspanCm}`),
+  plan: (mapId: string, heightCm: number, wingspanCm: number, rectify = true) => request<PlanResult>(`/api/hold-maps/${mapId}/plan?height_cm=${heightCm}&wingspan_cm=${wingspanCm}&rectify=${rectify}`),
   removeHold: (mapId: string, id: string) => request<HoldMap>(`/api/hold-maps/${mapId}/holds/${id}`, { method: "DELETE" }),
 };
 
@@ -185,11 +186,16 @@ export interface Coaching {
   not_flagged: { start_ms: number; text: string }[]; cannot_evaluate: { start_ms: number; text: string }[]; placements: Placement[]; hold_map: HoldMapSummary | null;
   plan: { chosen: { id: string; title: string; start_ms: number; try_this: string; trial_outcome: string }[]; suggested: { id: string; title: string; start_ms: number; try_this: string } | null } | null;
   sources: Record<string, { title: string; url: string }>;
-  top_card_ids: string[]; glance: Glance; observed_route: ObservedRoute | null;
+  top_card_ids: string[]; glance: Glance; observed_route: ObservedRoute | null; perspective: Perspective | null;
 }
 export interface BetaStep { limb: string; from_hold: number; to_hold: number; distance_L: number; margin_L: number; tight: boolean }
 export interface BetaCandidate { id: string; profile: string; label: string; start: Record<string, number>; feet_start_off_wall: boolean; start_margin_L: number; steps: BetaStep[]; move_count: number; total_distance_L: number; largest_move_L: number; tightest_margin_L: number; tight_moves: number; feedback: Feedback }
-export interface BetaResult { status: "ready" | "setup_needed" | "no_candidate" | "no_map"; needs: string[]; candidates: BetaCandidate[]; hold_map: HoldMapSummary | null; assumptions?: string[]; note?: string }
+export interface Perspective {
+  applied: boolean; reason?: string; detail?: string; bolts_used?: number; scale_change?: number; holds_on_fitted_face?: number; holds?: number; assumption?: string;
+  tilt?: { status: string; angle_to_camera_deg?: number; top_toward_camera_deg?: number; turned_sideways_deg?: number; note?: string; reason?: string };
+}
+export interface WallGeometry { status: string; reason: string | null; grid_points: [number, number][]; summary: Perspective }
+export interface BetaResult { perspective?: Perspective; status: "ready" | "setup_needed" | "no_candidate" | "no_map"; needs: string[]; candidates: BetaCandidate[]; hold_map: HoldMapSummary | null; assumptions?: string[]; note?: string }
 export interface ComparisonResult {
   status: "needs_labels" | "no_match" | "ready"; meaning: string;
   attempts: { id: string; title: string; outcome: string; is_current: boolean; metrics: { attempt_ms: number; foot_coverage: (number | null)[]; coverage_ok: boolean; foot_moves_per_analyzable_minute: number | null; reaches_evaluated: number; reaches_with_foot_setup: number | null } | null }[];

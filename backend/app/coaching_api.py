@@ -16,7 +16,7 @@ from .analysis import beta, coaching, hold_suggest, route_auto
 from fastapi.responses import FileResponse
 
 from .holds import frame_path
-from .route_tools import SuggestRequest, build_wall_image, wall_paths
+from .route_tools import SuggestRequest, build_wall_image, planning_geometry, wall_paths
 from .settings import Settings, require_id
 
 COMPARE_MIN_COVERAGE = 0.6
@@ -56,6 +56,7 @@ def wall_cache(settings: Settings, attempt: dict[str, Any], job: dict[str, Any],
 
 def register_coaching(app: FastAPI, get_settings) -> None:
     router = APIRouter()
+    active_settings = get_settings
 
     def load_run(connection, run_id: str, settings: Settings) -> tuple[dict[str, Any], dict[str, Any], Path]:
         job = db.row(connection.execute("SELECT * FROM jobs WHERE id=? AND kind='analysis'", (require_id(run_id),)).fetchone())
@@ -90,7 +91,7 @@ def register_coaching(app: FastAPI, get_settings) -> None:
         check = alignment_of(connection, chosen["id"], run_id)
         status = None if check is None else check["status"]
         usable = status == "fixed_verified"
-        context = {"usable": usable, "holds": chosen["holds"], "message": ALIGNMENT_MESSAGES.get(status, "")}
+        context = {"usable": usable, "holds": chosen["holds"], "message": ALIGNMENT_MESSAGES.get(status, ""), "map": chosen}
         public = {"id": chosen["id"], "name": chosen["name"], "hold_count": len(chosen["holds"]), "reference_frame_ms": chosen["reference_frame_ms"],
                   "alignment": check, "usable": usable, "message": context["message"], "frame_url": f"/api/attempts/{attempt_id}/frame?ms={chosen['reference_frame_ms']}",
                   "holds": [{k: h[k] for k in ("id", "x", "y", "radius", "route", "hold_type", "role", "use")} for h in chosen["holds"]]}
@@ -102,8 +103,12 @@ def register_coaching(app: FastAPI, get_settings) -> None:
             return {"available": False, "needs_reanalysis": True, "version": coaching.COACHING_VERSION,
                     "reason": "This older analysis has no foot data. Reanalyze the attempt to get performance review."}
         context, public_map = hold_context(connection, attempt["id"], job["id"], map_id)
+        plane, perspective = None, None
+        if context and context["usable"]:        # joints may be placed on the wall plane only when the camera stayed put
+            plane, perspective = planning_geometry(active_settings(), context["map"], attempt, job, context["holds"], True)
         output = coaching.build_coaching(files["result"], files["events"]["events"], files["movement"], files["overlay"]["samples"],
-                                         attempt["width"], attempt["height"], context)
+                                         attempt["width"], attempt["height"], context, plane)
+        output["perspective"] = perspective
         output["hold_map"] = public_map
         output["attempt_bounds_ms"] = files["result"]["attempt_bounds_ms"]
         return output
@@ -195,7 +200,8 @@ def register_coaching(app: FastAPI, get_settings) -> None:
         return detail
 
     @router.get("/api/analyses/{run_id}/candidate-beta")
-    def candidate_beta(run_id: str, map_id: str | None = Query(default=None), settings: Settings = Depends(get_settings)) -> dict[str, Any]:
+    def candidate_beta(run_id: str, map_id: str | None = Query(default=None), rectify: bool = Query(default=True),
+                       settings: Settings = Depends(get_settings)) -> dict[str, Any]:
         with db.session(settings.database) as connection:
             job, attempt, directory = load_run(connection, run_id, settings)
             _, public = hold_context(connection, attempt["id"], job["id"], map_id)
@@ -205,8 +211,22 @@ def register_coaching(app: FastAPI, get_settings) -> None:
             if files is None:
                 return {"status": "setup_needed", "needs": ["Reanalyze this attempt so reach lengths can be estimated."], "candidates": [], "hold_map": public}
             length = files["movement"]["L_px"]
-            body = None if not length else beta.body_model(files["overlay"]["samples"], attempt["width"], attempt["height"], length)
-            output = beta.candidate_sequences(public["holds"], attempt["width"], attempt["height"], length or 1.0, body)
+            samples, width, height = files["overlay"]["samples"], attempt["width"], attempt["height"]
+            body = None if not length else beta.body_model(samples, width, height, length)
+            points, perspective = None, {"applied": False, "reason": "Marks could not be checked against the video, so distances are as they appear in the picture."}
+            if length and public["usable"]:
+                row = db.row(connection.execute("SELECT * FROM hold_maps WHERE id=?", (public["id"],)).fetchone())
+                plane, perspective = planning_geometry(settings, row, attempt, job, public["holds"], rectify)
+                torso = None if plane is None else beta.plane_torso(samples, width, height, plane)
+                plane_body = None if not torso else beta.body_model(samples, width, height, length, plane)
+                if plane is not None and plane_body is not None:
+                    # Limb lengths were summed in plane units; express them and the holds in plane-measured torso lengths.
+                    body = beta.Body(plane_body.arm_L * length / torso, plane_body.leg_L * length / torso, plane_body.arm_samples, plane_body.leg_samples)
+                    points = plane.plane([[h["x"] * width, h["y"] * height] for h in public["holds"]]) / torso
+                elif plane is not None:
+                    perspective = {**perspective, "applied": False, "reason": "The body was tracked too rarely to measure it on the wall plane."}
+            output = beta.candidate_sequences(public["holds"], width, height, length or 1.0, body, points)
+            output["perspective"] = perspective
             for candidate in output["candidates"]:
                 candidate["id"] = _candidate_id(public["id"], candidate)
             if output["candidates"]:

@@ -148,7 +148,7 @@ def _position(event: dict[str, Any], series: dict[str, Any], limb: str, ms: floa
 
 
 def _base_card(kind: str, title: str, event: dict[str, Any], start_ms: int, end_ms: int, limbs: Sequence[str], **fields: Any) -> dict[str, Any]:
-    return {"id": _id("cue", kind, limb_of(event), start_ms, end_ms), "kind": kind, "title": title, "start_ms": start_ms, "end_ms": end_ms,
+    return {"id": _id("cue", kind, limb_of(event), start_ms, end_ms), "primary_event_id": None if kind in {"long_pause", "repeat_foot_adjust"} else event["id"], "kind": kind, "title": title, "start_ms": start_ms, "end_ms": end_ms,
             "status_label": "Hypothesis to test", "limbs": list(limbs), "alternatives": [], "map_action": None, **fields}
 
 
@@ -587,8 +587,31 @@ def observed_route(series: dict[str, Any], samples: Sequence[dict[str, Any]], ho
             "note": "Near means the tracked point rested close to the mark in the picture. It does not show the hold was touched, and a hidden limb may have used a hold listed as not approached."}
 
 
+def _add_wall_plane_distances(cards, events, series, samples, plane, width: int, height: int) -> None:
+    """Add each card's main movement measured on the wall plane, next to the picture value. Skipped where the plane does not apply."""
+    torso = beta.plane_torso(samples, width, height, plane)
+    if not torso:
+        return
+    by_id = {e["id"]: e for e in events}
+    for card in cards:
+        event = by_id.get(card.get("primary_event_id"))
+        if event is None or limb_of(event) is None:
+            continue
+        begin, end = _position(event, series, limb_of(event), event["start_ms"]), _position(event, series, limb_of(event), event["end_ms"])
+        if begin is None or end is None:
+            continue
+        ends_px = [[begin["x"] * width, begin["y"] * height], [end["x"] * width, end["y"] * height]]
+        if not all(plane.covers(p) for p in ends_px):
+            continue
+        on_wall = plane.plane(ends_px)
+        corrected = float(np.linalg.norm(on_wall[1] - on_wall[0])) / torso
+        card["measurements"].append(_measurement(
+            f"Net {NAMES[limb_of(event)]} movement on the wall plane", f"{corrected:.2f} L ({event['evidence']['net_displacement_L']:.2f} L as it appears in the picture)",
+            "corrected for the wall's angle using the bolt grid; rules above still use picture values"))
+
+
 def build_coaching(result: dict[str, Any], events: list[dict[str, Any]], series: dict[str, Any], samples: Sequence[dict[str, Any]],
-                   width: int, height: int, hold_context: dict[str, Any] | None = None) -> dict[str, Any]:
+                   width: int, height: int, hold_context: dict[str, Any] | None = None, plane=None) -> dict[str, Any]:
     """Cards, placements, counterexamples, and unknowns for one analysis. Pure: the same inputs give the same output."""
     length = series["L_px"]
     base = {"version": COACHING_VERSION, "criteria": CRITERIA, "sources": SOURCES,
@@ -609,6 +632,8 @@ def build_coaching(result: dict[str, Any], events: list[dict[str, Any]], series:
         if sum(c["kind"] == card["kind"] for c in chosen) < MAX_PER_KIND and len(chosen) < MAX_CARDS:
             chosen.append(card)
     chosen.sort(key=lambda c: c["start_ms"])
+    if plane is not None:
+        _add_wall_plane_distances(chosen, events, series, samples, plane, width, height)
     uncertain = [{"start_ms": e["start_ms"], "text": f"{NAMES[limb_of(e)].capitalize()} at {clock(e['start_ms'])}: the tracked point was unstable, so no advice uses it."}
                  for e in events if is_uncertain(e)]
     return {**base, "available": True, "cards": chosen, "cards_omitted": len(cards) - len(chosen),
