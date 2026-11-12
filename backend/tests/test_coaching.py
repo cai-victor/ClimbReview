@@ -51,7 +51,8 @@ def event(kind, side, start, end, up=1.0, right=0.0, eid=None, quality="good", t
 
 
 def build(events, ser=None, samples=None, context=None, bounds=(0, 8000)):
-    result = {"attempt_bounds_ms": {"start": bounds[0], "end": bounds[1]}}
+    result = {"attempt_bounds_ms": {"start": bounds[0], "end": bounds[1]},
+              "coverage": {"detectors": {key: {"fraction": 0.9} for key in x.DETECTOR_OF.values()}}}
     return co.build_coaching(result, events, ser or series(), samples if samples is not None else [sample(i * 100) for i in range(80)], W, H, context)
 
 

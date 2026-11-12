@@ -99,11 +99,12 @@ export const api = {
   getReflection: (id: string) => request<{ observation: string; next_focus: string }>(`/api/attempts/${id}/reflection`),
   putReflection: (id: string, body: { observation: string; next_focus: string }) =>
     request<{ observation: string; next_focus: string }>(`/api/attempts/${id}/reflection`, jsonInit("PUT", body)),
-  upload: (file: File, title: string, onProgress: (fraction: number) => void) =>
+  upload: (file: File, title: string, onProgress: (fraction: number) => void, autoAnalyze = false) =>
     new Promise<Attempt>((resolve, reject) => {
       const data = new FormData();
       data.append("file", file);
       data.append("title", title);
+      data.append("auto_analyze", autoAnalyze ? "true" : "false");
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/attempts");
       xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
@@ -184,6 +185,7 @@ export interface Coaching {
   not_flagged: { start_ms: number; text: string }[]; cannot_evaluate: { start_ms: number; text: string }[]; placements: Placement[]; hold_map: HoldMapSummary | null;
   plan: { chosen: { id: string; title: string; start_ms: number; try_this: string; trial_outcome: string }[]; suggested: { id: string; title: string; start_ms: number; try_this: string } | null } | null;
   sources: Record<string, { title: string; url: string }>;
+  top_card_ids: string[]; glance: Glance; observed_route: ObservedRoute | null;
 }
 export interface BetaStep { limb: string; from_hold: number; to_hold: number; distance_L: number; margin_L: number; tight: boolean }
 export interface BetaCandidate { id: string; profile: string; label: string; start: Record<string, number>; feet_start_off_wall: boolean; start_margin_L: number; steps: BetaStep[]; move_count: number; total_distance_L: number; largest_move_L: number; tightest_margin_L: number; tight_moves: number; feedback: Feedback }
@@ -192,7 +194,16 @@ export interface ComparisonResult {
   status: "needs_labels" | "no_match" | "ready"; meaning: string;
   attempts: { id: string; title: string; outcome: string; is_current: boolean; metrics: { attempt_ms: number; foot_coverage: (number | null)[]; coverage_ok: boolean; foot_moves_per_analyzable_minute: number | null; reaches_evaluated: number; reaches_with_foot_setup: number | null } | null }[];
 }
+export interface ProposedHold { x: number; y: number; radius: number; role: "" | "start" | "finish"; use: "" | "hand" | "foot" | "both"; visited_by: string[] }
+export interface RouteProposal { status: "proposed" | "not_possible"; reason?: string; holds: ProposedHold[]; notes: string[]; disclaimer?: string; seed_color: string; reference_frame_ms: number; wall: string; color_note: string }
+export interface RouteWall { reference_frame_ms: number; width: number; height: number; detail: string; combined: boolean; image_url: string }
+export interface RoleProposal { status: "proposed" | "not_possible"; reason?: string; notes: string[]; disclaimer?: string; holds: { id: string; current_role: string; current_use: string; role: Hold["role"]; use: Hold["use"]; visited_by: string[] }[] }
+export interface Glance { attempt_ms: number; hand_moves: number; foot_moves: number; longest_gap_ms: number | null; longest_gap_at_ms: number | null; hand_tracked: (number | null)[]; foot_tracked: (number | null)[]; notes: string[] }
+export interface ObservedRoute { visits: { limb: string; start_ms: number; end_ms: number; hold_index: number; anchor: string }[]; unvisited: number[]; note: string }
 export const performanceApi = {
+  routeWall: (runId: string) => request<RouteWall>(`/api/analyses/${runId}/route-wall`),
+  routeProposal: (runId: string, body: { x: number; y: number; tolerance: string }) => request<RouteProposal>(`/api/analyses/${runId}/route-proposal`, jsonInit("POST", body)),
+  roleProposal: (runId: string, mapId: string) => request<RoleProposal>(`/api/analyses/${runId}/hold-maps/${mapId}/role-proposal`),
   coaching: (runId: string) => request<Coaching>(`/api/analyses/${runId}/coaching`),
   putDecision: (runId: string, cueId: string, body: Feedback) => request<Feedback>(`/api/analyses/${runId}/coaching/${cueId}`, jsonInit("PUT", body)),
   putPlacement: (runId: string, id: string, body: PlacementReview) => request<PlacementReview>(`/api/analyses/${runId}/placements/${id}`, jsonInit("PUT", body)),

@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS candidate_ids (
 ADDED_COLUMNS = {
     "hold_maps": {"scale": "TEXT"},
     "holds": {"role": "TEXT NOT NULL DEFAULT ''", "use": "TEXT NOT NULL DEFAULT ''"},
-    "attempts": {"problem_label": "TEXT NOT NULL DEFAULT ''", "climber_label": "TEXT NOT NULL DEFAULT ''"},
+    "attempts": {"auto_analyze": "INTEGER NOT NULL DEFAULT 0", "problem_label": "TEXT NOT NULL DEFAULT ''", "climber_label": "TEXT NOT NULL DEFAULT ''"},
 }
 ACTIVE = ("queued", "running")
 
@@ -224,6 +224,10 @@ def active_job(connection: sqlite3.Connection, attempt_id: str) -> dict[str, Any
     return row(connection.execute(
         "SELECT * FROM jobs WHERE attempt_id=? AND status IN ('queued','running') ORDER BY created_at LIMIT 1",
         (attempt_id,)).fetchone())
+
+
+def active_job_other_than(connection: sqlite3.Connection, attempt_id: str, job_id: str) -> bool:
+    return connection.execute("SELECT 1 FROM jobs WHERE attempt_id=? AND id!=? AND status IN ('queued','running') LIMIT 1", (attempt_id, job_id)).fetchone() is not None
 
 
 def claim_next_job(connection: sqlite3.Connection, worker_pid: int) -> dict[str, Any] | None:

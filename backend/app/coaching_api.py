@@ -12,8 +12,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import db
 from .analysis import alignment as alignment_module
-from .analysis import beta, coaching
+from .analysis import beta, coaching, hold_suggest, route_auto
+from fastapi.responses import FileResponse
+
 from .holds import frame_path
+from .route_tools import SuggestRequest, build_wall_image, wall_paths
 from .settings import Settings, require_id
 
 COMPARE_MIN_COVERAGE = 0.6
@@ -45,6 +48,10 @@ def _candidate_id(map_id: str, candidate: dict[str, Any]) -> str:
 
 def _norm(text: str) -> str:
     return " ".join(text.lower().split())
+
+
+def wall_cache(settings: Settings, attempt: dict[str, Any], job: dict[str, Any], reference_ms: int) -> Path:
+    return settings.attempt_dir(attempt["id"]) / "frames" / f"wallref_{reference_ms}_{job['id'][:12]}.png"
 
 
 def register_coaching(app: FastAPI, get_settings) -> None:
@@ -114,7 +121,8 @@ def register_coaching(app: FastAPI, get_settings) -> None:
             stored = reviews.get(item["id"])
             item["review"] = {k: stored[k] for k in ("status", "hold_id", "note")} if stored else {"status": "unreviewed", "hold_id": None, "note": ""}
         chosen = [c for c in output["cards"] if c["feedback"]["decision"] == "will_try"]
-        open_cards = [c for c in output["cards"] if c["feedback"]["decision"] == "unreviewed"]
+        ranked = {card_id: index for index, card_id in enumerate(output["top_card_ids"])}
+        open_cards = sorted((c for c in output["cards"] if c["feedback"]["decision"] == "unreviewed"), key=lambda c: (ranked.get(c["id"], 99), c["start_ms"]))
         output["plan"] = {"chosen": [{"id": c["id"], "title": c["title"], "start_ms": c["start_ms"], "try_this": c["try_this"], "trial_outcome": c["feedback"]["trial_outcome"]} for c in chosen],
                           "suggested": None if chosen or not open_cards else {"id": open_cards[0]["id"], "title": open_cards[0]["title"], "start_ms": open_cards[0]["start_ms"], "try_this": open_cards[0]["try_this"]}}
         return output
@@ -213,6 +221,75 @@ def register_coaching(app: FastAPI, get_settings) -> None:
                 stored = rows.get(candidate["id"])
                 candidate["feedback"] = {k: stored[k] for k in blank} if stored else dict(blank)
             return {**output, "hold_map": public}
+
+    def proposal_inputs(job, attempt, directory):
+        files = read_files(directory)
+        if files is None or not files["overlay"]["samples"] or not files["movement"]["L_px"]:
+            raise HTTPException(409, "Reanalyze this attempt first, so tracked movement is available.")
+        return files
+
+    def propose_for(holds, info, files, attempt) -> dict[str, Any]:
+        series, samples = files["movement"], files["overlay"]["samples"]
+        if info["basis"] == "reference_frame" and attempt["duration_ms"] > 3000:
+            return {"status": "not_possible", "holds": [], "notes": [],
+                    "reason": "The camera moved too much to match tracked movement to one picture of the wall. Set start, finish, and uses yourself."}
+        rests = route_auto.to_reference(route_auto.rest_points(series, samples), info.get("registered", []), attempt["width"], attempt["height"])
+        result = route_auto.assign_roles(holds, rests, attempt["width"], attempt["height"], series["L_px"])
+        return {**result, "status": "proposed"}
+
+    @router.post("/api/analyses/{run_id}/route-proposal")
+    def route_proposal(run_id: str, body: SuggestRequest, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
+        """Holds in the tapped color on the clear wall picture, each with a proposed role and use. Nothing is saved."""
+        with db.session(settings.database) as connection:
+            job, attempt, directory = load_run(connection, run_id, settings)
+        files = proposal_inputs(job, attempt, directory)
+        samples = files["overlay"]["samples"]
+        reference_ms = samples[len(samples) // 2]["t"]            # mid-attempt, so most frames line up with it closely
+        image, info = build_wall_image(settings, attempt, reference_ms, wall_cache(settings, attempt, job, reference_ms), job["id"])
+        try:
+            suggestion = hold_suggest.suggest(image, body.x, body.y, body.tolerance)
+        except hold_suggest.SuggestionError as error:
+            raise HTTPException(422, str(error)) from error
+        proposal = propose_for(suggestion["suggestions"], info, files, attempt)
+        merged = [{**s, **(proposal["holds"][i] if proposal["status"] == "proposed" else {"role": "", "use": "", "visited_by": []})} for i, s in enumerate(suggestion["suggestions"])]
+        return {**proposal, "holds": merged, "seed_color": suggestion["seed_color"], "reference_frame_ms": reference_ms, "wall": info["detail"], "color_note": suggestion["note"]}
+
+    @router.get("/api/analyses/{run_id}/route-wall")
+    def route_wall(run_id: str, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
+        """The clear wall picture a new route is set up on."""
+        with db.session(settings.database) as connection:
+            job, attempt, directory = load_run(connection, run_id, settings)
+        files = proposal_inputs(job, attempt, directory)
+        samples = files["overlay"]["samples"]
+        reference_ms = samples[len(samples) // 2]["t"]
+        _, info = build_wall_image(settings, attempt, reference_ms, wall_cache(settings, attempt, job, reference_ms), job["id"])
+        return {"reference_frame_ms": reference_ms, "width": attempt["width"], "height": attempt["height"], "detail": info["detail"],
+                "combined": info["basis"] != "reference_frame", "image_url": f"/api/analyses/{job['id']}/route-wall/image?ms={reference_ms}"}
+
+    @router.get("/api/analyses/{run_id}/route-wall/image")
+    def route_wall_image(run_id: str, ms: int = Query(ge=0), settings: Settings = Depends(get_settings)) -> FileResponse:
+        with db.session(settings.database) as connection:
+            job, attempt, _ = load_run(connection, run_id, settings)
+        cache = wall_cache(settings, attempt, job, ms)
+        if not cache.exists():
+            raise HTTPException(404, "Wall picture not found.")
+        return FileResponse(cache, media_type="image/png")
+
+    @router.get("/api/analyses/{run_id}/hold-maps/{map_id}/role-proposal")
+    def role_proposal(run_id: str, map_id: str, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
+        """Proposed start, finish, and uses for the holds of an existing map. Nothing is saved."""
+        with db.session(settings.database) as connection:
+            job, attempt, directory = load_run(connection, run_id, settings)
+            row = db.row(connection.execute("SELECT * FROM hold_maps WHERE id=? AND attempt_id=?", (require_id(map_id), attempt["id"])).fetchone())
+            if row is None:
+                raise HTTPException(404, "Hold map not found for this attempt.")
+            holds = [dict(h) for h in connection.execute("SELECT * FROM holds WHERE map_id=? ORDER BY created_at, id", (map_id,))]
+        files = proposal_inputs(job, attempt, directory)
+        _, info = build_wall_image(settings, attempt, row["reference_frame_ms"], wall_paths(settings, row, attempt, job)[0], job["id"])
+        proposal = propose_for(holds, info, files, attempt)
+        if proposal["status"] == "proposed":
+            proposal["holds"] = [{"id": h["id"], "current_role": h["role"], "current_use": h["use"], **p} for h, p in zip(holds, proposal["holds"])]
+        return proposal
 
     @router.get("/api/attempts/{attempt_id}/comparison")
     def comparison(attempt_id: str, settings: Settings = Depends(get_settings)) -> dict[str, Any]:

@@ -3,7 +3,7 @@ import { api, Attempt, ClimbEvent, Coaching, CoachingCard, clock, DetectorCovera
 import { DigestPanel } from "./DigestPanel";
 import { EventCard, eventTitle } from "./EventCard";
 import { isUncertain, limbOf, MovementChart } from "./MovementChart";
-import { BetaPanel, CoachingCardView, ComparePanel, FootPlacements, NextAttempt, ReviewedLists } from "./Performance";
+import { BetaPanel, CoachingCardView, ComparePanel, FootPlacements, GlancePanel, NextAttempt, ObservedRoutePanel, ReviewedLists } from "./Performance";
 import { Focus, Mark, Player, PlayerHandle, Trail } from "./Player";
 
 const CONTEXT_MS = 1000;
@@ -45,6 +45,9 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
   const [cue, setCue] = useState<string | null>(null);
   const [placementMark, setPlacementMark] = useState<Placement | null>(null);
   const [betaKey, setBetaKey] = useState(0);
+  const [detailed, setDetailed] = useState(() => window.localStorage.getItem("climbreview.view") === "detailed");
+  const [allCards, setAllCards] = useState(false);
+  const chooseView = (value: boolean) => { setDetailed(value); window.localStorage.setItem("climbreview.view", value ? "detailed" : "simple"); };
   const checkedMaps = useRef(new Set<string>());
   const player = useRef<PlayerHandle>(null);
 
@@ -161,10 +164,17 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
           <span className="muted">Left is orange and right is blue, as labeled by the pose model. A selected movement draws its tracked path.</span>
         </div>
 
+        <div className="row tight view-switch" role="group" aria-label="How much to show">
+          <button className={`button small ${!detailed ? "active" : ""}`} aria-pressed={!detailed} data-testid="view-simple" onClick={() => chooseView(false)}>Simple</button>
+          <button className={`button small ${detailed ? "active" : ""}`} aria-pressed={detailed} data-testid="view-detailed" onClick={() => chooseView(true)}>Detailed</button>
+          <span className="muted small-text">{detailed ? "Everything: timeline, charts, every event, and exports." : "The main suggestions and your route. Choose Detailed for the evidence behind them."}</span>
+        </div>
+        {coaching?.available && <GlancePanel glance={coaching.glance} onSeek={(ms) => player.current?.seek(ms)} />}
         {coaching?.available && <NextAttempt coaching={coaching} onCue={openCue} />}
-        {coaching?.available && <FootPlacements coaching={coaching} onSeek={seekPlacement} onSave={savePlacement} attemptId={attempt.id} />}
-        {coaching?.available && <BetaPanel attempt={attempt} runId={run.id} reloadKey={betaKey} onFeedback={() => void loadCoaching()} />}
-        {coaching?.available && <ComparePanel attempt={attempt} onSaved={onAttemptChanged} />}
+        {coaching?.available && <BetaPanel attempt={attempt} runId={run.id} reloadKey={betaKey} onFeedback={() => { void loadCoaching(); }} />}
+        {coaching?.available && coaching.observed_route && <ObservedRoutePanel route={coaching.observed_route} onSeek={(ms) => player.current?.seek(ms)} />}
+        {detailed && coaching?.available && <FootPlacements coaching={coaching} onSeek={seekPlacement} onSave={savePlacement} attemptId={attempt.id} />}
+        {detailed && coaching?.available && <ComparePanel attempt={attempt} onSaved={onAttemptChanged} />}
 
         {!footAvailable && (
           <section className="card notice" data-testid="old-run-notice" role="status">
@@ -173,7 +183,7 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
           </section>
         )}
 
-        {footAvailable && (
+        {detailed && footAvailable && (
           <section className="card filters" aria-label="Filters">
             <div className="row tight">
               <span className="muted">Show</span>
@@ -186,7 +196,7 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
           </section>
         )}
 
-        <section className="card" aria-label="Timeline">
+        {detailed && <section className="card" aria-label="Timeline">
           <h2>Timeline <span className="muted small-text">{clock(bounds.start)} to {clock(bounds.end)}</span></h2>
           <div className="timeline">
             {tracks.map((track) => {
@@ -220,20 +230,20 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
               {gapInfo.detector}: no analysis from {clock(gapInfo.gap.start_ms)} to {clock(gapInfo.gap.end_ms)} because {reasonText(gapInfo.gap)}.
             </p>
           )}
-        </section>
+        </section>}
 
-        {movement.available && chartLimbs.length > 0 && (
+        {detailed && movement.available && chartLimbs.length > 0 && (
           <section className="card" aria-label="Movement chart">
             <h2>How fast each limb moved</h2>
             <MovementChart movement={movement} events={visibleEvents} limbs={chartLimbs} bounds={bounds} time={time} selected={selected} onSeek={(ms) => player.current?.seek(ms)} />
           </section>
         )}
 
-        {summary.digest && <DigestPanel digest={summary.digest} onEvent={selectById} />}
+        {detailed && summary.digest && <DigestPanel digest={summary.digest} onEvent={selectById} />}
 
         {result.warnings.length > 0 && <section className="card notice"><h2>About this recording</h2><ul className="warnings">{result.warnings.map((w) => <li key={w}>{w}</li>)}</ul></section>}
 
-        <section className="card">
+        {detailed && <section className="card">
           <h2>Summary</h2>
           <table className="facts"><tbody>
             <tr><th>Attempt duration</th><td>{clock(summary.attempt_duration_ms)}</td></tr>
@@ -250,9 +260,10 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
             <p className="muted">{summary.review_priority.meaning}</p>
             <ol>{priority.filter(passes).map((event) => <li key={event.id}><button className="link" onClick={() => select(event)}>{clock(event.start_ms)}: {eventTitle(event)}</button></li>)}</ol>
           </>)}
-        </section>
+        </section>}
         <ReflectionPanel attemptId={attempt.id} />
-        <section className="card">
+        {!detailed && <button className="button" data-testid="simple-reanalyze" onClick={onReanalyze}>Change the start and end of the attempt</button>}
+        {detailed && <section className="card">
           <h2>Export</h2>
           <div className="row">
             {(["json", "csv", "html"] as const).map((format) => (
@@ -261,17 +272,25 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
             <button className="button" onClick={onReanalyze}>Change bounds and reanalyze</button>
           </div>
           <p className="muted small-text">Pipeline {result.pipeline_version} · {result.detection.detector_version} · configuration {result.config_hash.slice(0, 12)}. Thresholds are unvalidated starting values.</p>
-        </section>
+        </section>}
       </div>
       <aside className="review-side" aria-label="Events">
         <h2>Performance opportunities {coaching?.available ? `(${coaching.cards.length})` : ""}</h2>
         {coaching && !coaching.available && <p className="muted" data-testid="coaching-unavailable">{coaching.reason}</p>}
         {coaching?.available && coaching.cards.length === 0 && <p className="muted" data-testid="no-cards">No suggestion met its rules in this attempt. That is not a judgment of the climb; see what was checked below.</p>}
-        {coaching?.available && coaching.cards.map((card) => (
-          <CoachingCardView key={card.id} card={card} selected={cue === card.id} onSelect={() => openCue(card.id)} onFeedback={(next) => void saveFeedback(card, next)} />
-        ))}
+        {coaching?.available && (() => {
+          const showAll = detailed || allCards || cue !== null && !coaching.top_card_ids.includes(cue);
+          const shown = showAll ? coaching.cards : coaching.cards.filter((card) => coaching.top_card_ids.includes(card.id));
+          return (<>
+            {!showAll && coaching.cards.length > shown.length && <p className="muted small-text">Start with these {shown.length}. They are the most specific suggestions, one of each kind.</p>}
+            {shown.map((card) => (
+              <CoachingCardView key={card.id} card={card} selected={cue === card.id} onSelect={() => openCue(card.id)} onFeedback={(next) => void saveFeedback(card, next)} />
+            ))}
+            {!detailed && coaching.cards.length > coaching.top_card_ids.length && <button className="button small" data-testid="toggle-all-cards" onClick={() => setAllCards((v) => !v)}>{allCards ? "Show fewer" : `Show all ${coaching.cards.length} suggestions`}</button>}
+          </>);
+        })()}
         {coaching?.available && <ReviewedLists coaching={coaching} />}
-        <h2>Events ({visibleEvents.length}{visibleEvents.length !== events.length ? ` of ${events.length}` : ""})</h2>
+        {detailed && <><h2>Events ({visibleEvents.length}{visibleEvents.length !== events.length ? ` of ${events.length}` : ""})</h2>
         {events.length === 0 && (
           <p className="muted">
             No events were detected in the analyzable parts of this attempt. That is not a judgment of the climb, and any tracking gaps are shown on the timeline.
@@ -280,7 +299,7 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
         {visibleEvents.map((event) => (
           <EventCard key={event.id} event={event} runId={run.id} selected={selected === event.id} movement={movement} time={time} onSeek={(ms) => player.current?.seek(ms)}
             onSelect={() => select(event)} onSaved={(saved) => setEvents((list) => list.map((e) => (e.id === event.id ? { ...e, review: saved } : e)))} />
-        ))}
+        ))}</>}
       </aside>
     </div>
   );

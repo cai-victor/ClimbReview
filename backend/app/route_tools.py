@@ -43,7 +43,7 @@ class Scale(BaseModel):
 
 def wall_paths(settings: Settings, row: dict[str, Any], attempt: dict[str, Any], run: dict[str, Any] | None):
     """Cache location. It names the analysis used, so a newer analysis rebuilds the picture."""
-    stem = settings.attempt_dir(attempt["id"]) / "frames" / f"wall_{row['id']}_{run['id'][:12] if run else 'untracked'}"
+    stem = settings.attempt_dir(attempt["id"]) / "frames" / f"wallv2_{row['id']}_{run['id'][:12] if run else 'untracked'}"
     return stem.with_suffix(".png"), stem.with_suffix(".json")
 
 
@@ -67,6 +67,8 @@ def build_wall_image(settings: Settings, attempt: dict[str, Any], reference_ms: 
         else:
             frames = [cv2.imread(str(frame_path(settings, attempt, int(ms)))) for ms in np.linspace(0, attempt["duration_ms"] - 200, WALL_FRAMES)]
     image, info = hold_suggest.clean_wall(reference, frames, masks)
+    times = [s["t"] for s in chosen] if masks is not None else [int(ms) for ms in np.linspace(0, attempt["duration_ms"] - 200, WALL_FRAMES)] if frames else []
+    info["registered"] = [{"t": times[item["index"]], "matrix": item["matrix"]} for item in info.get("registered", [])]
     if cache is not None:
         cache.parent.mkdir(parents=True, exist_ok=True)
         cv2.imwrite(str(cache), image)
@@ -107,7 +109,7 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
         with db.session(settings.database) as connection:
             row, attempt, _ = load(connection, map_id)
         _, info = wall_image(settings, row, attempt)
-        return {**info, "image_url": f"/api/hold-maps/{map_id}/wall-image", "combined": info["basis"] != "reference_frame"}
+        return {**{k: v for k, v in info.items() if k != "registered"}, "image_url": f"/api/hold-maps/{map_id}/wall-image", "combined": info["basis"] != "reference_frame"}
 
     @router.post("/api/hold-maps/{map_id}/suggestions")
     def suggestions(map_id: str, body: SuggestRequest, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
@@ -115,7 +117,7 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
             row, attempt, holds = load(connection, map_id)
         image, info = wall_image(settings, row, attempt)
         try:
-            return {**hold_suggest.suggest(image, body.x, body.y, body.tolerance, holds), "image": info}
+            return {**hold_suggest.suggest(image, body.x, body.y, body.tolerance, holds), "image": {k: v for k, v in info.items() if k != "registered"}}
         except hold_suggest.SuggestionError as error:
             raise HTTPException(422, str(error)) from error
 
@@ -147,17 +149,27 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
         scale = json.loads(row["scale"]) if row["scale"] else None
         measured = beta.body_from_measurements(height_cm, wingspan_cm)
         needs = beta.setup_needed(holds)
+        tracked_px = None
         if scale is None:
+            with db.session(settings.database) as connection:
+                run = db.row(connection.execute(
+                    "SELECT id FROM jobs WHERE attempt_id=? AND kind='analysis' AND status='complete' ORDER BY created_at DESC LIMIT 1", (attempt["id"],)).fetchone())
+            movement = None if run is None else settings.run_dir(attempt["id"], run["id"]) / "movement.json"
+            if movement is not None and movement.exists():
+                tracked_px = json.loads(movement.read_text()).get("L_px")
+        if scale is None and not tracked_px:
             needs.append("Set the picture's scale: mark two points on the wall and enter the real distance between them.")
         if needs:
             return {"status": "setup_needed", "needs": needs, "candidates": [], "hold_map": public, "body": measured.public(), "method": beta.BETA_VERSION}
-        length = beta.torso_px(scale, row["width"], row["height"], measured.torso_cm)
+        length = beta.torso_px(scale, row["width"], row["height"], measured.torso_cm) if scale else float(tracked_px)
         output = beta.candidate_sequences(holds, row["width"], row["height"], length, measured.body)
         for candidate in output["candidates"]:
             signature = json.dumps([candidate["start"], candidate["steps"]], sort_keys=True)
             candidate["id"] = "plan-" + hashlib.sha256(f"{map_id}|{signature}".encode()).hexdigest()[:12]
         output["assumptions"] = [a for a in output.get("assumptions", []) if "tracked limb lengths" not in a] + beta.MEASURED_ASSUMPTIONS
-        return {**output, "hold_map": public, "body": measured.public(),
-                "scale": {**scale, "px_per_cm": round(length / measured.torso_cm, 3)}}
+        if scale is None:
+            output["assumptions"].append("No scale line was set, so the picture's scale comes from the climber's tracked torso in the video. It assumes the climber in the video is the person whose measurements you entered.")
+        return {**output, "hold_map": public, "body": measured.public(), "scale_source": "marked_line" if scale else "tracked_torso",
+                "scale": {**(scale or {}), "px_per_cm": round(length / measured.torso_cm, 3)}}
 
     app.include_router(router)

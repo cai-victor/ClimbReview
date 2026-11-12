@@ -160,3 +160,15 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 **D70. The hold editor shows a pose-masked wall composite when the camera is still.** Each pixel is the median of frames where it lay outside a box around the tracked joints (20% margin), needing 3 clear views; otherwise the plain median is used and the uncovered share is reported. It supersedes the plain 15-frame median of D67 for analyzed videos. Marks stay valid because only frames aligned with the reference frame are combined.
 
 **D71. Wall frames are registered to the reference frame before combining.** A real clip shifted about 35 pixels after its first frame, which made every later frame fail the still-camera test. Each frame now gets a RANSAC homography from tracked background features (at least 60 inliers, 50% inlier share, 1.5 px median residual, corner shift at most 15% of width) and is warped into reference coordinates. Unseen areas keep the reference frame and are reported. The separate check that decides whether marks may be compared with tracked movement is unchanged and still requires a still camera.
+
+## Automation (2026-11-12)
+
+**D72. Analysis starts automatically after upload, on the whole clip.** It is a per-browser preference, on by default, and the upload flag defaults to off in the API. Bounds can still be narrowed and the attempt reanalyzed.
+
+**D73. Route setup is two clicks plus confirmation, not zero.** Automatic route-color selection was built and measured against four hand-marked routes (5 of 11, 3 of 3, 7 of 17 in the wrong color, 0 of 10), then removed. The climber clicks one hold; color grouping finds the rest.
+
+**D74. Roles are proposed from rest points and geometry, and only the finish and uses.** The finish is the highest hold, a rule fitted to the two routes that had a marked finish. A hold a hand rested near is proposed for hands and feet; one only feet rested near, for feet. Start is never proposed because both tracked-hand rules failed on both routes. For existing maps, proposals fill only fields the climber left empty.
+
+**D75. The default review is a simple view.** Evidence panels move behind a Detailed switch that is remembered per browser. The first three suggestions shown are one per kind in a fixed order of specificity, which is presentation and not a ranking of importance.
+
+**D76. The planner falls back to the tracked torso for scale** when a map has no scale line and the attempt has an analysis, and says so in its assumptions.

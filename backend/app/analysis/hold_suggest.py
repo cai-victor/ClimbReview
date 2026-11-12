@@ -128,6 +128,7 @@ def clean_wall(reference_bgr: np.ndarray, frames_bgr: Sequence[np.ndarray],
     height, width = reference_bgr.shape[:2]
     reference, scale = cc.frame_gray(cv2.cvtColor(reference_bgr, cv2.COLOR_BGR2RGB))
     aligned, hidden, shifted = [], [], 0
+    used: list[dict[str, Any]] = []       # which frames went in, and how each maps onto the reference frame
     for index, frame in enumerate(frames_bgr):
         if frame is None or frame.shape != reference_bgr.shape:
             continue
@@ -146,6 +147,7 @@ def clean_wall(reference_bgr: np.ndarray, frames_bgr: Sequence[np.ndarray],
             blocked[inside == 0] = 1                 # nothing was seen outside the shifted frame
         aligned.append(frame)
         hidden.append(blocked.astype(bool))
+        used.append({"index": index, "matrix": np.asarray(matrix, float).round(6).tolist()})
     if len(aligned) < CLEAN_MIN_FRAMES:
         return reference_bgr, {"basis": "reference_frame", "frames_used": 1, "frames_realigned": 0, "never_clear_fraction": None,
                                "detail": "This is a single video frame, because too few frames could be lined up with it. Holds behind the climber stay hidden."}
@@ -160,11 +162,11 @@ def clean_wall(reference_bgr: np.ndarray, frames_bgr: Sequence[np.ndarray],
     combined[unclear] = reference_bgr[unclear]          # shown as the original frame, and reported below
     moved = f" {shifted} of them were shifted to line up, because the camera moved slightly." if shifted else ""
     if climber_masks is None:
-        return combined.astype(np.uint8), {"basis": "clean_wall_median", "frames_used": len(aligned), "frames_realigned": shifted, "never_clear_fraction": None,
+        return combined.astype(np.uint8), {"basis": "clean_wall_median", "frames_used": len(aligned), "frames_realigned": shifted, "never_clear_fraction": None, "registered": used,
                                            "detail": f"Combined from {len(aligned)} video frames.{moved} Without body tracking, a climber who stays in one place may still show."}
     fraction = float(unclear.mean())
     detail = f"Combined from {len(aligned)} video frames, with the tracked climber cut out of each one.{moved}"
     if fraction > 0.001:
         detail += f" About {fraction * 100:.1f}% of the picture was never clear of the climber or was outside the lined-up frames. Those parts show the original frame, so the climber may still appear there."
     return combined.astype(np.uint8), {"basis": "clean_wall_pose_masked", "frames_used": len(aligned), "frames_realigned": shifted,
-                                       "never_clear_fraction": round(fraction, 4), "detail": detail}
+                                       "never_clear_fraction": round(fraction, 4), "registered": used, "detail": detail}

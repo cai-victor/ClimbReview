@@ -1,12 +1,22 @@
 # ClimbReview status
 
-Last updated 2026-11-11 after adding route tools. Start with `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
+Last updated 2026-11-12 after automation. Start with `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
 
 ## Bottom line
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Route tools (latest, 2026-11-11)
+## Automation and hold-aware feedback (latest, 2026-11-12)
+
+Added and tested: automatic analysis after upload, two-click route setup with proposed finish and uses, role fill-in for hand-marked maps, a tracked-route panel, at-a-glance counts, a simple default view, and a planner scale fallback. Details and measured results: `docs/AUTOMATION_REPORT.md`.
+
+**Current verification:** `pytest` 290 passed. Playwright, 12 specs, passed, including the default flow on real IMG_7238. Role proposals were compared with two hand-marked routes only. No experienced climber has rated any suggestion.
+
+```bash
+.venv/bin/python scripts/check_role_proposals.py
+```
+
+## Route tools (2026-11-11)
 
 Added and tested: color-based hold suggestions confirmed by the user, photo import for marking and planning, a scale line on hold maps, and candidate sequences from entered height and wingspan on a new Plan a route page. Input limits are 5 minutes and 2.5 GB. Details: `docs/ROUTE_TOOLS_REPORT.md`.
 

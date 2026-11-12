@@ -12,7 +12,7 @@ from typing import Any, Sequence
 
 import numpy as np
 
-from . import beta
+from . import beta, route_auto
 from .explain import NAMES, clock, is_uncertain, limb_of, limb_state
 
 COACHING_VERSION = "coaching-v1"
@@ -537,6 +537,56 @@ def _attach_alternatives(pairs, series, poses, body, hold_context) -> None:
             card["alternative_note"] = None if result["other_hand_used"] else "Your other hand was not tracked here, so it was left out of this comparison."
 
 
+KIND_PRIORITY = ["step_after_reach", "extended_reach", "repeat_foot_adjust", "foot_shift_during_reach", "hand_foot_together", "large_step", "long_pause"]
+TOP_COUNT = 3
+
+
+def top_card_ids(cards: Sequence[dict[str, Any]]) -> list[str]:
+    """Up to three cards to start with: one per kind in a fixed order of how specific the suggestion is, earliest first."""
+    chosen: list[str] = []
+    for kind in KIND_PRIORITY:
+        first = next((c for c in cards if c["kind"] == kind), None)
+        if first is not None and len(chosen) < TOP_COUNT:
+            chosen.append(first["id"])
+    for card in cards:
+        if len(chosen) < TOP_COUNT and card["id"] not in chosen:
+            chosen.append(card["id"])
+    return chosen
+
+
+def at_a_glance(result: dict[str, Any], events: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """A few plain facts about the attempt. Counts cover tracked time only, so each comes with its coverage."""
+    coverage = result["coverage"]["detectors"]
+    bounds = result["attempt_bounds_ms"]
+    moving = sorted((e for e in events if limb_of(e) and not is_uncertain(e)), key=lambda e: e["start_ms"])
+    longest, at, latest = 0, None, None
+    for event in moving:
+        if latest is not None and event["start_ms"] - latest > longest:
+            longest, at = event["start_ms"] - latest, latest
+        latest = event["end_ms"] if latest is None else max(latest, event["end_ms"])
+    tracked = lambda *keys: [coverage[k]["fraction"] for k in keys]
+    hands, feet = tracked("wrist_motion_left", "wrist_motion_right"), tracked("foot_motion_left", "foot_motion_right")
+    notes = []
+    if any(f is None or f < 0.6 for f in hands):
+        notes.append("A hand was hidden for much of the attempt, so hand moves are undercounted.")
+    if any(f is None or f < 0.6 for f in feet):
+        notes.append("A foot was hidden for much of the attempt, so foot moves are undercounted.")
+    return {"attempt_ms": bounds["end"] - bounds["start"], "hand_moves": sum(e["type"] == "wrist_motion" for e in moving),
+            "foot_moves": sum(e["type"] == "foot_motion" for e in moving), "longest_gap_ms": longest or None, "longest_gap_at_ms": at,
+            "hand_tracked": hands, "foot_tracked": feet, "notes": notes}
+
+
+def observed_route(series: dict[str, Any], samples: Sequence[dict[str, Any]], hold_context: dict[str, Any] | None, width: int, height: int) -> dict[str, Any] | None:
+    """Which marked holds each limb rested near, in order, and which were never approached. Requires a verified map."""
+    if not hold_context or not hold_context["usable"] or not hold_context["holds"]:
+        return None
+    holds = hold_context["holds"]
+    found = [v for v in route_auto.visits(route_auto.rest_points(series, samples), holds, width, height, series["L_px"]) if v["hold_index"] is not None]
+    seen = {v["hold_index"] for v in found}
+    return {"visits": found, "unvisited": [i for i in range(len(holds)) if i not in seen],
+            "note": "Near means the tracked point rested close to the mark in the picture. It does not show the hold was touched, and a hidden limb may have used a hold listed as not approached."}
+
+
 def build_coaching(result: dict[str, Any], events: list[dict[str, Any]], series: dict[str, Any], samples: Sequence[dict[str, Any]],
                    width: int, height: int, hold_context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Cards, placements, counterexamples, and unknowns for one analysis. Pure: the same inputs give the same output."""
@@ -563,4 +613,6 @@ def build_coaching(result: dict[str, Any], events: list[dict[str, Any]], series:
                  for e in events if is_uncertain(e)]
     return {**base, "available": True, "cards": chosen, "cards_omitted": len(cards) - len(chosen),
             "not_flagged": sorted(not_flagged, key=lambda n: n["start_ms"]), "cannot_evaluate": sorted([*cannot, *uncertain], key=lambda n: n["start_ms"]),
-            "placements": foot_placements(events, series, poses, hold_context), "body": body.public() if body else None, "reach_tally": tally}
+            "placements": foot_placements(events, series, poses, hold_context), "body": body.public() if body else None, "reach_tally": tally,
+            "top_card_ids": top_card_ids(chosen), "glance": at_a_glance(result, events),
+            "observed_route": observed_route(series, samples, hold_context, width, height)}

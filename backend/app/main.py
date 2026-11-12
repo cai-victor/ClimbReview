@@ -147,7 +147,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # ---- attempts
     @app.post("/api/attempts", status_code=201)
-    async def import_attempt(file: UploadFile = File(...), title: str = Form(default=""),
+    async def import_attempt(file: UploadFile = File(...), title: str = Form(default=""), auto_analyze: bool = Form(default=False),
                              settings: Settings = Depends(get_settings)) -> dict[str, Any]:
         filename = Path(file.filename or "video").name
         extension = Path(filename).suffix.lower()
@@ -172,8 +172,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise
         with db.session(settings.database) as connection:
             connection.execute(
-                "INSERT INTO attempts(id, title, original_filename, source_ext, status, created_at) VALUES (?,?,?,?,?,?)",
-                (attempt_id, title.strip()[:200] or Path(filename).stem[:200], filename[:255], extension, "importing", db.now()))
+                "INSERT INTO attempts(id, title, original_filename, source_ext, status, created_at, auto_analyze) VALUES (?,?,?,?,?,?,?)",
+                (attempt_id, title.strip()[:200] or Path(filename).stem[:200], filename[:255], extension, "importing", db.now(),
+                 int(auto_analyze and extension not in IMAGE_EXTENSIONS)))
             new_job(connection, attempt_id, "import", "queued")
             return public_attempt(connection, attempt_row(connection, attempt_id))
 

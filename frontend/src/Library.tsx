@@ -7,6 +7,7 @@ export function Library() {
   const [title, setTitle] = useState("");
   const [uploading, setUploading] = useState<number | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const [auto, setAuto] = useState(() => window.localStorage.getItem("climbreview.autoAnalyze") !== "off");
 
   const load = useCallback(() => api.listAttempts().then(setAttempts).catch((e) => setError(e.message)), []);
   useEffect(() => { void load(); }, [load]);
@@ -16,7 +17,7 @@ export function Library() {
     setError("");
     setUploading(0);
     try {
-      const attempt = await api.upload(file, title, setUploading);
+      const attempt = await api.upload(file, title, setUploading, auto);
       window.location.hash = `#/attempt/${attempt.id}`;
     } catch (e) {
       setError((e as Error).message);
@@ -33,6 +34,7 @@ export function Library() {
         <p className="muted">
           Use an MP4 or MOV up to 5 minutes and 2.5 GB, with one climber and a camera on a tripod. Keep hands and feet in frame. To plan a route without a video, choose a JPG or PNG photo of the wall.
         </p>
+        <label className="check"><input type="checkbox" checked={auto} data-testid="auto-analyze" onChange={(e) => { setAuto(e.target.checked); window.localStorage.setItem("climbreview.autoAnalyze", e.target.checked ? "on" : "off"); }} /> Analyze the whole video right after upload. Untick to set the start and end of the attempt first.</label>
         <div className="row">
           <label className="grow">Title (optional)
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Blue problem, attempt 2" />

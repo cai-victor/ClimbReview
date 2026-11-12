@@ -13,6 +13,7 @@ import signal
 import sys
 import time
 import traceback
+import uuid
 from typing import Any
 
 from . import db
@@ -126,6 +127,11 @@ class Worker:
                    attempt_start_ms=COALESCE(attempt_start_ms,0), attempt_end_ms=COALESCE(attempt_end_ms,?), warnings=? WHERE id=?""",
                 (geometry.canonical_size[0], geometry.canonical_size[1], analysis_config.canonical_fps,
                  frames.frame_count, frames.duration_ms, frames.duration_ms, db.dumps(warnings), attempt_id))
+            if attempt["auto_analyze"] and not db.active_job_other_than(connection, attempt_id, job_id):
+                # The whole clip is analyzed; the climber can narrow the bounds and reanalyze later.
+                connection.execute(
+                    "INSERT INTO jobs(id, attempt_id, kind, status, stage, attempt_start_ms, attempt_end_ms, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                    (uuid.uuid4().hex, attempt_id, "analysis", "queued", "queued", 0, frames.duration_ms, db.now()))
 
     # ---- analysis
     def _run_analysis(self, job: dict[str, Any]) -> None:
