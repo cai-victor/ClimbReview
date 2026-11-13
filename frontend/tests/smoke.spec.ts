@@ -8,7 +8,7 @@ const CLIP = path.resolve(import.meta.dirname, "../../data/public_samples/conver
 test("import, analyze, review, annotate, refresh, export, delete", async ({ page, request }) => {
   test.skip(!fs.existsSync(CLIP), "Public sample missing; run scripts/fetch_public_samples.py");
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Add an attempt" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review a new attempt" })).toBeVisible();
   await page.getByPlaceholder("Blue problem, attempt 2").fill("Smoke test clip");
   await page.getByTestId("file-input").setInputFiles(CLIP);
 
@@ -20,6 +20,7 @@ test("import, analyze, review, annotate, refresh, export, delete", async ({ page
 
   // Progress is real: the review only appears after the worker finishes.
   await expect(page.getByRole("heading", { name: "Timeline" })).toBeVisible({ timeout: 180_000 });
+  await page.getByTestId("tab-evidence").click();
   const url = page.url();
   const runId = await page.evaluate(async () => {
     const id = location.hash.split("/").pop();
@@ -88,7 +89,7 @@ test("import, analyze, review, annotate, refresh, export, delete", async ({ page
 
   if (events > 0) {
     await page.getByTestId("timeline-event").first().click();
-    await page.getByText("Loop selected event").click();
+    await page.getByText("Loop this moment").click();
     const loop = await page.evaluate(async () => {
       const video = document.querySelector("[data-testid=review-video]") as HTMLVideoElement;
       video.muted = true;
@@ -106,7 +107,7 @@ test("import, analyze, review, annotate, refresh, export, delete", async ({ page
     });
     console.log(`loop ${JSON.stringify(loop)}`);
     expect(loop.wrapped).toBe(true);
-    await page.getByText("Loop selected event").click();
+    await page.getByText("Loop this moment").click();
     const card = page.locator(".event-card.selected");
     await expect(card).toBeVisible();
     await card.getByText("Cannot tell").click();
@@ -114,6 +115,7 @@ test("import, analyze, review, annotate, refresh, export, delete", async ({ page
     await card.getByTestId("event-note").fill("Smoke note");
     await expect(card.getByRole("status")).toHaveText("Saved");
   }
+  await page.getByTestId("tab-next").click();
   await page.getByTestId("reflection-observation").fill("I looked at my feet");
   await page.getByTestId("reflection-focus").fill("Slow first move");
   await page.getByTestId("save-reflection").click();
@@ -121,7 +123,10 @@ test("import, analyze, review, annotate, refresh, export, delete", async ({ page
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Timeline" })).toBeVisible();
+  await page.getByTestId("tab-evidence").click();
+  await page.getByTestId("tab-next").click();
   await expect(page.getByTestId("reflection-focus")).toHaveValue("Slow first move");
+  await page.getByTestId("tab-evidence").click();
   if (events > 0) {
     await expect(page.getByTestId("event-note").first()).toHaveValue(/Smoke note|^$/);
   }
@@ -138,7 +143,8 @@ test("import, analyze, review, annotate, refresh, export, delete", async ({ page
   expect(overflow).toBeLessThanOrEqual(0);
 
   page.on("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Delete" }).click();
-  await expect(page.getByRole("heading", { name: "Saved attempts" })).toBeVisible();
+  await page.getByTestId("attempt-menu").click();
+  await page.getByRole("button", { name: "Delete attempt" }).click();
+  await expect(page.getByRole("heading", { name: /Your attempts/ })).toBeVisible();
   await expect(page.getByText("Smoke test clip")).toHaveCount(0);
 });

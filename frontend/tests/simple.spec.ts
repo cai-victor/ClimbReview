@@ -17,7 +17,7 @@ test("upload, automatic analysis, simple view, and two-click route setup", async
   await page.getByTestId("file-input").setInputFiles(CLIP);
 
   // No bounds screen and no Analyze button: the review appears by itself.
-  await expect(page.getByTestId("glance")).toBeVisible({ timeout: 300_000 });
+  await expect(page.getByRole("heading", { name: /Opportunities \(\d+\)/ })).toBeVisible({ timeout: 300_000 });
   await expect(page.getByTestId("start-analysis")).toHaveCount(0);
   const attemptId = page.url().split("/").pop()!;
   const attempt = await (await request.get(`/api/attempts/${attemptId}`)).json();
@@ -25,9 +25,9 @@ test("upload, automatic analysis, simple view, and two-click route setup", async
   expect(attempt.analyses[0].attempt_bounds_ms).toEqual({ start: 0, end: attempt.duration_ms });
   const runId = attempt.analyses[0].id;
 
-  // Simple view: suggestions and route, without the evidence panels.
-  await expect(page.getByTestId("view-simple")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("heading", { name: "Timeline" })).toHaveCount(0);
+  // First view: the main opportunities with their timeline markers, without the evidence panels.
+  await expect(page.getByTestId("tab-moments")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("timeline-event")).toHaveCount(0);
   await expect(page.getByTestId("movement-chart")).toHaveCount(0);
   const coaching = await (await request.get(`/api/analyses/${runId}/coaching`)).json();
   expect(await page.getByTestId("cue-card").count()).toBe(Math.min(3, coaching.cards.length));
@@ -35,7 +35,10 @@ test("upload, automatic analysis, simple view, and two-click route setup", async
     await page.getByTestId("toggle-all-cards").click();
     await expect(page.getByTestId("cue-card")).toHaveCount(coaching.cards.length);
   }
+  await expect(page.getByTestId("timeline-cue")).toHaveCount(coaching.cards.length);
+  await page.getByTestId("tab-evidence").click();
   await expect(page.getByTestId("glance")).toContainText("hand moves tracked");
+  await page.getByTestId("tab-route").click();
 
   // Route setup: one click on a hold, one on the start, then save.
   await page.getByTestId("route-setup-open").click();
@@ -96,18 +99,19 @@ test("upload, automatic analysis, simple view, and two-click route setup", async
   expect(await editor.getByTestId("grid-point").count()).toBeGreaterThan(100);
   await editor.close();
 
-  // Detailed view brings the evidence back, and the choice is remembered.
-  await page.getByTestId("view-detailed").click();
-  await expect(page.getByRole("heading", { name: "Timeline" })).toBeVisible();
+  // The evidence tab brings the limb tracks and chart, and a reload returns to the opportunities.
+  await page.getByTestId("tab-evidence").click();
+  await expect(page.getByTestId("timeline-event").first()).toBeVisible();
+  await expect(page.getByTestId("movement-chart")).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Timeline" })).toBeVisible({ timeout: 30_000 });
-  await page.getByTestId("view-simple").click();
+  await expect(page.getByTestId("cue-card").first()).toBeVisible({ timeout: 30_000 });
 
   await page.setViewportSize({ width: 390, height: 800 });
-  await expect(page.getByTestId("glance")).toBeVisible();
+  await expect(page.getByTestId("cue-card").first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   expect(errors).toEqual([]);
   page.on("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Delete" }).click();
-  await expect(page.getByRole("heading", { name: "Saved attempts" })).toBeVisible();
+  await page.getByTestId("attempt-menu").click();
+  await page.getByRole("button", { name: "Delete attempt" }).click();
+  await expect(page.getByRole("heading", { name: /Your attempts/ })).toBeVisible();
 });

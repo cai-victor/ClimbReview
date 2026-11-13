@@ -21,7 +21,7 @@ export function App() {
     <div className="app">
       <header className="topbar">
         <a href="#/" className="brand">ClimbReview</a>
-        <span className="muted">Runs only on this computer</span>
+        <span className="local">Your videos stay on this computer</span>
       </header>
       <main>{route?.page === "annotate" ? <Annotate key={route.id} attemptId={route.id} />
         : route?.page === "plan" ? <Planner key={route.id} attemptId={route.id} />

@@ -71,8 +71,9 @@ test("blind labeling: create, edit, reload, delete, export without model data", 
 
   page.on("dialog", (dialog) => dialog.accept());
   await page.goto(`/#/attempt/${id}`);
-  await page.getByRole("button", { name: "Delete" }).click();
-  await expect(page.getByRole("heading", { name: "Saved attempts" })).toBeVisible();
+  await page.getByTestId("attempt-menu").click();
+  await page.getByRole("button", { name: "Delete attempt" }).click();
+  await expect(page.getByRole("heading", { name: /Your attempts/ })).toBeVisible();
 });
 
 test("import Cancel button stops the import", async ({ page, request }) => {

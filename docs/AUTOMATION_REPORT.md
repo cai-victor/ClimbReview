@@ -22,7 +22,7 @@
 
 1. Open http://127.0.0.1:8317 and choose a video. Analysis starts by itself. Untick the box on that screen to set the start and end first.
 2. On the review, choose **Set up my route**. Click one hold of your route, then click your start hold, then **Use this route**.
-3. Read the suggestions, the candidate sequences, and **Your route as tracked**. Choose **Detailed** for the timeline, charts, every event, foot placements, comparison, and exports.
+3. Read the suggestions, the candidate sequences, and **Your route as tracked**. Open the **Evidence** tab (this replaced the Detailed switch on 2026-11-12) for the limb tracks, charts, every event, foot placements, comparison, and exports.
 
 ## What is proposed, and how well it did
 

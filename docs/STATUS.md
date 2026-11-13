@@ -1,12 +1,28 @@
 # ClimbReview status
 
-Last updated 2026-11-12 after adding wall geometry. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
+Last updated 2026-11-12 after the review workspace redesign. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
 
 ## Bottom line
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Wall angle from the bolt grid (latest, 2026-11-12)
+## Review workspace redesign (latest, 2026-11-12)
+
+The interface was reorganized around one question: where to look, what was measured, how sure, what to try. No detector, coaching rule, API, or stored data changed. See D81 to D84.
+
+- **Home:** upload with limits beside the button, three filming tips, a "pick up where you left off" card, and an attempt list with thumbnails, status in plain words, and route, grade and outcome when recorded. The list follows running jobs.
+- **Attempt header:** title, which analysis is shown, Mark route holds, and a More menu (plan, reanalyze, downloads, reference labeling, delete). A newest analysis that failed no longer hides an older finished one.
+- **Review:** video and timeline on the left, tabs on the right: Opportunities, Next attempt, Route, Compare, Evidence. Coaching cards have markers on the timeline; card and marker are one selection. Cards read what happened, why it might matter, what to try, what to verify. Feet and Hands filters, previous and next, keys O, L, N, P.
+- **Fixes found on the way:** a failed save used to replace the whole review with an error; scrubbing out of a loop snapped back; shortcuts did nothing while a checkbox had focus; notes typed before the saved ones loaded could be overwritten.
+- **Hold editor:** save state, undo last added hold, mode hint, start and finish counts.
+
+**Current verification:** `npm run build` clean. Playwright, 12 specs, passed, with new checks for card and marker sync, loop exit on scrub, filter fallback, the overlay key, and hold undo. Backend unchanged, so `pytest` was not rerun (303 passed at 8a43c99). Looked at 1280, 768 and 390 px on IMG_7238 and an older hands-only analysis: no horizontal scroll, no console errors; keyboard-only path from the list to playing a card's moment works. On a 390 px phone the first card starts about 1,050 px down, was about 3,850. Not checked: a screen reader, Safari, a real phone, and a landscape clip by eye.
+
+```bash
+cd frontend && PLAYWRIGHT_BROWSERS_PATH="$PWD/.playwright-browsers" npx playwright test
+```
+
+## Wall angle from the bolt grid (2026-11-12)
 
 Added and tested: bolt-hole detection, a grid fit that recovers the wall plane, route distances and reach measured on that plane, the wall's angle relative to the camera, a grid overlay in the hold editor, and corrected distances shown on suggestion cards. Details and real results: `docs/WALL_GEOMETRY_REPORT.md`.
 
@@ -200,7 +216,7 @@ Held-out caveat: the forecast test groups have been evaluated once, so any new f
 
 ## Next exact action
 
-Open http://127.0.0.1:8317, open IMG_7238, and choose **Mark holds**. Mark start, finish, and hand or foot use to get candidate sequences. Then have an experienced climber follow `docs/COACHING_EVALUATION.md`.
+Open http://127.0.0.1:8317, open IMG_7238, and choose **Mark route holds**. Mark start, finish, and hand or foot use to get candidate sequences. Then have an experienced climber follow `docs/COACHING_EVALUATION.md`.
 
 ```bash
 .venv/bin/python scripts/run_app.py

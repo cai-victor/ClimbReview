@@ -182,3 +182,14 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 **D79. Wall angle is reported relative to the camera only.** A focal length is solved from the grid under square pixels and a centered lens, and rejected outside 0.4 to 6 times the picture size. No overhang relative to gravity is claimed, because the camera's own tilt is unknown.
 
 **D80. Event detection is unchanged.** Episodes and card rules keep picture distances and one attempt scale, so stored analyses and earlier results stay valid. Cards show the wall-plane distance as an added measurement.
+
+## Review workspace (2026-11-12)
+
+**D81. The review is one workspace with tabs, replacing the Simple and Detailed switch (supersedes D75).** The video and timeline stay on the left; Opportunities, Next attempt, Route, Compare and Evidence are tabs on the right. Reason: on a phone the first coaching card was about 3,800 px below the video, and the switch hid the timeline that links a card to its moment. The first three cards are still one per kind, which is presentation and not a ranking.
+
+**D82. A coaching card and its timeline marker are one selection.** Either one selects the card, highlights the marker, and seeks to 1 s before the card's start. The card's own time stays the measured start. Scrubbing out of a looped moment turns the loop off and keeps the selection; a filter that hides the selected card or movement clears it with its loop and drawn path.
+
+**D83. Cards read in a fixed order: what happened, why it might matter, what to try, what to verify.** The text and measurements are unchanged from coaching-v1. The first two limits of each card are now shown open instead of inside a collapsed section. No numeric confidence is shown, because none of the stored values is a calibrated probability.
+
+**D84. Timeline marks use one neutral color with row labels; the accent color means selection or a primary action only.** Left and right keep orange and blue on the video overlay and chart lines, always with a text label.
+

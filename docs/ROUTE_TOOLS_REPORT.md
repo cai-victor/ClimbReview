@@ -11,7 +11,7 @@
    ```
 
 2. Open a climb, or choose a JPG or PNG photo of a wall on the first screen. A photo cannot be analyzed for movement.
-3. Choose **Mark holds**, create a map, then **Suggest by color** and click directly on one hold of your route. Dashed pink outlines are suggestions only. Click one to add it, or **Add all**, then delete wrong ones and add missed ones by hand.
+3. Choose **Mark route holds**, create a map, then **Suggest by color** and click directly on one hold of your route. Dashed pink outlines are suggestions only. Click one to add it, or **Add all**, then delete wrong ones and add missed ones by hand.
 4. Set each hold's role (start, finish) and use (hands, feet).
 5. Choose **Set scale**, click two points on the wall whose real distance you know, and enter it in centimeters.
 6. Choose **Plan a route**, enter height and wingspan, and choose **Plan**.

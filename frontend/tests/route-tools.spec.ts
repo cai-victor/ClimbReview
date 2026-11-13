@@ -112,6 +112,7 @@ test("photo: suggest holds by color, confirm, set scale, and plan with height an
   expect(errors).toEqual([]);
   await page.goto(`/#/attempt/${attemptId}`);
   page.on("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Delete" }).click();
-  await expect(page.getByRole("heading", { name: "Saved attempts" })).toBeVisible();
+  await page.getByTestId("attempt-menu").click();
+  await page.getByRole("button", { name: "Delete attempt" }).click();
+  await expect(page.getByRole("heading", { name: /Your attempts/ })).toBeVisible();
 });

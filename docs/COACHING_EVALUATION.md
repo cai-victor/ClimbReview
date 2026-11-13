@@ -8,7 +8,7 @@ Ask at least one climber with coaching or substantial technique experience, idea
 
 ## Blinded order
 
-1. **Before seeing any card**, the rater watches the clip and writes down 3-5 moments they would coach, with a time and a suggestion. Use a plain file or the app's Reference labeling page for hand and foot movement episodes.
+1. **Before seeing any card**, the rater watches the clip and writes down 3-5 moments they would coach, with a time and a suggestion. Use a plain file or the app's reference labeling page (More, then Label reference events) for hand and foot movement episodes.
 2. Create the blinded sheet with the app running. Replace the IDs and seed with your own:
 
    ```bash

@@ -6,25 +6,31 @@ import { Attempt, BetaCandidate, BetaResult, Coaching, CoachingCard, clock, Comp
 export const LIMB_WORD: Record<string, string> = { left_foot: "Left foot", right_foot: "Right foot", left_hand: "Left hand", right_hand: "Right hand", left_wrist: "Left hand", right_wrist: "Right hand" };
 export const holdName = (index: number) => `H${index + 1}`;
 
-function DecisionBar({ feedback, onChange, testid }: { feedback: Feedback; onChange: (next: Feedback) => void; testid: string }) {
+const LIMB_SHORT: Record<string, string> = { left_foot: "L foot", right_foot: "R foot", left_hand: "L hand", right_hand: "R hand", left_wrist: "L hand", right_wrist: "R hand" };
+const DECISION_WORD: Record<Feedback["decision"], string> = { unreviewed: "", will_try: "You'll try this", intentional: "Intentional", disagree: "Doesn't apply", cannot_tell: "Can't tell" };
+export const cueHasFeet = (card: CoachingCard) => card.limbs.some((limb) => limb.endsWith("foot"));
+export const cueHasHands = (card: CoachingCard) => card.limbs.some((limb) => !limb.endsWith("foot"));
+
+function DecisionBar({ feedback, onChange, testid, busy = false }: { feedback: Feedback; onChange: (next: Feedback) => void; testid: string; busy?: boolean }) {
   const [note, setNote] = useState(feedback.note);
   const timer = useRef<number | undefined>(undefined);
   const latest = useRef(feedback);
   latest.current = feedback;
-  const choose = (decision: Feedback["decision"]) => onChange({ ...latest.current, decision: latest.current.decision === decision ? "unreviewed" : decision, trial_outcome: "not_tried" });
+  const choose = (decision: Feedback["decision"]) => onChange({ ...latest.current, note, decision: latest.current.decision === decision ? "unreviewed" : decision, trial_outcome: "not_tried" });
   const option = (value: Feedback["decision"], label: string) => (
-    <button className={`button small ${feedback.decision === value ? "active" : ""}`} aria-pressed={feedback.decision === value} data-testid={`${testid}-${value}`} onClick={() => choose(value)}>{label}</button>
+    <button className="button small" aria-pressed={feedback.decision === value} disabled={busy} data-testid={`${testid}-${value}`} onClick={() => choose(value)}>{label}</button>
   );
   const outcome = (value: Feedback["trial_outcome"], label: string) => (
-    <button className={`button small ${feedback.trial_outcome === value ? "active" : ""}`} aria-pressed={feedback.trial_outcome === value} data-testid={`${testid}-outcome-${value}`} onClick={() => onChange({ ...latest.current, trial_outcome: value })}>{label}</button>
+    <button className="button small" aria-pressed={feedback.trial_outcome === value} disabled={busy} data-testid={`${testid}-outcome-${value}`} onClick={() => onChange({ ...latest.current, note, trial_outcome: value })}>{label}</button>
   );
+  const flush = () => { window.clearTimeout(timer.current); if (note !== latest.current.note) onChange({ ...latest.current, note }); };
   return (
     <div className="decision">
-      <div className="row tight">{option("will_try", "I'll try this")}{option("intentional", "Was intentional")}{option("disagree", "Doesn't apply")}{option("cannot_tell", "Can't tell")}</div>
+      <div className="row tight" role="group" aria-label="Your call on this suggestion" style={{ margin: 0 }}>{option("will_try", "I'll try this")}{option("intentional", "Was intentional")}{option("disagree", "Doesn't apply")}{option("cannot_tell", "Can't tell")}</div>
       {feedback.decision === "will_try" && (
-        <div className="row tight"><span className="muted small-text">After trying it:</span>{outcome("helped", "Helped")}{outcome("no_change", "No change")}{outcome("worse", "Worse")}{outcome("unclear", "Unclear")}</div>
+        <div className="row tight" role="group" aria-label="What happened when you tried it" style={{ margin: 0 }}><span className="muted small-text">After trying it:</span>{outcome("helped", "Helped")}{outcome("no_change", "No change")}{outcome("worse", "Worse")}{outcome("unclear", "Unclear")}</div>
       )}
-      <label className="small-text">Note<textarea value={note} data-testid={`${testid}-note`} onChange={(e) => {
+      <label className="small-text">Note to yourself<textarea value={note} data-testid={`${testid}-note`} placeholder="Optional" onBlur={flush} onChange={(e) => {
         const value = e.target.value; setNote(value); window.clearTimeout(timer.current);
         timer.current = window.setTimeout(() => onChange({ ...latest.current, note: value }), 500);
       }} /></label>
@@ -32,37 +38,70 @@ function DecisionBar({ feedback, onChange, testid }: { feedback: Feedback; onCha
   );
 }
 
-export function CoachingCardView({ card, selected, onSelect, onFeedback }: { card: CoachingCard; selected: boolean; onSelect: () => void; onFeedback: (next: Feedback) => void }) {
+/** One coaching opportunity. Collapsed it says when, which limb, and why to look; open it reads what happened, why, what to try, what to verify. */
+export function CoachingCardView({ card, selected, onSelect, onWatch, onFeedback, busy = false }: { card: CoachingCard; selected: boolean; onSelect: () => void; onWatch: () => void; onFeedback: (next: Feedback) => void; busy?: boolean }) {
+  const lead = card.uncertainty.slice(0, 2), rest = card.uncertainty.slice(2);
   return (
     <article id={`cue-${card.id}`} className={`card cue-card ${selected ? "selected" : ""}`} data-testid="cue-card" data-kind={card.kind}>
-      <button className="cue-head" onClick={onSelect} data-testid="cue-open"><strong>{card.title}</strong><span>{clock(card.start_ms)} to {clock(card.end_ms)}</span></button>
-      <p className="cue-label">{card.status_label}</p>
-      <p><span className="label">What happened</span> {card.moment}</p>
-      <p className="try-this"><span className="label">Try this</span> {card.try_this}</p>
-      {card.alternatives.length > 0 && (
-        <ul className="plain-list" data-testid="cue-alternatives">
-          {card.alternatives.map((option) => (
-            <li key={`${option.limb}${option.hold_id}`}>{LIMB_WORD[option.limb]} to marked hold {holdName(option.hold_index)}, a {option.step_L.toFixed(2)} L step
-              {option.margin_L !== null && card.observed_margin_L !== undefined ? `. 2D reach margin ${option.margin_L.toFixed(2)} L compared with ${card.observed_margin_L.toFixed(2)} L from your observed feet.` : "."}</li>
-          ))}
-        </ul>
+      <button className="cue-head" onClick={onSelect} data-testid="cue-open" aria-expanded={selected} aria-controls={`cue-body-${card.id}`}>
+        <span className="cue-time">{clock(card.start_ms)}</span>
+        <span>
+          <span className="cue-title">{card.title}</span>
+          <span className="cue-sub">
+            {card.limbs.map((limb) => <span className="chip" key={limb}>{LIMB_SHORT[limb] ?? limb}</span>)}
+            <span className="chip outline">{card.status_label}</span>
+            {card.feedback.decision !== "unreviewed" && <span className="chip accent">{DECISION_WORD[card.feedback.decision]}</span>}
+          </span>
+        </span>
+        <span className="chev" aria-hidden="true">▶</span>
+      </button>
+      {selected && (
+        <div className="cue-body" id={`cue-body-${card.id}`}>
+          <div className="row tight" style={{ margin: 0 }}>
+            <button className="button primary small" data-testid="cue-watch" onClick={onWatch}>▶ Watch this moment</button>
+            <span className="muted small-text num">{clock(card.start_ms)} to {clock(card.end_ms)}, with 1 s of lead-in</span>
+          </div>
+          <div className="cue-section">
+            <h3>What happened</h3>
+            <p>{card.moment}</p>
+            {card.measurements.length > 0 && <ul className="cue-facts">{card.measurements.slice(0, 2).map((row) => <li key={row.label}>{row.label}: <strong>{row.value}</strong></li>)}</ul>}
+          </div>
+          <div className="cue-section"><h3>Why it might matter</h3><p>{card.why}</p></div>
+          <div className="cue-section try">
+            <h3>What to try</h3>
+            <p>{card.try_this}</p>
+            {card.alternatives.length > 0 && (
+              <ul className="plain-list" data-testid="cue-alternatives">
+                {card.alternatives.map((option) => (
+                  <li key={`${option.limb}${option.hold_id}`}>{LIMB_WORD[option.limb]} to marked hold {holdName(option.hold_index)}, a {option.step_L.toFixed(2)} L step
+                    {option.margin_L !== null && card.observed_margin_L !== undefined ? `. 2D reach margin ${option.margin_L.toFixed(2)} L compared with ${card.observed_margin_L.toFixed(2)} L from your observed feet.` : "."}</li>
+                ))}
+              </ul>
+            )}
+            {card.alternative_note && <p className="small-text">{card.alternative_note}</p>}
+            {card.alternative_summary && <p className="small-text">{card.alternative_summary}</p>}
+            <p className="small-text"><strong>When to keep your way:</strong> {card.keep_if}</p>
+          </div>
+          <div className="cue-section verify">
+            <h3>What to verify</h3>
+            {lead.length > 0 ? <ul className="plain-list" style={{ margin: 0 }}>{lead.map((text) => <li key={text}>{text}</li>)}</ul> : <p>Watch the moment and check that it matches what you felt.</p>}
+            {card.map_action && <p className="small-text">{card.map_action}</p>}
+            <details>
+              <summary>All measurements and limits</summary>
+              <table className="facts measurements"><thead><tr><th>Measure</th><th>Value</th><th>Rule</th></tr></thead><tbody>
+                {card.measurements.map((row) => <tr key={row.label}><td>{row.label}</td><td>{row.value}</td><td>{row.criterion}</td></tr>)}
+              </tbody></table>
+              {rest.length > 0 && <ul className="plain-list small-text">{rest.map((text) => <li key={text}>{text}</li>)}</ul>}
+            </details>
+          </div>
+          <DecisionBar feedback={card.feedback} onChange={onFeedback} testid="cue" busy={busy} />
+        </div>
       )}
-      {card.alternative_note && <p className="muted small-text">{card.alternative_note}</p>}
-      {card.alternative_summary && <p className="muted small-text">{card.alternative_summary}</p>}
-      {card.map_action && <p className="muted small-text">{card.map_action}</p>}
-      <p><span className="label">Why it could matter</span> {card.why}</p>
-      <p><span className="label">Keep your way if</span> {card.keep_if}</p>
-      <details>
-        <summary>Measurements and limits</summary>
-        <table className="facts measurements"><thead><tr><th>Measure</th><th>Value</th><th>Rule</th></tr></thead><tbody>
-          {card.measurements.map((row) => <tr key={row.label}><td>{row.label}</td><td>{row.value}</td><td>{row.criterion}</td></tr>)}
-        </tbody></table>
-        <ul className="plain-list small-text">{card.uncertainty.map((text) => <li key={text}>{text}</li>)}</ul>
-      </details>
-      <DecisionBar feedback={card.feedback} onChange={onFeedback} testid="cue" />
     </article>
   );
 }
+
+const RESULT_WORD: Record<string, string> = { helped: "helped", no_change: "no change", worse: "worse", unclear: "unclear" };
 
 export function NextAttempt({ coaching, onCue }: { coaching: Coaching; onCue: (id: string) => void }) {
   const plan = coaching.plan;
@@ -70,12 +109,16 @@ export function NextAttempt({ coaching, onCue }: { coaching: Coaching; onCue: (i
   const empty = plan.chosen.length === 0 && !plan.suggested;
   return (
     <section className="card next-attempt" data-testid="next-attempt">
-      <h2>For your next attempt</h2>
+      <h2>Try on your next attempt</h2>
+      {plan.chosen.length > 0 && <p className="muted small-text">Suggestions you chose. Open one to record what happened when you tried it.</p>}
       {plan.chosen.map((item) => (
-        <p key={item.id}><button className="link" onClick={() => onCue(item.id)}>{clock(item.start_ms)}</button> {item.try_this}{item.trial_outcome !== "not_tried" && <em> Your result: {item.trial_outcome.replace("_", " ")}.</em>}</p>
+        <div className="plan-item" key={item.id}>
+          <button className="link num" onClick={() => onCue(item.id)}>{clock(item.start_ms)}</button>
+          <div>{item.try_this}{item.trial_outcome !== "not_tried" ? <em> Your result: {RESULT_WORD[item.trial_outcome] ?? item.trial_outcome}.</em> : <span className="muted small-text"> Not tried yet.</span>}</div>
+        </div>
       ))}
-      {plan.suggested && <p><span className="label">Suggested first</span> <button className="link" onClick={() => onCue(plan.suggested!.id)}>{clock(plan.suggested.start_ms)}</button> {plan.suggested.try_this}</p>}
-      {empty && <p className="muted">No open suggestion from this attempt. See what was reviewed and why below the suggestion list.</p>}
+      {plan.suggested && <p><span className="label">Suggested first</span> <button className="link num" onClick={() => onCue(plan.suggested!.id)}>{clock(plan.suggested.start_ms)}</button> {plan.suggested.try_this}</p>}
+      {empty && <p className="muted">Nothing chosen yet. Open an opportunity and choose "I'll try this" to build your list.</p>}
       <p className="muted small-text">{coaching.disclaimer}</p>
     </section>
   );
@@ -84,7 +127,7 @@ export function NextAttempt({ coaching, onCue }: { coaching: Coaching; onCue: (i
 export function ReviewedLists({ coaching }: { coaching: Coaching }) {
   return (
     <>
-      {coaching.cannot_evaluate.length > 0 && <details className="card" data-testid="cannot-evaluate"><summary>Could not be judged ({coaching.cannot_evaluate.length})</summary><ul className="plain-list small-text">{coaching.cannot_evaluate.map((item) => <li key={item.text}>{item.text}</li>)}</ul></details>}
+      {coaching.cannot_evaluate.length > 0 && <details className="card" data-testid="cannot-evaluate"><summary>Couldn't be judged from this video ({coaching.cannot_evaluate.length})</summary><p className="muted small-text">Usually a hand or foot was hidden or out of frame at the moment that mattered.</p><ul className="plain-list small-text">{coaching.cannot_evaluate.map((item) => <li key={item.text}>{item.text}</li>)}</ul></details>}
       {coaching.not_flagged.length > 0 && <details className="card" data-testid="not-flagged"><summary>Checked and not flagged ({coaching.not_flagged.length})</summary><ul className="plain-list small-text">{coaching.not_flagged.map((item) => <li key={item.text}>{item.text}</li>)}</ul></details>}
       {coaching.cards_omitted > 0 && <p className="muted small-text">{coaching.cards_omitted} more possible suggestions were left out, so this list stays short.</p>}
     </>
@@ -102,9 +145,8 @@ const STATUS: [PlacementReview["status"], string][] = [["on_marked_hold", "On a 
 export function FootPlacements({ coaching, onSeek, onSave, attemptId }: { coaching: Coaching; onSeek: (item: Placement) => void; onSave: (item: Placement, review: PlacementReview) => void; attemptId: string }) {
   const holds = coaching.hold_map?.holds ?? [];
   return (
-    <section className="card" data-testid="foot-placements" aria-label="Foot placements">
-      <h2>Foot placements to check</h2>
-      <p className="muted small-text">These are moments where a foot appeared to settle after moving. Video cannot show contact, sole angle, friction, or pressure, so a smear can only be confirmed by you. <a href="https://philarockgym.com/?p=26439" target="_blank" rel="noreferrer">What smearing relies on</a>.</p>
+    <section data-testid="foot-placements" aria-label="Foot placements">
+      <p className="muted small-text">Moments where a foot appeared to settle after moving. Tell the app what it was. Video cannot show contact, sole angle, friction, or pressure, so a smear can only be confirmed by you. <a href="https://philarockgym.com/?p=26439" target="_blank" rel="noreferrer">What smearing relies on</a>.</p>
       {coaching.placements.length === 0 && <p className="muted">No foot settled clearly enough to review in this attempt.</p>}
       <ul className="placement-list">
         {coaching.placements.map((item) => (
@@ -164,26 +206,27 @@ export function BetaPanel({ attempt, runId, reloadKey, onFeedback }: { attempt: 
   const [error, setError] = useState("");
   const load = useCallback(() => performanceApi.candidateBeta(runId).then(setResult).catch((e) => setError(e.message)), [runId]);
   useEffect(() => { void load(); }, [load, reloadKey]);
-  if (error) return <section className="card"><h2>Alternative beta to try</h2><p className="error" role="alert">{error}</p></section>;
-  if (!result) return <section className="card" aria-label="Alternative beta"><h2>Alternative beta to try</h2><p className="muted" role="status" data-testid="beta-loading">Reading the wall and working out your route. The first time takes several seconds.</p></section>;
+  if (error) return <section className="card"><h2>Other sequences to test</h2><p className="error" role="alert">{error}</p></section>;
+  if (!result) return <section className="card" aria-label="Alternative beta"><h2>Other sequences to test</h2><p className="muted" role="status" data-testid="beta-loading">Reading the wall and working out your route. The first time takes several seconds.</p></section>;
   const candidate = result.candidates[Math.min(active, result.candidates.length - 1)] ?? null;
   const save = async (next: Feedback) => { if (candidate) { await performanceApi.putDecision(runId, candidate.id, next); await load(); onFeedback(); } };
   return (
     <section className="card" data-testid="beta-panel" aria-label="Alternative beta">
-      <h2>Alternative beta to try</h2>
+      <h2>Other sequences to test</h2>
+      <p className="muted small-text">Built from the holds marked on this route and your tracked reach. Each is an option to try on the wall, not a ranking.</p>
       {result.status === "no_map" && <RouteSetup runId={runId} attemptId={attempt.id} onDone={() => { void load(); onFeedback(); }} />}
       {result.hold_map && result.status === "setup_needed" && <FillRoles runId={runId} mapId={result.hold_map.id} onDone={() => { void load(); onFeedback(); }} />}
       {result.status !== "ready" && (
         <>
           {result.status === "no_candidate" ? <p>{result.note}</p> : <ul className="plain-list" data-testid="beta-needs">{result.needs.map((need) => <li key={need}>{need}</li>)}</ul>}
-          <a className={result.hold_map ? "button primary" : "button"} data-testid="beta-setup" href={`#/holds/${attempt.id}`}>{result.hold_map ? "Finish marking this route" : "Mark every hold by hand instead"}</a>
+          <a className={result.hold_map ? "button primary" : "button"} data-testid="beta-setup" href={`#/holds/${attempt.id}`}>{result.hold_map ? "Finish marking this route" : "Mark route holds by hand instead"}</a>
         </>
       )}
       {result.hold_map && <BetaFigure map={result.hold_map} candidate={candidate} stepIndex={step} width={attempt.width ?? 1} height={attempt.height ?? 1} />}
       {candidate && (
         <>
-          <div className="row tight" role="tablist">
-            {result.candidates.map((item, index) => <button key={item.id} role="tab" aria-selected={index === active} className={`button small ${index === active ? "active" : ""}`} data-testid="beta-candidate" onClick={() => { setActive(index); setStep(0); }}>{item.label}</button>)}
+          <div className="row tight" role="group" aria-label="Sequence shown">
+            {result.candidates.map((item, index) => <button key={item.id} aria-pressed={index === active} className="button small" data-testid="beta-candidate" onClick={() => { setActive(index); setStep(0); }}>{item.label}</button>)}
           </div>
           <p className="small-text">{candidate.move_count} moves, {candidate.total_distance_L.toFixed(1)} L of limb travel, largest single move {candidate.largest_move_L.toFixed(2)} L. Tightest 2D reach margin {candidate.tightest_margin_L.toFixed(2)} L{candidate.tight_moves ? `, with ${candidate.tight_moves} tight move${candidate.tight_moves > 1 ? "s" : ""}` : ""}.</p>
           <p className="small-text"><strong>Start:</strong> {Object.entries(candidate.start).map(([limb, hold]) => `${LIMB_WORD[limb]} ${hold < 0 ? "from the ground" : holdName(hold)}`).join(", ")}</p>
@@ -209,23 +252,27 @@ export function ComparePanel({ attempt, onSaved }: { attempt: Attempt; onSaved: 
   const [status, setStatus] = useState("");
   const load = useCallback(() => performanceApi.comparison(attempt.id).then(setData).catch((e) => setStatus(e.message)), [attempt.id]);
   useEffect(() => { void load(); }, [load]);
+  const [busy, setBusy] = useState(false);
   const save = async () => {
+    setBusy(true);
     try { await api.patchAttempt(attempt.id, form); setStatus("Saved."); await load(); onSaved(); }
-    catch (e) { setStatus((e as Error).message); }
+    catch (e) { setStatus(`Not saved: ${(e as Error).message}`); }
+    finally { setBusy(false); }
   };
   const rows = useMemo(() => data?.attempts.filter((a) => a.metrics) ?? [], [data]);
   const cell = (value: number | null | undefined, suffix = "") => (value === null || value === undefined ? "not comparable" : `${value}${suffix}`);
   return (
     <section className="card" data-testid="compare-panel" aria-label="Compare attempts">
       <h2>Compare attempts on the same problem</h2>
-      <p className="muted small-text">Attempts are compared only when you give them the same problem name and climber name.</p>
+      <p className="muted small-text">Name the problem and the climber. Attempts are matched only when both names are the same, so you decide what counts as the same problem.</p>
       <div className="grid3">
         <label>Problem name<input value={form.problem_label} data-testid="problem-label" onChange={(e) => setForm({ ...form, problem_label: e.target.value })} /></label>
         <label>Climber<input value={form.climber_label} data-testid="climber-label" onChange={(e) => setForm({ ...form, climber_label: e.target.value })} /></label>
         <label>Outcome<input value={form.outcome} data-testid="outcome-label" placeholder="Topped, fell at move 4…" onChange={(e) => setForm({ ...form, outcome: e.target.value })} /></label>
       </div>
-      <button className="button" data-testid="save-compare" onClick={save}>Save</button>{status && <span className="muted" role="status"> {status}</span>}
+      <button className="button primary" data-testid="save-compare" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save and compare"}</button>{status && <span className="muted" role="status"> {status}</span>}
       {data?.status === "needs_labels" && <p className="muted">Add a problem and climber name to compare this attempt with others.</p>}
+      {!data && !status && <p className="muted" role="status">Loading…</p>}
       {data?.status === "no_match" && <p className="muted" data-testid="compare-none">No other analyzed attempt has this same problem and climber yet.</p>}
       {data?.status === "ready" && (
         <>

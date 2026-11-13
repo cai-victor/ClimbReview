@@ -32,6 +32,8 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
   const [showWall, setShowWall] = useState(true);
   const [geometry, setGeometry] = useState<WallGeometry | null>(null);
   const [showGrid, setShowGrid] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [added, setAdded] = useState<string[]>([]);     // holds added in this visit, newest last, for undo
   const activeId = active?.id;
   useEffect(() => {
     setWall(null);
@@ -46,9 +48,9 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
   useEffect(() => { void load(); }, [load]);
 
   const run = async (action: () => Promise<HoldMap>) => {
-    setError("");
-    try { const next = await action(); setActive(next); return next; }
-    catch (e) { setError((e as Error).message); return null; }
+    setError(""); setSaveState("saving");
+    try { const next = await action(); setActive(next); setSaveState("saved"); return next; }
+    catch (e) { setError(`Not saved: ${(e as Error).message}`); setSaveState("error"); return null; }
   };
   const previewMs = Math.round(parseFloat(frameSeconds || "0") * 1000);
   const hold = active?.holds.find((h) => h.id === selected) ?? null;
@@ -70,14 +72,17 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
     }
     if (mode === "scale") { setScalePoints((points) => (points.length >= 2 ? [{ x, y }] : [...points, { x, y }])); return; }
     void run(() => holdApi.addHold(active.id, { x, y, radius: DEFAULT_RADIUS, route, hold_type: "", role: "", use: "" })).then((next) => {
-      if (next) setSelected(next.holds[next.holds.length - 1].id);
+      if (next) { const id = next.holds[next.holds.length - 1].id; setSelected(id); setAdded((list) => [...list, id]); }
     });
   };
   const accept = async (items: HoldSuggestion[]) => {
     if (!active) return;
     setBusy(true);
     let latest: HoldMap | null = null;
-    for (const item of items) latest = await run(() => holdApi.addHold(active.id, { x: item.x, y: item.y, radius: item.radius, route, hold_type: "", role: "", use: "" }));
+    for (const item of items) {
+      latest = await run(() => holdApi.addHold(active.id, { x: item.x, y: item.y, radius: item.radius, route, hold_type: "", role: "", use: "" }));
+      if (latest) { const id = latest.holds[latest.holds.length - 1].id; setAdded((list) => [...list, id]); }
+    }
     if (latest) setSuggestions((list) => list.filter((s) => !items.includes(s)));
     setBusy(false);
   };
@@ -89,6 +94,14 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
       setActive(await holdApi.get(active.id)); setScalePoints([]); setMode("add");
     } catch (e) { setError((e as Error).message); }
   };
+  const undo = () => {
+    const id = [...added].reverse().find((item) => active?.holds.some((h) => h.id === item));
+    if (!active || !id) return;
+    setAdded((list) => list.filter((item) => item !== id));
+    if (selected === id) setSelected(null);
+    void run(() => holdApi.removeHold(active.id, id));
+  };
+  const canUndo = added.some((item) => active?.holds.some((h) => h.id === item));
   const update = (changes: Partial<Hold>) => {
     if (active && hold) void run(() => holdApi.editHold(active.id, hold.id, { ...toBody(hold), ...changes }));
   };
@@ -113,9 +126,10 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
 
   return (
     <div className="page">
-      <div className="page-head"><a href={`#/attempt/${attemptId}`}>← Back</a><h1>Mark holds: {attempt.title}</h1></div>
+      <a className="back" href={`#/attempt/${attemptId}`}>← Back to {attempt.kind === "photo" ? "the photo" : "the review"}</a>
+      <div className="page-head"><h1>Mark route holds <span className="muted small-text">{attempt.title}</span></h1></div>
       <p className="blind-note" role="note">
-        Holds are marked or confirmed by you on one still frame. Color suggestions are not hold recognition, and nothing here shows contact, and the marks are shown only on that frame. Using them across a video requires a fixed camera.
+        Marking your route lets the review compare your hands and feet with its holds and suggest other sequences to test. You place or confirm every hold on one still picture. Color suggestions are not hold recognition, nothing here shows contact, and the marks only line up with the video if the camera stayed still.
       </p>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="hold-layout">
@@ -168,13 +182,14 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
             </div>
           )}
           {active
-            ? <p className="muted small-text">{mode === "suggest" ? "Click directly on one hold of your route to find others of the same color. " : mode === "scale" ? "Click two points on the wall whose real distance apart you know. " : ""}Click the picture to add a hold. With a hold focused (Tab), arrow keys move it and Delete removes it. Frame {clock(active.reference_frame_ms)}.</p>
+            ? <p className="muted small-text" data-testid="mode-hint"><strong>{mode === "suggest" ? "Suggesting by color." : mode === "scale" ? "Setting the scale." : "Adding holds."}</strong> {mode === "suggest" ? "Click one hold of your route to find others of the same color." : mode === "scale" ? "Click two points on the wall whose real distance apart you know." : "Click the picture to add a hold. Click a hold to edit it."} With a hold focused (Tab), arrow keys move it and Delete removes it. Picture from {clock(active.reference_frame_ms)}.</p>
             : <p className="muted small-text">Choose the frame, then create a hold map.</p>}
         </section>
         <section className="card">
           {!active ? (
             <>
-              <h2>Hold maps</h2>
+              <h2>Your hold maps</h2>
+              {maps.length === 0 && <p className="muted small-text">No map yet. A map is one route's holds marked on one picture of the wall.</p>}
               {maps.length > 0 && (
                 <ul className="interval-list">
                   {maps.map((item) => (
@@ -186,12 +201,13 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
               <h3>New map</h3>
               <label>Name<input value={name} data-testid="map-name" onChange={(e) => setName(e.target.value)} /></label>
               <label>Reference frame (s)<input type="number" min="0" step="0.1" value={frameSeconds} data-testid="map-frame" onChange={(e) => setFrameSeconds(e.target.value)} /></label>
-              <p className="muted small-text">Pick a frame where the holds are unobstructed.</p>
+              <p className="muted small-text">Pick a moment when the climber covers as few holds as possible. The picture on the left shows it.</p>
               <button className="button primary" data-testid="create-map" onClick={() => void run(() => holdApi.create(attemptId, { name, reference_frame_ms: previewMs }))}>Create map</button>
             </>
           ) : (
             <>
-              <h2>{active.name}</h2>
+              <div className="panel-head"><h2>Editing: {active.name}</h2>
+                <span className={`save-state ${saveState === "error" ? "bad" : ""}`} role="status" data-testid="save-state">{saveState === "saving" ? "Saving…" : saveState === "error" ? "Last change not saved" : saveState === "saved" ? "All changes saved" : "Changes save as you make them"}</span></div>
               <div className="row tight" role="group" aria-label="What a click on the picture does">
                 <button className={`button small ${mode === "add" ? "active" : ""}`} aria-pressed={mode === "add"} data-testid="mode-add" onClick={() => setMode("add")}>Add one hold</button>
                 <button className={`button small ${mode === "suggest" ? "active" : ""}`} aria-pressed={mode === "suggest"} data-testid="mode-suggest" onClick={() => setMode("suggest")}>Suggest by color</button>
@@ -243,11 +259,12 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
                   <button className="button small danger" onClick={() => { setSelected(null); void run(() => holdApi.removeHold(active.id, hold.id)); }}>Delete hold</button>
                 </div>
               ) : <p className="muted">Click a hold to edit it.</p>}
-              <h3>{active.holds.length} holds</h3>
+              <h3>{active.holds.length} holds{active.holds.length ? ` · ${active.holds.filter((h) => h.role === "start").length} start, ${active.holds.filter((h) => h.role === "finish").length} finish` : ""}</h3>
+              <div className="row tight"><button className="button small" data-testid="undo-hold" disabled={!canUndo || saveState === "saving"} onClick={undo}>Undo last added hold</button></div>
               <div className="row tight">
                 <a className="button small primary" data-testid="open-planner" href={`#/plan/${attemptId}`}>Plan a route</a>
                 <a className="button small" href={`/api/hold-maps/${active.id}/export`} download>Export JSON</a>
-                <button className="button small" onClick={() => { setActive(null); setSelected(null); void load(); }}>All maps</button>
+                <button className="button small" onClick={() => { setActive(null); setSelected(null); setAdded([]); setSaveState("idle"); void load(); }}>All maps</button>
                 <button className="button small danger" onClick={async () => { if (window.confirm("Delete this hold map?")) { await holdApi.remove(active.id); setActive(null); void load(); } }}>Delete map</button>
               </div>
             </>

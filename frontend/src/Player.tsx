@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, ReactNode, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Hold, OverlaySample } from "./api";
 
 const BONES: [string, string][] = [
@@ -29,22 +29,26 @@ function nearest(samples: OverlaySample[], ms: number): OverlaySample | null {
   return options[0] && Math.abs(options[0].t - ms) <= MAX_SAMPLE_DISTANCE_MS ? options[0] : null;
 }
 
-export interface PlayerHandle { seek: (ms: number) => void; video: HTMLVideoElement | null }
+export interface PlayerHandle { seek: (ms: number) => void; play: () => void; video: HTMLVideoElement | null }
 interface Props {
   src: string; samples: OverlaySample[]; showSkeleton: boolean; onTime: (ms: number) => void;
   loop: { start: number; end: number } | null; focus?: Focus; trails?: Trail[]; holds?: Hold[]; marks?: Mark[];
+  /** Called when the viewer scrubs out of the looped range, so a loop never pulls them back. */
+  onLoopExit?: () => void; toolbar?: ReactNode;
 }
 export interface Mark { x: number; y: number; label: string }
 
-export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, samples, showSkeleton, onTime, loop, focus = "all", trails = [], holds = [], marks = [] }, ref) {
+export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, samples, showSkeleton, onTime, loop, focus = "all", trails = [], holds = [], marks = [], onLoopExit, toolbar }, ref) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [rate, setRate] = useState(1);
-  const latest = useRef({ samples, showSkeleton, loop, onTime, focus, trails, holds, marks });
-  latest.current = { samples, showSkeleton, loop, onTime, focus, trails, holds, marks };
+  const latest = useRef({ samples, showSkeleton, loop, onTime, focus, trails, holds, marks, onLoopExit });
+  latest.current = { samples, showSkeleton, loop, onTime, focus, trails, holds, marks, onLoopExit };
+  const ownSeek = useRef(false);   // true while a seek made by the app, not the viewer, is in flight
 
   useImperativeHandle(ref, () => ({
-    seek: (ms) => { if (video.current) video.current.currentTime = ms / 1000; },
+    seek: (ms) => { if (video.current) { ownSeek.current = true; video.current.currentTime = ms / 1000; } },
+    play: () => { void video.current?.play().catch(() => undefined); },
     get video() { return video.current; },
   }), []);
 
@@ -145,25 +149,35 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
     // Event loops use the media element's own clock, so they also work if drawing is throttled.
     const onTimeUpdate = () => {
       const { loop } = latest.current;
-      if (loop && !element.paused && element.currentTime * 1000 >= loop.end) element.currentTime = loop.start / 1000;
+      if (loop && !element.paused && element.currentTime * 1000 >= loop.end) { ownSeek.current = true; element.currentTime = loop.start / 1000; }
+    };
+    const onSeeked = () => {
+      const { loop, onLoopExit } = latest.current;
+      const own = ownSeek.current;
+      ownSeek.current = false;
+      const ms = element.currentTime * 1000;
+      if (!own && loop && (ms < loop.start - 150 || ms > loop.end + 150)) onLoopExit?.();
     };
     element.addEventListener("timeupdate", onTimeUpdate);
+    element.addEventListener("seeked", onSeeked);
     const loopFrames = () => { draw(); frame = requestAnimationFrame(loopFrames); };
     frame = requestAnimationFrame(loopFrames);
-    return () => { cancelAnimationFrame(frame); element.removeEventListener("timeupdate", onTimeUpdate); };
+    return () => { cancelAnimationFrame(frame); element.removeEventListener("timeupdate", onTimeUpdate); element.removeEventListener("seeked", onSeeked); };
   }, []);
 
   return (
     <div className="player">
       <div className="stage">
-        <video ref={video} src={src} controls playsInline preload="auto" data-testid="review-video" />
+        <video ref={video} src={src} controls playsInline preload="auto" data-testid="review-video" aria-label="Attempt video" />
         <canvas ref={canvas} aria-hidden="true" data-testid="overlay-canvas" />
       </div>
-      <div className="row tight">
-        <span className="muted">Speed</span>
-        {[0.5, 1].map((value) => (
-          <button key={value} className={`button small ${rate === value ? "active" : ""}`} onClick={() => setRate(value)}>{value}×</button>
-        ))}
+      <div className="player-bar">
+        <div className="seg" role="group" aria-label="Playback speed">
+          {[0.25, 0.5, 1].map((value) => (
+            <button key={value} className="button small num" aria-pressed={rate === value} onClick={() => setRate(value)}>{value}×</button>
+          ))}
+        </div>
+        {toolbar}
       </div>
     </div>
   );

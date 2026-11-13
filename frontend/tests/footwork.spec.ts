@@ -34,6 +34,7 @@ test("left and right feet: filtering, detail, seek, loop, persistence, exports, 
   await expect(page.getByTestId("start-analysis")).toBeVisible({ timeout: 120_000 });
   await page.getByTestId("start-analysis").click();
   await expect(page.getByRole("heading", { name: "Timeline" })).toBeVisible({ timeout: 180_000 });
+  await page.getByTestId("tab-evidence").click();
   const attemptId = page.url().split("/").pop()!;
   const firstRun = (await (await request.get(`/api/attempts/${attemptId}`)).json()).analyses[0].id as string;
 
@@ -69,7 +70,7 @@ test("left and right feet: filtering, detail, seek, loop, persistence, exports, 
   const overlay = await page.getByTestId("overlay-canvas").evaluate((node) => ({ focus: (node as HTMLCanvasElement).dataset.focus, trail: (node as HTMLCanvasElement).dataset.trail }));
   expect(overlay.focus).toBe("feet");
   expect(Number(overlay.trail)).toBeGreaterThan(0);
-  await page.getByText("Loop selected event").click();
+  await page.getByText("Loop this moment").click();
   const loop = await page.evaluate(async () => {
     const video = document.querySelector("[data-testid=review-video]") as HTMLVideoElement;
     video.muted = true; await video.play();
@@ -78,15 +79,15 @@ test("left and right feet: filtering, detail, seek, loop, persistence, exports, 
     video.pause(); return wrapped;
   });
   expect(loop).toBe(true);
-  await page.getByText("Loop selected event").click();
+  await page.getByText("Loop this moment").click();
 
   // Filtering away a selected limb must also stop its hidden loop and trail.
   await page.getByTestId("filter-hands").click();
   await page.getByTestId("timeline-event").first().click();
-  await page.getByLabel("Loop selected event (±1 s)", { exact: true }).check();
+  await page.getByLabel("Loop this moment", { exact: true }).check();
   await page.getByTestId("filter-feet").click();
-  await expect(page.getByLabel("Loop selected event (±1 s)", { exact: true })).not.toBeChecked();
-  await expect(page.getByLabel("Loop selected event (±1 s)", { exact: true })).toBeDisabled();
+  await expect(page.getByLabel("Loop this moment", { exact: true })).not.toBeChecked();
+  await expect(page.getByLabel("Loop this moment", { exact: true })).toBeDisabled();
   await expect(page.locator(".event-card.selected")).toHaveCount(0);
 
   // Clicking the chart seeks to that time.
@@ -110,6 +111,7 @@ test("left and right feet: filtering, detail, seek, loop, persistence, exports, 
   await noteSaved;
   await page.reload();
   await expect(page.getByRole("heading", { name: "Timeline" })).toBeVisible();
+  await page.getByTestId("tab-evidence").click();
   await page.getByTestId("filter-feet").click();
   await expect.poll(() => page.getByTestId("event-note").evaluateAll((nodes) => nodes.map((n) => (n as HTMLTextAreaElement).value))).toContain("foot note");
 
@@ -135,20 +137,25 @@ test("left and right feet: filtering, detail, seek, loop, persistence, exports, 
   await expect(page.getByTestId("old-run-notice")).toBeVisible();
   await expect(page.locator(".track-label", { hasText: "Left foot" })).toHaveCount(0);
   await expect(page.getByTestId("digest")).toHaveCount(0);
+  await page.getByTestId("tab-evidence").click();
   const wristCard = page.getByTestId("event-card").first();
   const oldSaved = page.waitForResponse((r) => r.url().includes("/review") && r.request().postData()!.includes("old run note"));
   await wristCard.getByTestId("event-note").fill("old run note");
   await oldSaved;
+  await page.getByTestId("tab-moments").click();
   await page.getByTestId("reanalyze-feet").click();
   await page.getByTestId("start-analysis").click();
   await expect(page.getByTestId("run-picker")).toBeVisible({ timeout: 180_000 });
+  await page.getByTestId("tab-evidence").click();
   await expect(page.locator(".track-label", { hasText: "Left foot" })).toBeVisible();
   await page.getByTestId("run-picker").selectOption(firstRun);
   await expect(page.getByTestId("old-run-notice")).toBeVisible();
+  await page.getByTestId("tab-evidence").click();
   await expect(page.getByTestId("event-note").first()).toHaveValue("old run note");
 
   expect(errors).toEqual([]);
   page.on("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Delete" }).click();
-  await expect(page.getByRole("heading", { name: "Saved attempts" })).toBeVisible();
+  await page.getByTestId("attempt-menu").click();
+  await page.getByRole("button", { name: "Delete attempt" }).click();
+  await expect(page.getByRole("heading", { name: /Your attempts/ })).toBeVisible();
 });

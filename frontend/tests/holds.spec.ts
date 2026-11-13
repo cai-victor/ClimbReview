@@ -38,6 +38,15 @@ for (const clip of CLIPS) {
       await expect(page.getByTestId("hold-circle")).toHaveCount(1);
     }
 
+    // An accidental mark can be undone, and the editor says when the change is saved.
+    await page.mouse.click(geometry.left + geometry.w * 0.6, geometry.top + geometry.h * 0.4);
+    await expect(page.getByTestId("hold-circle")).toHaveCount(2);
+    await page.getByTestId("undo-hold").click();
+    await expect(page.getByTestId("hold-circle")).toHaveCount(1);
+    await expect(page.getByTestId("save-state")).toHaveText("All changes saved");
+    await expect(page.getByTestId("mode-hint")).toContainText("Adding holds");
+    await page.evaluate(() => window.scrollTo(0, 0));     // the measured picture position below is for the unscrolled page
+
     const maps = await (await request.get(`/api/attempts/${id}/hold-maps`)).json();
     expect(maps[0].holds[0].x).toBeCloseTo(target.x, 2);
     expect(maps[0].holds[0].y).toBeCloseTo(target.y, 2);

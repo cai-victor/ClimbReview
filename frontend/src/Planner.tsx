@@ -40,11 +40,12 @@ export function Planner({ attemptId }: { attemptId: string }) {
 
   return (
     <div className="page">
-      <div className="page-head"><a href={`#/attempt/${attemptId}`}>← Back</a><h1>Plan a route: {attempt.title}</h1><a className="button" href={`#/holds/${attemptId}`}>Mark holds</a></div>
+      <a className="back" href={`#/attempt/${attemptId}`}>← Back to {attempt.kind === "photo" ? "the photo" : "the review"}</a>
+      <div className="page-head"><h1>Plan a route <span className="muted small-text">{attempt.title}</span></h1><a className="button" href={`#/holds/${attemptId}`}>Mark route holds</a></div>
       <p className="blind-note" role="note">These are ideas from 2D geometry on holds you confirmed. The picture cannot show hold quality, wall angle, or balance, so try them on the wall. None is the best or easiest beta.</p>
       {error && <p className="error" role="alert">{error}</p>}
       {maps.length === 0 ? (
-        <section className="card" data-testid="planner-no-map"><p>This climb has no marked holds yet.</p><a className="button primary" href={`#/holds/${attemptId}`}>Mark holds</a></section>
+        <section className="card" data-testid="planner-no-map"><p>This climb has no marked holds yet. Mark the route first, then come back to plan.</p><a className="button primary" href={`#/holds/${attemptId}`}>Mark route holds</a></section>
       ) : (
         <div className="hold-layout">
           <section className="card">
@@ -75,8 +76,8 @@ export function Planner({ attemptId }: { attemptId: string }) {
             {candidate && result && (
               <>
                 <h3>Candidates to try</h3>
-                <div className="row tight" role="tablist">
-                  {result.candidates.map((item, index) => <button key={item.id} role="tab" aria-selected={index === active} className={`button small ${index === active ? "active" : ""}`} data-testid="plan-candidate" onClick={() => { setActive(index); setStep(0); }}>{item.label}</button>)}
+                <div className="row tight" role="group" aria-label="Sequence shown">
+                  {result.candidates.map((item, index) => <button key={item.id} aria-pressed={index === active} className="button small" data-testid="plan-candidate" onClick={() => { setActive(index); setStep(0); }}>{item.label}</button>)}
                 </div>
                 <p className="small-text">{candidate.move_count} moves. Largest single move {candidate.largest_move_L.toFixed(2)} torso lengths. Tightest reach margin {candidate.tightest_margin_L.toFixed(2)} torso lengths{candidate.tight_moves ? `, with ${candidate.tight_moves} tight move${candidate.tight_moves > 1 ? "s" : ""}` : ""}.</p>
                 <p className="small-text"><strong>Start:</strong> {Object.entries(candidate.start).map(([limb, hold]) => `${LIMB_WORD[limb]} ${hold < 0 ? "from the ground" : holdName(hold)}`).join(", ")}</p>

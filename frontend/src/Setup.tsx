@@ -29,8 +29,8 @@ export function Setup({ attempt, onChanged, onStarted }: { attempt: Attempt; onC
     <div className="setup">
       <section className="card">
         <video ref={video} src={attempt.video_url ?? undefined} controls playsInline className="preview" data-testid="preview" />
-        <h2>Mark the attempt</h2>
-        <p className="muted">Scrub to where climbing begins and ends. Leave out the walk-up and walk-away. Duration {clock(attempt.duration_ms)}.</p>
+        <h2>Where does the attempt start and end?</h2>
+        <p className="muted">Scrub to where you leave the ground and where you top out or come off. Leave out the walk-up. The video is {clock(attempt.duration_ms)} long.</p>
         <div className="row">
           <label>Start (s)<input type="number" step="0.1" min="0" value={seconds(start)} data-testid="start-input" onChange={(e) => setStart(parse(e.target.value))} /></label>
           <button className="button" onClick={() => setStart(here())}>Use current time</button>
@@ -47,14 +47,14 @@ export function Setup({ attempt, onChanged, onStarted }: { attempt: Attempt; onC
           <label>Outcome<input value={form.outcome} onChange={(e) => setForm({ ...form, outcome: e.target.value })} /></label>
           <label>Your focus<input value={form.focus} onChange={(e) => setForm({ ...form, focus: e.target.value })} /></label>
         </div>
-        <h2>Check the recording</h2>
-        <label className="check"><input type="checkbox" checked={single} onChange={(e) => setSingle(e.target.checked)} /> Only the intended climber is analyzed in this recording</label>
-        <label className="check"><input type="checkbox" checked={fixed} onChange={(e) => setFixed(e.target.checked)} /> The camera stays fixed</label>
+        <h2>About the recording</h2>
+        <label className="check"><input type="checkbox" checked={single} onChange={(e) => setSingle(e.target.checked)} /> Only one climber is in the picture</label>
+        <label className="check"><input type="checkbox" checked={fixed} onChange={(e) => setFixed(e.target.checked)} /> The camera stays still</label>
         {(!single || !fixed) && (
-          <p className="notice-text">Without these conditions results are less reliable. Intervals where the camera appears to move are excluded automatically.</p>
+          <p className="notice-text">Results are less reliable without these. Parts where the camera appears to move are left out automatically.</p>
         )}
         {attempt.warnings.length > 0 && <ul className="warnings">{attempt.warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
-        <button className="button primary" disabled={busy || !valid} onClick={start_analysis} data-testid="start-analysis">Analyze attempt</button>
+        <button className="button primary" disabled={busy || !valid} onClick={start_analysis} data-testid="start-analysis">{busy ? "Starting…" : "Analyze attempt"}</button>
         {error && <p className="error" role="alert">{error}</p>}
       </section>
     </div>

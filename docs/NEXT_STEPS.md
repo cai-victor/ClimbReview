@@ -36,7 +36,7 @@ Watch each `overlay.mp4` and complete the checklist in its `report.md`.
    .venv/bin/python scripts/run_app.py
    ```
 
-2. Open the attempt, choose **Reference labeling**, and enter a non-identifying alias.
+2. Open the attempt, open **More** and choose **Label reference events**, and enter a non-identifying alias.
 3. Do not label IMG_2532.MOV or IMG_2748.MOV yet; they stay reserved until methods are frozen. Label following `docs/ANNOTATION_GUIDE.md`. A second climber should label at least 20-30% of clips under a different alias without seeing your set.
 4. Export each rater separately, or preserve **All real raters (CSV)** as the raw archive. Fill `evaluation/dataset_manifest.csv` from its template and fix the split by climber first. Score against one named rater or an explicitly adjudicated reference; several raters' raw events must never be pooled as duplicate ground truth. Keep original sets separate.
 5. Tune thresholds on development clips only and freeze them. In these example commands replace `rater_1` with the actual reference alias; no human labels exist yet:
@@ -55,7 +55,7 @@ Aim for 5-8 beginners, using the tasks in `docs/EVALUATION.md` section 6: find a
 
 ## 5. Validate the coaching
 
-Follow `docs/COACHING_EVALUATION.md` with an experienced climber. To get candidate sequences, open **Mark holds** and set start, finish, and hand or foot use. To test a suggestion, mark it "I'll try this", record a matched attempt with the same problem and climber names, and record the result.
+Follow `docs/COACHING_EVALUATION.md` with an experienced climber. To get candidate sequences, open **Mark route holds** and set start, finish, and hand or foot use. To test a suggestion, mark it "I'll try this", record a matched attempt with the same problem and climber names, and record the result.
 
 ## Keyboard shortcuts
 
