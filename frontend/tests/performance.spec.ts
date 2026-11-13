@@ -27,7 +27,23 @@ test("coaching cards, placements, candidate beta, and matched comparison", async
   await expect(page.getByRole("heading", { name: /Opportunities \(\d+\)/ })).toBeVisible();
   const cards = page.getByTestId("cue-card");
   expect(await cards.count()).toBeGreaterThan(0);
-  await expect(cards.first()).toContainText("Hypothesis to test");
+  await expect(cards.filter({ hasText: "Hypothesis to test" }).first()).toBeVisible();
+
+  // The climb profile comes from the tracked hips: its numbers add up, its stops are drawn, and clicking it seeks.
+  const story = (await (await request.get(`/api/analyses/${runId}/coaching`)).json()).story;
+  expect(story.available).toBe(true);
+  expect(story.stats.moving_ms + story.stats.stopped_ms).toBe(story.stats.on_wall_ms);
+  console.log(`story ${story.headline} stops ${story.stops.length}`);
+  await expect(page.getByTestId("story-headline")).toHaveText(story.headline);
+  await expect(page.getByTestId("profile-stop")).toHaveCount(story.stops.length);
+  const chart = (await page.getByTestId("climb-profile-chart").boundingBox())!;
+  await page.mouse.click(chart.x + chart.width * 0.5, chart.y + chart.height / 2);
+  await page.waitForTimeout(300);
+  const half = await page.getByTestId("review-video").evaluate((n) => (n as HTMLVideoElement).currentTime);
+  expect(Math.abs(half - 26.6)).toBeLessThan(1);
+  const whole = cards.filter({ hasText: "Whole attempt" });
+  expect(await whole.count()).toBeGreaterThan(0);
+  await expect(whole.first()).toContainText(/% of your time on the wall|left the wall|foot movements were small|at the start/);
   await expect(cards.first().getByTestId("cue-open")).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByTestId("not-flagged")).toBeVisible();
   await expect(page.getByTestId("cannot-evaluate")).toBeVisible();

@@ -177,7 +177,15 @@ export interface CoachingCard {
   id: string; kind: string; title: string; start_ms: number; end_ms: number; status_label: string; limbs: string[]; moment: string; why: string; try_this: string; keep_if: string;
   measurements: { label: string; value: string; criterion: string }[]; uncertainty: string[]; sources: string[]; alternatives: CoachingOption[]; map_action: string | null;
   alternative_summary?: string; alternative_note?: string | null; observed_margin_L?: number; target: { limb: string; ms: number } | null; feedback: Feedback;
+  scope?: "attempt"; moments?: number[];
 }
+export interface StoryStop { start_ms: number; end_ms: number; duration_ms: number; role: "start" | "middle" | "before_leaving"; height_L: number; spread_L: number; tracked_fraction: number; counts: Record<"left_foot" | "right_foot" | "left_wrist" | "right_wrist" | "uncertain", number> }
+export type Story = { available: false; reason: string; note: string } | {
+  available: true; note: string; headline: string; on_wall: { start_ms: number; end_ms: number; ended_by: "fast_descent" | "end_of_clip" };
+  drop: { start_ms: number; end_ms: number; drop_L: number } | null;
+  stats: { on_wall_ms: number; stopped_ms: number; moving_ms: number; stops: number; high_point_ms: number; height_gained_L: number; hips_tracked_fraction: number };
+  phases: { kind: "moving" | "stopped" | "off_wall"; start_ms: number; end_ms: number }[]; stops: StoryStop[]; profile: { t: number; h: number; run: number }[];
+};
 export interface PlacementReview { status: "unreviewed" | "on_marked_hold" | "on_unmarked_hold" | "intentional_smear" | "not_placed" | "cannot_tell"; hold_id: string | null; note: string }
 export interface Placement { id: string; limb: string; event_id: string; landing_ms: number; review_ms: number; x: number; y: number; anchor: string; proximity: string; settle_excursion_L: number; nearest_hold: { hold_index: number; hold_id: string; edge_L: number } | null; review: PlacementReview }
 export interface HoldMapSummary { id: string; name: string; hold_count: number; reference_frame_ms: number; usable: boolean; message: string; frame_url: string; holds: Hold[]; alignment: { status: string; max_corner_motion_px: number | null; frames_measured: number; frames_checked: number } | null }
@@ -186,7 +194,7 @@ export interface Coaching {
   not_flagged: { start_ms: number; text: string }[]; cannot_evaluate: { start_ms: number; text: string }[]; placements: Placement[]; hold_map: HoldMapSummary | null;
   plan: { chosen: { id: string; title: string; start_ms: number; try_this: string; trial_outcome: string }[]; suggested: { id: string; title: string; start_ms: number; try_this: string } | null } | null;
   sources: Record<string, { title: string; url: string }>;
-  top_card_ids: string[]; glance: Glance; observed_route: ObservedRoute | null; perspective: Perspective | null;
+  top_card_ids: string[]; story?: Story; cards_after_leaving_wall?: number; glance: Glance; observed_route: ObservedRoute | null; perspective: Perspective | null;
 }
 export interface BetaStep { limb: string; from_hold: number; to_hold: number; distance_L: number; margin_L: number; tight: boolean }
 export interface BetaCandidate { id: string; profile: string; label: string; start: Record<string, number>; feet_start_off_wall: boolean; start_margin_L: number; steps: BetaStep[]; move_count: number; total_distance_L: number; largest_move_L: number; tightest_margin_L: number; tight_moves: number; feedback: Feedback }

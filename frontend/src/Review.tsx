@@ -5,6 +5,7 @@ import { EventCard, eventTitle } from "./EventCard";
 import { isUncertain, limbOf, MovementChart } from "./MovementChart";
 import { BetaPanel, CoachingCardView, ComparePanel, cueHasFeet, cueHasHands, FootPlacements, GlancePanel, NextAttempt, ObservedRoutePanel, ReviewedLists } from "./Performance";
 import { Focus, Mark, Player, PlayerHandle, Trail } from "./Player";
+import { ClimbProfile } from "./Story";
 import { scrollTo, TabItem, Tabs } from "./ui";
 
 const CONTEXT_MS = 1000;
@@ -318,6 +319,8 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
             {coaching && !coaching.available && !footAvailable && <p className="muted small-text" data-testid="coaching-unavailable">{coaching.reason}</p>}
             {coaching?.available && (
               <>
+                {coaching.story?.available && <ClimbProfile story={coaching.story} bounds={bounds} time={time} onSeek={(ms) => player.current?.seek(ms)} />}
+                {coaching.story && !coaching.story.available && <p className="muted small-text" data-testid="story-unavailable">No climb profile: {coaching.story.reason}</p>}
                 <div className="panel-head">
                   <h2>Opportunities ({cards.length})</h2>
                   {cards.length > 0 && (
@@ -331,7 +334,8 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
                 {cards.length === 0 && (
                   <section className="card empty" data-testid="no-cards"><strong>Nothing stood out in this attempt</strong>No suggestion met its rules. That is not a verdict on the climb. You can still watch it with the overlay and see what was checked below.</section>
                 )}
-                {cards.length > 0 && !expanded && cards.length > listed.length && <p className="muted small-text">Start with these {listed.length}, one of each kind. Each is something to test, not a fault.</p>}
+                {cards.length > 0 && !expanded && cards.length > listed.length && <p className="muted small-text">Start with these {listed.length}: the whole-attempt ones first, then one moment of each kind. Each is something to test, not a fault.</p>}
+                {(coaching.cards_after_leaving_wall ?? 0) > 0 && <p className="muted small-text" data-testid="after-wall-note">{coaching.cards_after_leaving_wall} suggestion{coaching.cards_after_leaving_wall === 1 ? " was" : "s were"} left out because {coaching.cards_after_leaving_wall === 1 ? "it" : "they"} came after you left the wall.</p>}
                 {cards.length > 0 && listed.length === 0 && <p className="muted">No {cueFilter === "feet" ? "footwork" : "hand"} opportunities in this attempt.</p>}
                 {listed.map((card) => (
                   <CoachingCardView key={card.id} card={card} selected={cue === card.id} busy={saving} onSelect={() => openCue(card.id, { toggle: true })} onWatch={() => openCue(card.id, { play: true })} onFeedback={(next) => void saveFeedback(card, next)} />

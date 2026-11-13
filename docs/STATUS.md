@@ -1,12 +1,32 @@
 # ClimbReview status
 
-Last updated 2026-11-12 after the review workspace redesign. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
+Last updated 2026-11-13 after adding the climb story. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
 
 ## Bottom line
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Review workspace redesign (latest, 2026-11-12)
+## Climb story: on-wall time, stops, and how it ended (latest, 2026-11-13)
+
+Added `backend/app/analysis/story.py` (`climb-story-v1`), read from the hip midpoint in the picture. It needs no reanalysis: it is computed from stored poses when a review opens.
+
+- **On-wall detection:** a fast hip descent (at least 1.2 torso lengths within 1.5 s) ends the time on the wall. Suggestions and foot placements after it are dropped and counted. The video cannot tell a fall from a jump down, and the text says so.
+- **Stops:** stretches of 3 s or more where the hips stay within 0.3 torso lengths, with neighbouring stops in the same area joined. Each lists the tracked hand and foot movements during it. Nothing is read across a tracking gap longer than 1 s.
+- **Whole-attempt cards** lead the Opportunities list: the longest stay and its limb pattern, leaving the wall, small foot adjustments as a share of all foot movements, and a slow start. They use the same card layout, decisions, and timeline markers as moment cards. A whole-attempt stay replaces the older pause cards inside it.
+- **Your climb panel:** time on the wall, moving, staying put, height gained, and a hip-height chart with stops shaded. Clicking it seeks.
+
+**Results on the five tripod clips** (`scripts/check_climb_story.py`): hips tracked 96 to 100%. IMG_7549, recorded by the climber as a fall, is detected leaving the wall at 00:38.5; IMG_7547 at 00:35.9 after its finish. Stays of 7 to 12 s were found on every clip. I compared these with contact sheets of two clips by eye; that is an AI-assisted visual check, not a human label. No thresholds were tuned against labels, and no climber has rated the new cards.
+
+**New Drive footage is not yet used.** The shared folder lists 16 clips that are not on this computer (IMG_7401, IMG_7732, IMG_7816, and 13 in "new vids 1"). The connector cannot download files of this size. After downloading the folder into `data/new_vids/`:
+
+```bash
+.venv/bin/python scripts/import_folder.py data/new_vids
+.venv/bin/python scripts/check_climb_story.py
+```
+
+**Current verification:** `pytest` 311 passed (9 new in `test_story.py`). Playwright, 12 specs, passed, including the profile numbers, drawn stops, and chart seeking on real IMG_4301.
+
+## Review workspace redesign (2026-11-12)
 
 The interface was reorganized around one question: where to look, what was measured, how sure, what to try. No detector, coaching rule, API, or stored data changed. See D81 to D84.
 

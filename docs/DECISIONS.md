@@ -193,3 +193,13 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 
 **D84. Timeline marks use one neutral color with row labels; the accent color means selection or a primary action only.** Left and right keep orange and blue on the video overlay and chart lines, always with a text label.
 
+## Climb story (2026-11-13)
+
+**D85. The shape of an attempt is read from the hip midpoint in the picture.** It is described as hip height and position in the picture, never as a center of mass, effort, or balance. A stop is 3 s or more within 0.3 torso lengths; stops within 5 s and 0.5 torso lengths are one stay if the hips never left a 0.8 torso-length radius. These are starting values, untuned.
+
+**D86. A fast hip descent ends the time on the wall.** At least 1.2 torso lengths down within 1.5 s. It is reported as leaving the wall, with the statement that a fall and a jump down look the same. Cards and foot placements after it are removed and counted, because they describe walking on the mat. Detection of the start of climbing is not attempted: standing on the ground and hanging on the start holds were not separable on the clips available.
+
+**D87. Whole-attempt takeaways are cards.** They share the card layout, decisions, and markers. Up to two lead the first view, followed by up to three moment cards as before. A stay reported at the attempt level replaces `long_pause` cards inside it. Limb counts during a stay describe tracked movement only and pick the wording of the suggestion; they are not evidence of grip or contact.
+
+**D88. Coaching output is now `coaching-v2`.** Moment-card rules and ids are unchanged, so saved decisions still attach. A slow-start card requires real movement afterwards, so a clip in which the hips never move produces none.
+

@@ -12,10 +12,10 @@ from typing import Any, Sequence
 
 import numpy as np
 
-from . import beta, route_auto
+from . import beta, route_auto, story as story_module
 from .explain import NAMES, clock, is_uncertain, limb_of, limb_state
 
-COACHING_VERSION = "coaching-v1"
+COACHING_VERSION = "coaching-v2"
 MAX_CARDS = 8
 MAX_PER_KIND = 3
 FOOTS = ("left_foot", "right_foot")
@@ -539,19 +539,22 @@ def _attach_alternatives(pairs, series, poses, body, hold_context) -> None:
 
 KIND_PRIORITY = ["step_after_reach", "extended_reach", "repeat_foot_adjust", "foot_shift_during_reach", "hand_foot_together", "large_step", "long_pause"]
 TOP_COUNT = 3
+STORY_TOP = 2      # whole-attempt cards lead, then the most specific moments
 
 
 def top_card_ids(cards: Sequence[dict[str, Any]]) -> list[str]:
-    """Up to three cards to start with: one per kind in a fixed order of how specific the suggestion is, earliest first."""
+    """Cards to start with: up to two whole-attempt cards, then up to three moments, one per kind in a fixed order of how specific the suggestion is."""
+    lead = [c["id"] for c in cards if c.get("scope") == "attempt"][:STORY_TOP]
+    moments = [c for c in cards if c.get("scope") != "attempt"]
     chosen: list[str] = []
     for kind in KIND_PRIORITY:
-        first = next((c for c in cards if c["kind"] == kind), None)
+        first = next((c for c in moments if c["kind"] == kind), None)
         if first is not None and len(chosen) < TOP_COUNT:
             chosen.append(first["id"])
-    for card in cards:
+    for card in moments:
         if len(chosen) < TOP_COUNT and card["id"] not in chosen:
             chosen.append(card["id"])
-    return chosen
+    return [*lead, *chosen]
 
 
 def at_a_glance(result: dict[str, Any], events: Sequence[dict[str, Any]]) -> dict[str, Any]:
@@ -610,6 +613,14 @@ def _add_wall_plane_distances(cards, events, series, samples, plane, width: int,
             "corrected for the wall's angle using the bolt grid; rules above still use picture values"))
 
 
+def _story_cards(story: dict[str, Any]) -> list[dict[str, Any]]:
+    """Whole-attempt takeaways in the same shape as moment cards, so they can be opened, watched, and answered the same way."""
+    return [{"id": item["id"], "kind": f"story_{item['kind']}", "scope": "attempt", "title": item["title"], "start_ms": item["start_ms"], "end_ms": item["end_ms"],
+             "status_label": "Whole attempt", "limbs": item["limbs"], "moment": item["observed"], "why": item["why"], "try_this": item["try_this"], "keep_if": item["keep_if"],
+             "measurements": [_measurement(m["label"], m["value"]) for m in item["measurements"]], "uncertainty": [item["verify"], story["note"]],
+             "sources": [], "alternatives": [], "map_action": None, "target": None, "moments": item.get("moments", [])} for item in story.get("takeaways", [])]
+
+
 def build_coaching(result: dict[str, Any], events: list[dict[str, Any]], series: dict[str, Any], samples: Sequence[dict[str, Any]],
                    width: int, height: int, hold_context: dict[str, Any] | None = None, plane=None) -> dict[str, Any]:
     """Cards, placements, counterexamples, and unknowns for one analysis. Pure: the same inputs give the same output."""
@@ -631,13 +642,25 @@ def build_coaching(result: dict[str, Any], events: list[dict[str, Any]], series:
     for card in sorted(cards, key=lambda c: (order[c["kind"]], c["start_ms"])):
         if sum(c["kind"] == card["kind"] for c in chosen) < MAX_PER_KIND and len(chosen) < MAX_CARDS:
             chosen.append(card)
+    story = story_module.build_story(result, events, samples, width, height, length)
+    wall_end = story["on_wall"]["end_ms"] if story.get("available") and story["drop"] else None
+    after_wall = 0
+    if wall_end is not None:          # nothing after the climber left the wall is climbing
+        after_wall = sum(c["start_ms"] >= wall_end for c in chosen)
+        chosen = [c for c in chosen if c["start_ms"] < wall_end]
+    story_cards = _story_cards(story) if story.get("available") else []
+    stops = [c for c in story_cards if c["kind"] in {"story_longest_stop", "story_slow_start"}]
+    # A whole-attempt card about a stay replaces the pause cards inside it, so one stop is not reported twice.
+    chosen = [c for c in chosen if not (c["kind"] == "long_pause" and any(s["start_ms"] - 500 <= c["start_ms"] and c["end_ms"] <= s["end_ms"] + 500 for s in stops))]
     chosen.sort(key=lambda c: c["start_ms"])
+    chosen = [*story_cards, *chosen]
     if plane is not None:
         _add_wall_plane_distances(chosen, events, series, samples, plane, width, height)
     uncertain = [{"start_ms": e["start_ms"], "text": f"{NAMES[limb_of(e)].capitalize()} at {clock(e['start_ms'])}: the tracked point was unstable, so no advice uses it."}
                  for e in events if is_uncertain(e)]
     return {**base, "available": True, "cards": chosen, "cards_omitted": len(cards) - len(chosen),
             "not_flagged": sorted(not_flagged, key=lambda n: n["start_ms"]), "cannot_evaluate": sorted([*cannot, *uncertain], key=lambda n: n["start_ms"]),
-            "placements": foot_placements(events, series, poses, hold_context), "body": body.public() if body else None, "reach_tally": tally,
+            "placements": [p for p in foot_placements(events, series, poses, hold_context) if wall_end is None or p["landing_ms"] < wall_end],
+            "story": {k: v for k, v in story.items() if k != "takeaways"}, "cards_after_leaving_wall": after_wall, "body": body.public() if body else None, "reach_tally": tally,
             "top_card_ids": top_card_ids(chosen), "glance": at_a_glance(result, events),
             "observed_route": observed_route(series, samples, hold_context, width, height)}

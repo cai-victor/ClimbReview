@@ -30,8 +30,9 @@ test("upload, automatic analysis, simple view, and two-click route setup", async
   await expect(page.getByTestId("timeline-event")).toHaveCount(0);
   await expect(page.getByTestId("movement-chart")).toHaveCount(0);
   const coaching = await (await request.get(`/api/analyses/${runId}/coaching`)).json();
-  expect(await page.getByTestId("cue-card").count()).toBe(Math.min(3, coaching.cards.length));
-  if (coaching.cards.length > 3) {
+  expect(await page.getByTestId("cue-card").count()).toBe(coaching.top_card_ids.length);
+  expect(coaching.top_card_ids.length).toBeLessThanOrEqual(5);
+  if (coaching.cards.length > coaching.top_card_ids.length) {
     await page.getByTestId("toggle-all-cards").click();
     await expect(page.getByTestId("cue-card")).toHaveCount(coaching.cards.length);
   }
