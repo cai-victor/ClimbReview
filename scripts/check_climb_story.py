@@ -36,7 +36,7 @@ def main() -> int:
             print("  unavailable:", story["reason"])
             continue
         wall, stats = story["on_wall"], story["stats"]
-        print(f"  on wall {clock(wall['start_ms'])} to {clock(wall['end_ms'])} ({wall['ended_by']}); stopped {stats['stopped_ms'] / 1000:.1f} s of {stats['on_wall_ms'] / 1000:.1f} s; "
+        print(f"  on wall {clock(wall['start_ms'])} ({wall['started_by']}) to {clock(wall['end_ms'])} ({wall['ended_by']}); stopped {stats['stopped_ms'] / 1000:.1f} s of {stats['on_wall_ms'] / 1000:.1f} s; "
               f"high point {clock(stats['high_point_ms'])}, {stats['height_gained_L']} L; hips tracked {stats['hips_tracked_fraction']:.0%}")
         for stop in story["stops"]:
             print(f"    stop {clock(stop['start_ms'])}-{clock(stop['end_ms'])} {stop['role']} h={stop['height_L']} {stop['counts']}")

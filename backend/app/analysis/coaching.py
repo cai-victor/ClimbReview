@@ -644,10 +644,11 @@ def build_coaching(result: dict[str, Any], events: list[dict[str, Any]], series:
             chosen.append(card)
     story = story_module.build_story(result, events, samples, width, height, length)
     wall_end = story["on_wall"]["end_ms"] if story.get("available") and story["drop"] else None
-    after_wall = 0
-    if wall_end is not None:          # nothing after the climber left the wall is climbing
-        after_wall = sum(c["start_ms"] >= wall_end for c in chosen)
-        chosen = [c for c in chosen if c["start_ms"] < wall_end]
+    wall_start = story["on_wall"]["start_ms"] if story.get("available") and story["on_wall"]["started_by"] != "start_of_clip" else None
+    # Nothing before the climber left the ground or after they left the wall is climbing.
+    off_wall = lambda ms: (wall_end is not None and ms >= wall_end) or (wall_start is not None and ms < wall_start)
+    after_wall = sum(off_wall(c["start_ms"]) for c in chosen)
+    chosen = [c for c in chosen if not off_wall(c["start_ms"])]
     story_cards = _story_cards(story) if story.get("available") else []
     stops = [c for c in story_cards if c["kind"] in {"story_longest_stop", "story_slow_start"}]
     # A whole-attempt card about a stay replaces the pause cards inside it, so one stop is not reported twice.
@@ -660,7 +661,7 @@ def build_coaching(result: dict[str, Any], events: list[dict[str, Any]], series:
                  for e in events if is_uncertain(e)]
     return {**base, "available": True, "cards": chosen, "cards_omitted": len(cards) - len(chosen),
             "not_flagged": sorted(not_flagged, key=lambda n: n["start_ms"]), "cannot_evaluate": sorted([*cannot, *uncertain], key=lambda n: n["start_ms"]),
-            "placements": [p for p in foot_placements(events, series, poses, hold_context) if wall_end is None or p["landing_ms"] < wall_end],
+            "placements": [p for p in foot_placements(events, series, poses, hold_context) if not off_wall(p["landing_ms"])],
             "story": {k: v for k, v in story.items() if k != "takeaways"}, "cards_after_leaving_wall": after_wall, "body": body.public() if body else None, "reach_tally": tally,
             "top_card_ids": top_card_ids(chosen), "glance": at_a_glance(result, events),
             "observed_route": observed_route(series, samples, hold_context, width, height)}

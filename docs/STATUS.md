@@ -6,7 +6,21 @@ Last updated 2026-11-13 after adding the climb story. Start with `docs/WALL_GEOM
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Climb story: on-wall time, stops, and how it ended (latest, 2026-11-13)
+## Six new teammate clips, lift-off and sit-start detection (latest, 2026-11-13)
+
+Six clips from the shared Drive folder were imported and analyzed: IMG_7850, 7852, 7853, 7855, 7863, 7865 (in `data/new_vids/`, ignored by git). They are development clips. Only the second zip part arrived, so 7 clips from "new vids 1" and IMG_7401, IMG_7732, IMG_7816 are still not on this computer.
+
+What the new clips showed, and what changed:
+
+- **Standing on the ground was counted as climbing.** IMG_7863 stands for about 8 s before pulling on, and that produced a "slow start" card and two foot cards about stepping on. Added lift-off detection: an ankle at the lowest foot level in the clip under a nearly straight leg, at the beginning of the clip. Climbing is now counted from 00:07.9 there. Cards before lift-off are dropped and counted.
+- **Sitting down into a low start was read as leaving the wall** (IMG_7853, at 00:01.6). A fast descent in the first 20% of a clip with at least 10 s of tracked movement after it now moves the start instead.
+- **A clip with nothing flagged had nothing to say.** IMG_7852 climbs for 17 s without a stop and now gets a "you kept moving" reference card.
+
+Limits found: a straight leg on the lowest foothold looks the same as standing on the ground, so the text says "the ground or your first foothold"; on IMG_7549 this probably trims 5 s that were spent on the start footholds. IMG_7853 is a low, steep problem with the body near horizontal, and feet were tracked for only 5 to 8% of it, so it gets no moment cards. These judgments come from my reading of contact sheets (AI-assisted), not from human labels.
+
+**Current verification:** `pytest` 314 passed (12 in `test_story.py`). Playwright, 12 specs, passed. `scripts/check_climb_story.py` prints all eleven clips.
+
+## Climb story: on-wall time, stops, and how it ended (2026-11-13)
 
 Added `backend/app/analysis/story.py` (`climb-story-v1`), read from the hip midpoint in the picture. It needs no reanalysis: it is computed from stored poses when a review opens.
 
@@ -17,7 +31,7 @@ Added `backend/app/analysis/story.py` (`climb-story-v1`), read from the hip midp
 
 **Results on the five tripod clips** (`scripts/check_climb_story.py`): hips tracked 96 to 100%. IMG_7549, recorded by the climber as a fall, is detected leaving the wall at 00:38.5; IMG_7547 at 00:35.9 after its finish. Stays of 7 to 12 s were found on every clip. I compared these with contact sheets of two clips by eye; that is an AI-assisted visual check, not a human label. No thresholds were tuned against labels, and no climber has rated the new cards.
 
-**New Drive footage is not yet used.** The shared folder lists 16 clips that are not on this computer (IMG_7401, IMG_7732, IMG_7816, and 13 in "new vids 1"). The connector cannot download files of this size. After downloading the folder into `data/new_vids/`:
+**More Drive footage:** see the section above for what has arrived. To add the rest after downloading it into `data/new_vids/`:
 
 ```bash
 .venv/bin/python scripts/import_folder.py data/new_vids

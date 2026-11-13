@@ -203,3 +203,9 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 
 **D88. Coaching output is now `coaching-v2`.** Moment-card rules and ids are unchanged, so saved decisions still attach. A slow-start card requires real movement afterwards, so a clip in which the hips never move produces none.
 
+**D89. Climbing is counted from lift-off when the clip shows the climber standing first.** Standing is an ankle within 0.25 torso lengths of the lowest foot level in the clip (98th percentile) under a leg at least 0.8 of its tallest appearance, starting within 1.5 s of the first tracked sample and lasting at least 1 s. It is reported as "the ground or your first foothold" because the two look the same. Stops, cards, and placements before it are not counted. Reason: IMG_7863 and IMG_7850.
+
+**D90. An early fast descent followed by climbing is the start, not the end.** If it begins in the first 20% of the clip and at least 10 s of tracked hips follow, time on the wall starts when it ends. Reason: IMG_7853, a sit start.
+
+**D91. A steady attempt gets a reference card.** No fast descent, at least 8 s on the wall, under 15% of it stopped, and hips tracked at least 90%. It suggests no change, so that an attempt with nothing flagged still says what was checked.
+

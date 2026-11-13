@@ -25,7 +25,7 @@ export function ClimbProfile({ story, bounds, time, onSeek }: { story: Ready; bo
   };
   const nearest = (ms: number) => story.profile.reduce((best, point, index) => (Math.abs(point.t - ms) < Math.abs(story.profile[best].t - ms) ? index : best), 0);
   const stats = story.stats;
-  const off = story.phases.find((phase) => phase.kind === "off_wall");
+  const off = story.phases.filter((phase) => phase.kind === "off_wall" || phase.kind === "before_start");
   const point = hover ? story.profile[hover.index] : null;
   return (
     <section className="card" data-testid="climb-profile" aria-label="Your climb">
@@ -43,7 +43,7 @@ export function ClimbProfile({ story, bounds, time, onSeek }: { story: Ready; bo
           onMouseMove={(e) => { const p = pick(e); setHover({ index: nearest(p.ms), px: p.px }); }} onMouseLeave={() => setHover(null)} onClick={(e) => onSeek(Math.round(pick(e).ms))}>
           <defs><pattern id="story-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" fill="#dfe3e8" /></pattern></defs>
           {story.stops.map((stop) => <rect key={stop.start_ms} className="chart-event" data-testid="profile-stop" x={x(stop.start_ms)} y={TOP} width={Math.max(2, x(stop.end_ms) - x(stop.start_ms))} height={BOTTOM - TOP} />)}
-          {off && <rect x={x(off.start_ms)} y={TOP} width={Math.max(2, x(off.end_ms) - x(off.start_ms))} height={BOTTOM - TOP} fill="url(#story-hatch)" data-testid="profile-off-wall" />}
+          {off.map((phase) => <rect key={phase.kind} x={x(phase.start_ms)} y={TOP} width={Math.max(2, x(phase.end_ms) - x(phase.start_ms))} height={BOTTOM - TOP} fill="url(#story-hatch)" data-testid="profile-off-wall" />)}
           <line x1="0" x2={W} y1={BOTTOM} y2={BOTTOM} className="chart-base" />
           {paths.map((d) => <path key={d} d={d} fill="none" stroke="var(--ink-2)" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />)}
           {point && <line x1={x(point.t)} x2={x(point.t)} y1={TOP} y2={BOTTOM} stroke="var(--muted)" strokeWidth="1" vectorEffect="non-scaling-stroke" strokeDasharray="3 3" />}
@@ -53,7 +53,7 @@ export function ClimbProfile({ story, bounds, time, onSeek }: { story: Ready; bo
         <div className="chart-time"><span>{clock(bounds.start)}</span><span>{clock(bounds.end)}</span></div>
         {point && hover && <div className="chart-tip" style={{ left: hover.px, top: 40 }}>{clock(point.t)}: {point.h.toFixed(1)} torso lengths up</div>}
       </div>
-      <p className="legend"><span className="swatch event-swatch" style={{ marginLeft: 0 }} /> Stayed in one area for 3 s or more{off && <><span className="swatch hatch-swatch" /> After leaving the wall</>}. Click the chart to jump there.</p>
+      <p className="legend"><span className="swatch event-swatch" style={{ marginLeft: 0 }} /> Stayed in one area for 3 s or more{off.length > 0 && <><span className="swatch hatch-swatch" /> Not counted as climbing</>}. Click the chart to jump there.</p>
       {story.stops.length > 0 && (
         <details>
           <summary>Where you stayed put ({story.stops.length})</summary>

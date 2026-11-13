@@ -129,3 +129,47 @@ def test_story_cards_lead_the_list_and_keep_the_card_shape():
         assert key in cards[0]
     moment = {"id": "m1", "kind": "large_step"}
     assert coaching.top_card_ids([*cards, moment])[0] == cards[0]["id"]
+
+
+def standing(t: int, hip_y: float, ankle_y: float, other_ankle: float | None = None) -> dict:
+    """A sample with hips and ankles: one leg straight down to `ankle_y`."""
+    joints = {"left_hip": [350 / W, hip_y / H], "right_hip": [370 / W, hip_y / H], "left_ankle": [350 / W, ankle_y / H]}
+    if other_ankle is not None:
+        joints["right_ankle"] = [370 / W, other_ankle / H]
+    return {"t": t, "pose": True, "joints": joints}
+
+
+def test_standing_on_the_ground_before_pulling_on_is_not_counted_as_climbing():
+    from app.analysis.story import find_lift_off
+    samples = [standing(t, 900, 1100, 1100) for t in range(0, 6000, 100)]                       # 6 s standing: legs 200 px tall
+    samples += [standing(6000 + k * 100, 900 - k * 5, 1000 - k * 5, 980 - k * 5) for k in range(100)]   # then climbing with bent legs, feet off the ground
+    ground = find_lift_off(samples, H, L, 0, 16_000)
+    assert ground and 5500 <= ground["end_ms"] <= 6100
+    story = build_story(result(15_900), [], samples, W, H, L)
+    assert story["on_wall"]["started_by"] == "left_the_ground" and story["on_wall"]["start_ms"] == ground["end_ms"]
+    assert story["phases"][0]["kind"] == "before_start"
+    assert not any(stop["start_ms"] < ground["end_ms"] for stop in story["stops"])               # standing still is not a stop on the wall
+    assert "ground or your first foothold" in story["headline"]
+    # A clip that begins with the climber already above the lowest foot level has no ground phase.
+    already = [standing(k * 100, 900 - k * 5, 1000 - k * 5, 980 - k * 5) for k in range(100)]
+    already += [standing(10_000 + k * 100, 1000, 1200, 1200) for k in range(20)]                # lands and stands at the end only
+    assert find_lift_off(already, H, L, 0, 12_000) is None
+
+
+def test_lowering_into_a_sit_start_is_not_leaving_the_wall():
+    points = climb([(1, 0, 1), (1, -1.8, 1), (4, 0, 1), (20, 3, 1)])          # goes down early, then climbs for 20 s
+    samples, _ = track_of(points)
+    story = build_story(result(points[-1][0]), [], samples, W, H, L)
+    assert story["on_wall"]["started_by"] == "lowered_into_start" and story["on_wall"]["ended_by"] == "end_of_clip"
+    assert not any(item["kind"] == "left_wall" for item in story["takeaways"])
+    assert 1500 <= story["on_wall"]["start_ms"] <= 3000
+
+
+def test_a_steady_climb_gets_a_reference_card_and_a_stop_or_a_fall_does_not():
+    steady, _ = track_of(climb([(15, 6, 1)]))
+    kinds = lambda story: [item["kind"] for item in story["takeaways"]]
+    assert kinds(build_story(result(14_900), [], steady, W, H, L)) == ["steady"]
+    stopped, _ = track_of(climb([(4, 2, 1), (10, 0, 1), (4, 2, 1)]))
+    assert "steady" not in kinds(build_story(result(17_900), [], stopped, W, H, L))
+    fell, _ = track_of(climb([(12, 5, 1), (1, -3, 1), (2, 0, 1)]))
+    assert "steady" not in kinds(build_story(result(14_900), [], fell, W, H, L))

@@ -181,10 +181,10 @@ export interface CoachingCard {
 }
 export interface StoryStop { start_ms: number; end_ms: number; duration_ms: number; role: "start" | "middle" | "before_leaving"; height_L: number; spread_L: number; tracked_fraction: number; counts: Record<"left_foot" | "right_foot" | "left_wrist" | "right_wrist" | "uncertain", number> }
 export type Story = { available: false; reason: string; note: string } | {
-  available: true; note: string; headline: string; on_wall: { start_ms: number; end_ms: number; ended_by: "fast_descent" | "end_of_clip" };
+  available: true; note: string; headline: string; on_wall: { start_ms: number; end_ms: number; started_by: "start_of_clip" | "left_the_ground" | "lowered_into_start"; ended_by: "fast_descent" | "end_of_clip" };
   drop: { start_ms: number; end_ms: number; drop_L: number } | null;
   stats: { on_wall_ms: number; stopped_ms: number; moving_ms: number; stops: number; high_point_ms: number; height_gained_L: number; hips_tracked_fraction: number };
-  phases: { kind: "moving" | "stopped" | "off_wall"; start_ms: number; end_ms: number }[]; stops: StoryStop[]; profile: { t: number; h: number; run: number }[];
+  phases: { kind: "moving" | "stopped" | "off_wall" | "before_start"; start_ms: number; end_ms: number }[]; stops: StoryStop[]; profile: { t: number; h: number; run: number }[];
 };
 export interface PlacementReview { status: "unreviewed" | "on_marked_hold" | "on_unmarked_hold" | "intentional_smear" | "not_placed" | "cannot_tell"; hold_id: string | null; note: string }
 export interface Placement { id: string; limb: string; event_id: string; landing_ms: number; review_ms: number; x: number; y: number; anchor: string; proximity: string; settle_excursion_L: number; nearest_hold: { hold_index: number; hold_id: string; edge_L: number } | null; review: PlacementReview }

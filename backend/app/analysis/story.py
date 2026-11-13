@@ -26,6 +26,11 @@ C = {
     "drop_L": 1.2,              # hips go down at least this far...
     "drop_window_ms": 1500,     # ...within this time: a fall or a jump down
     "min_tracked_fraction": 0.6,
+    "ground_band_L": 0.25,      # an ankle this close to the lowest foot level seen in the clip may be on the ground
+    "standing_leg": 0.8,        # ...if that leg is also nearly as long, top to bottom, as it ever appears
+    "ground_bridge_ms": 1500,
+    "ground_min_ms": 1000,
+    "early_drop_fraction": 0.2, # a descent this early, with climbing after it, is getting into the start, not leaving the wall
     "small_foot_L": 0.4,
     "long_stall_ms": 8000,
     "stalled_share": 0.35,
@@ -64,10 +69,45 @@ def hip_track(samples: Sequence[dict[str, Any]], width: int, height: int, length
     return {"t": t, "x": smooth[:, 0], "y": smooth[:, 1], "run": run, "valid": valid}
 
 
-def find_drop(track: dict[str, np.ndarray]) -> dict[str, Any] | None:
-    """The first fast descent of the hips. The video cannot tell a fall from a jump down."""
+def find_lift_off(samples: Sequence[dict[str, Any]], height: int, length_px: float, start: float, end: float) -> dict[str, Any] | None:
+    """When the climber last stood at the lowest foot level seen in the clip, at the beginning of the clip.
+
+    Standing means an ankle at that level under a leg that is nearly as tall as it ever appears. A clip that starts with
+    the climber already off the ground has no such phase. A straight leg on the lowest foothold looks the same, so the
+    result is reported as the ground or the first foothold.
+    """
+    rows = [s for s in samples if start <= s["t"] <= end]
+    legs: dict[str, list[tuple[float, float, float]]] = {"left": [], "right": []}
+    for sample in rows:
+        joints = sample.get("joints", {})
+        for side in legs:
+            if f"{side}_ankle" in joints and f"{side}_hip" in joints:
+                ankle, hip = joints[f"{side}_ankle"][1] * height, joints[f"{side}_hip"][1] * height
+                legs[side].append((sample["t"], ankle, ankle - hip))
+    every = [a for side in legs.values() for _, a, _ in side]
+    if len(every) < 10:
+        return None
+    ground = float(np.percentile(every, 98))
+    tallest = max(float(np.percentile([leg for _, _, leg in side], 95)) for side in legs.values() if side)
+    standing = sorted(t for side in legs.values() for t, ankle, leg in side
+                      if ankle >= ground - C["ground_band_L"] * length_px and leg >= C["standing_leg"] * tallest)
+    first_tracked = min(t for side in legs.values() for t, _, _ in side)
+    if not standing or standing[0] - first_tracked > C["ground_bridge_ms"]:
+        return None
+    last = standing[0]
+    for moment in standing[1:]:
+        if moment - last > C["ground_bridge_ms"]:
+            break
+        last = moment
+    if last - standing[0] < C["ground_min_ms"]:
+        return None
+    return {"start_ms": int(standing[0]), "end_ms": int(last), "ground_y_px": round(ground, 1)}
+
+
+def find_drop(track: dict[str, np.ndarray], after: float = -np.inf) -> dict[str, Any] | None:
+    """The first fast descent of the hips after `after`. The video cannot tell a fall from a jump down."""
     t, y, valid = track["t"], track["y"], track["valid"]
-    index = np.flatnonzero(valid)
+    index = np.flatnonzero(valid & (t >= after))
     for a in index:
         later = index[(t[index] > t[a]) & (t[index] <= t[a] + C["drop_window_ms"])]
         if len(later) and np.max(y[later]) - y[a] >= C["drop_L"]:
@@ -80,10 +120,10 @@ def find_drop(track: dict[str, np.ndarray]) -> dict[str, Any] | None:
     return None
 
 
-def find_stalls(track: dict[str, np.ndarray], until: float) -> list[dict[str, Any]]:
+def find_stalls(track: dict[str, np.ndarray], until: float, since: float = -np.inf) -> list[dict[str, Any]]:
     """Stretches where the hips stayed within a small radius of where the stop began."""
     t, x, y, valid = track["t"], track["x"], track["y"], track["valid"]
-    index = [i for i in np.flatnonzero(valid) if t[i] <= until]
+    index = [i for i in np.flatnonzero(valid) if since <= t[i] <= until]
     stalls, k = [], 0
     while k < len(index):
         a = index[k]
@@ -169,13 +209,23 @@ def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], sample
 
     t, x, y, valid = track["t"], track["x"], track["y"], track["valid"]
     index = np.flatnonzero(valid)
-    drop = find_drop(track)
+    wall_start, started_by = int(t[index[0]]), "start_of_clip"
+    ground = find_lift_off(samples, height, length_px, bounds["start"], bounds["end"])
+    if ground:
+        wall_start, started_by = ground["end_ms"], "left_the_ground"
+    drop = find_drop(track, wall_start)
+    span = bounds["end"] - bounds["start"]
+    while drop and drop["start_ms"] - bounds["start"] <= C["early_drop_fraction"] * span and int(t[index[-1]]) - drop["end_ms"] >= 10_000:
+        # Going down early and then carrying on is sitting or lowering into the start position.
+        wall_start, started_by = drop["end_ms"], "lowered_into_start"
+        drop = find_drop(track, wall_start)
     wall_end = drop["start_ms"] if drop else int(t[index[-1]])
-    wall_start = int(t[index[0]])
-    on = index[t[index] <= wall_end]
+    on = index[(t[index] >= wall_start) & (t[index] <= wall_end)]
+    if len(on) < 10:
+        return {**base, "available": False, "reason": "Too little of this clip shows tracked climbing after the start."}
     floor = float(np.max(y[on]))                         # the lowest hip position while on the wall
     top = on[np.argmin(y[on])]
-    stalls = find_stalls(track, wall_end)
+    stalls = find_stalls(track, wall_end, wall_start)
     for stall in stalls:
         stall["duration_ms"] = stall["end_ms"] - stall["start_ms"]
         stall["counts"] = _activity(stall["start_ms"], stall["end_ms"], events)
@@ -197,6 +247,8 @@ def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], sample
     wall_ms = wall_end - wall_start
     stopped_ms = sum(s["duration_ms"] for s in stalls)
     profile = [{"t": int(t[i]), "h": round(floor - float(y[i]), 2), "run": int(track["run"][i])} for i in index]
+    if wall_start - bounds["start"] >= 500:
+        phases.insert(0, {"kind": "before_start", "start_ms": bounds["start"], "end_ms": wall_start})
     stats = {"on_wall_ms": wall_ms, "stopped_ms": stopped_ms, "moving_ms": wall_ms - stopped_ms, "stops": len(stalls),
              "high_point_ms": int(t[top]), "height_gained_L": round(floor - float(y[top]), 2), "hips_tracked_fraction": round(tracked, 2)}
 
@@ -260,10 +312,23 @@ def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], sample
             "verify": "The app cannot tell standing on the ground from hanging on the start holds here.",
             "measurements": [measure("Time before the hips moved away", f"{start['duration_ms'] / 1000:.1f} s")]})
 
+    if not drop and wall_ms >= 8000 and stopped_ms / wall_ms < 0.15 and tracked >= 0.9:
+        takeaways.append({
+            "id": _id("steady", wall_start, wall_end), "kind": "steady", "start_ms": wall_start, "end_ms": min(wall_end, wall_start + 5000),
+            "title": f"You kept moving: {('no stop' if not stalls else 'almost no time stopped')} in {wall_ms / 1000:.0f} s on the wall",
+            "observed": f"From {clock(wall_start)} to {clock(wall_end)} your hips never stayed in one area for more than {max((s2['duration_ms'] for s2 in stalls), default=C['stall_min_ms']) / 1000:.0f} s"
+                        + (", and no stop of 3 s or more was found." if not stalls else f"; {stopped_ms / 1000:.0f} s in total was spent stopped."),
+            "why": "An attempt without long stops is a useful reference: it shows the pace you can hold when you know the moves.", "limbs": [],
+            "try_this": "Nothing to change from the timing. Keep this attempt as your reference and compare harder attempts against it, using the same problem and climber name in the Compare tab.",
+            "keep_if": "Moving steadily is not always the goal. On a harder problem a rest in the right place can be the better choice.",
+            "verify": "Steady hips do not show whether each hold felt secure.",
+            "measurements": [measure("Time on the wall", f"{wall_ms / 1000:.1f} s"), measure("Time stopped", f"{stopped_ms / 1000:.1f} s"), measure("Hips tracked", f"{tracked:.0%}")]})
     places = len(stalls)
     headline = (f"On the wall for {wall_ms / 1000:.0f} s: moving for {(wall_ms - stopped_ms) / 1000:.0f} s and staying put for {stopped_ms / 1000:.0f} s"
                 + (f" in {places} place{'s' if places != 1 else ''}." if places else ".")
-                + (f" You left the wall at {clock(wall_end)}." if drop else ""))
-    return {**base, "available": True, "headline": headline, "on_wall": {"start_ms": wall_start, "end_ms": wall_end, "ended_by": "fast_descent" if drop else "end_of_clip"},
+                + (f" You left the wall at {clock(wall_end)}." if drop else "")
+                + ({"left_the_ground": f" Counted from {clock(wall_start)}, when your feet left the lowest level seen in the clip (the ground or your first foothold).",
+                    "lowered_into_start": f" Counted from {clock(wall_start)}, after you lowered into the start position."}.get(started_by, "")))
+    return {**base, "available": True, "headline": headline, "on_wall": {"start_ms": wall_start, "end_ms": wall_end, "started_by": started_by, "ended_by": "fast_descent" if drop else "end_of_clip"},
             "drop": drop, "stats": stats, "phases": phases, "stops": [{k: v for k, v in s.items() if k not in {"x", "y"}} for s in stalls],
             "profile": profile, "takeaways": takeaways}
