@@ -8,4 +8,4 @@ AI use is allowed. The student states that many students are not CS majors and c
 
 Project choice: option 3, sports-behavior analytics. Explain observable hand/foot movement, evaluate measurement limitations, and support review. A sports-performance improvement claim is not established by implementing software. Four submissions exist, but their content and due dates are unknown. Team size/experience is not confirmed; a teammate supplied footage.
 
-The student explicitly delegates ordinary product, engineering and testing decisions to the development process. New tripod footage and footwork analysis are authorized. No spending, publishing or cloud deployment is authorized.
+The student delegates ordinary product, engineering and testing decisions to the development process. New tripod footage and footwork analysis are authorized. No spending, publishing or cloud deployment is authorized.
