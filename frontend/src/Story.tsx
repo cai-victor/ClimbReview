@@ -41,7 +41,7 @@ export function ClimbProfile({ story, bounds, time, onSeek }: { story: Ready; bo
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ height: 150 }} role="img" data-testid="climb-profile-chart"
           aria-label={`Hip height over time. ${story.headline} ${story.stops.map((s) => `Stayed put ${clock(s.start_ms)} to ${clock(s.end_ms)}.`).join(" ")}`}
           onMouseMove={(e) => { const p = pick(e); setHover({ index: nearest(p.ms), px: p.px }); }} onMouseLeave={() => setHover(null)} onClick={(e) => onSeek(Math.round(pick(e).ms))}>
-          <defs><pattern id="story-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" fill="#dfe3e8" /></pattern></defs>
+          <defs><pattern id="story-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" fill="#ddd6ec" /></pattern></defs>
           {story.stops.map((stop) => <rect key={stop.start_ms} className="chart-event" data-testid="profile-stop" x={x(stop.start_ms)} y={TOP} width={Math.max(2, x(stop.end_ms) - x(stop.start_ms))} height={BOTTOM - TOP} />)}
           {off.map((phase) => <rect key={phase.kind} x={x(phase.start_ms)} y={TOP} width={Math.max(2, x(phase.end_ms) - x(phase.start_ms))} height={BOTTOM - TOP} fill="url(#story-hatch)" data-testid="profile-off-wall" />)}
           <line x1="0" x2={W} y1={BOTTOM} y2={BOTTOM} className="chart-base" />

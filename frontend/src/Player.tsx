@@ -106,8 +106,11 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
       surface.dataset.shapes = String(highlight?.shapes.length ?? 0);
       const text = (label: string, x: number, y: number) => {
         if (!label) return;
-        context.font = "600 13px system-ui, sans-serif"; context.lineWidth = 4; context.strokeStyle = "rgba(0,0,0,.85)"; context.strokeText(label, x, y);
-        context.fillStyle = MARK; context.fillText(label, x, y);
+        context.font = "600 13px system-ui, sans-serif";
+        const wide = context.measureText(label).width;
+        const left = Math.max(offsetX + 4, Math.min(x, offsetX + contentW - wide - 12));     // keep the label inside the picture
+        context.fillStyle = "rgba(20,14,34,.82)"; context.beginPath(); context.roundRect(left - 6, y - 15, wide + 12, 21, 6); context.fill();
+        context.fillStyle = MARK; context.fillText(label, left, y);
       };
       for (const shape of highlight?.shapes ?? []) {
         context.setLineDash([]);

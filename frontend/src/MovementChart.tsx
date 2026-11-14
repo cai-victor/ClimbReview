@@ -75,7 +75,7 @@ export function MovementChart({ movement, events, limbs, bounds, time, selected,
         aria-label={`Speed over time for ${limbs.map((l) => LIMB_LABEL[l]).join(", ")}. Hatched areas could not be analyzed.`}
         onMouseMove={(e) => { const p = pick(e); const limb = limbs[Math.min(limbs.length - 1, Math.max(0, p.rowIndex))]; setHover({ limb, index: nearestIndex(p.ms), px: p.px, py: p.py }); }}
         onMouseLeave={() => setHover(null)} onClick={(e) => onSeek(Math.round(pick(e).ms))}>
-        <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" fill="#dfe3e8" /></pattern></defs>
+        <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" fill="#ddd6ec" /></pattern></defs>
         {limbs.map((limb, row) => {
           const top = row * ROW + PLOT_TOP, plot = ROW - PLOT_TOP - PLOT_BOTTOM;
           const y = (v: number) => top + plot - (Math.min(v, peak) / peak) * plot;
@@ -131,7 +131,7 @@ export function EventChart({ movement, event, time, onSeek }: { movement: Ready;
     <svg className="event-chart" viewBox={`0 0 ${W} ${H}`} role="img" data-testid="event-chart"
       aria-label={`${LIMB_LABEL[limb]} distance from its starting point, reaching ${top.toFixed(2)} torso lengths.`}
       onClick={(e) => { const box = e.currentTarget.getBoundingClientRect(); const fraction = (((e.clientX - box.left) / box.width) * W - left) / (W - left - 6); onSeek(Math.round(from + Math.min(1, Math.max(0, fraction)) * (to - from))); }}>
-      <defs><pattern id="event-chart-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" fill="#dfe3e8" /></pattern></defs>
+      <defs><pattern id="event-chart-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" fill="#ddd6ec" /></pattern></defs>
       {untracked(times, contextSeries, px).map((band) => <rect key={band.x} className="event-chart-gap" x={band.x} y={plotTop} width={Math.max(band.w, 1)} height={bottom - plotTop} fill="url(#event-chart-hatch)" />)}
       <rect x={px(event.start_ms)} y={plotTop} width={px(event.end_ms) - px(event.start_ms)} height={bottom - plotTop} className="chart-event" />
       <line x1={left} x2={W - 6} y1={bottom} y2={bottom} className="chart-base" />

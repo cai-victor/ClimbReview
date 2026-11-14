@@ -6,7 +6,11 @@ Last updated 2026-11-14 after the self-review and high-step rework. Start with `
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Self-review on eleven clips: what was wrong, and the high-step rework (latest, 2026-11-14)
+## Lavender theme (latest, 2026-11-14)
+
+Visual pass only: a purple pastel palette, a sticky header with a logo mark and a "stays on this computer" badge, pill tabs, softer cards and shadows, stat tiles, a favicon, and dark backing behind the on-video labels. No behaviour, analysis, or API changed. The violet accent on white measures about 5.6:1 and muted text about 5.9:1. Playwright, 12 specs, passed; checked by screenshot at 1280 and 390 px with no horizontal scroll or console errors. Safari and a real phone were not checked.
+
+## Self-review on eleven clips: what was wrong, and the high-step rework (2026-11-14)
 
 I read every card the app produced for the eleven current clips and compared a sample with frames from the footage. This is an AI-assisted review, not a rating by a climber.
 
