@@ -173,3 +173,10 @@ def test_a_steady_climb_gets_a_reference_card_and_a_stop_or_a_fall_does_not():
     assert "steady" not in kinds(build_story(result(17_900), [], stopped, W, H, L))
     fell, _ = track_of(climb([(12, 5, 1), (1, -3, 1), (2, 0, 1)]))
     assert "steady" not in kinds(build_story(result(14_900), [], fell, W, H, L))
+
+
+def test_a_foot_that_never_leaves_the_lowest_foothold_is_not_a_ground_phase():
+    from app.analysis.story import find_lift_off
+    samples = [standing(k * 100, 900 - k * 2, 1100, 1000 - k * 3) for k in range(150)]       # one straight leg planted for the whole 15 s
+    assert find_lift_off(samples, H, L, 0, 15_000) is None
+    assert build_story(result(14_900), [], samples, W, H, L)["on_wall"]["started_by"] == "start_of_clip"

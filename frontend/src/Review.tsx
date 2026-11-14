@@ -235,7 +235,7 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
     <div className="review">
       <div className="review-main">
         <div ref={stage}>
-          <Player ref={player} src={attempt.video_url!} samples={samples} showSkeleton={skeleton} onTime={setTime} loop={loopRange} focus={focus} trails={trails} marks={marks} toolbar={toolbar}
+          <Player ref={player} src={attempt.video_url!} samples={samples} showSkeleton={skeleton} onTime={setTime} loop={loopRange} focus={focus} trails={trails} marks={marks} toolbar={toolbar} emphasis={selectedCue?.limbs ?? []} highlight={selectedCue?.highlight ?? null}
             onLoopExit={() => setLooping(false)} holds={coaching?.available && coaching.hold_map?.usable ? coaching.hold_map.holds : []} />
         </div>
         <p className="keys">Left side is drawn orange, right side blue. Keys: <span className="kbd">O</span> overlay <span className="kbd">L</span> loop <span className="kbd">N</span> <span className="kbd">P</span> next and previous opportunity</p>

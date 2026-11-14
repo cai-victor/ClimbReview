@@ -177,8 +177,12 @@ export interface CoachingCard {
   id: string; kind: string; title: string; start_ms: number; end_ms: number; status_label: string; limbs: string[]; moment: string; why: string; try_this: string; keep_if: string;
   measurements: { label: string; value: string; criterion: string }[]; uncertainty: string[]; sources: string[]; alternatives: CoachingOption[]; map_action: string | null;
   alternative_summary?: string; alternative_note?: string | null; observed_margin_L?: number; target: { limb: string; ms: number } | null; feedback: Feedback;
-  scope?: "attempt"; moments?: number[];
+  scope?: "attempt"; moments?: number[]; highlight?: Highlight | null;
 }
+export type HighlightShape = { type: "ring" | "dot"; x: number; y: number; label: string } | { type: "area"; x: number; y: number; r: number; label: string }
+  | { type: "arrow"; x1: number; y1: number; x2: number; y2: number; label: string };
+/** What to look at on the video for one card: fixed marks measured at `at_ms`, and a one-line caption. */
+export interface Highlight { at_ms: number; caption: string; shapes: HighlightShape[] }
 export interface StoryStop { start_ms: number; end_ms: number; duration_ms: number; role: "start" | "middle" | "before_leaving"; height_L: number; spread_L: number; tracked_fraction: number; counts: Record<"left_foot" | "right_foot" | "left_wrist" | "right_wrist" | "uncertain", number> }
 export type Story = { available: false; reason: string; note: string } | {
   available: true; note: string; headline: string; on_wall: { start_ms: number; end_ms: number; started_by: "start_of_clip" | "left_the_ground" | "lowered_into_start"; ended_by: "fast_descent" | "end_of_clip" };

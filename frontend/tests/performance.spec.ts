@@ -66,6 +66,14 @@ test("coaching cards, placements, candidate beta, and matched comparison", async
   expect(Math.abs(seeked - Math.max(0, startSeconds - 1))).toBeLessThan(0.25);
   await expect(page.getByLabel("Loop this moment", { exact: true })).toBeEnabled();
   for (const heading of ["What happened", "Why it might matter", "What to try", "What to verify", "When to keep your way"]) await expect(first).toContainText(heading);
+  // Opening a card marks on the video what was measured: fixed shapes for the card, and its limbs drawn heavier.
+  const openedId = await first.getAttribute("id");
+  const opened = coaching.cards.find((c: { id: string }) => `cue-${c.id}` === openedId);
+  await expect.poll(() => page.getByTestId("overlay-canvas").evaluate((n) => (n as HTMLCanvasElement).dataset.shapes)).toBe(String(opened.highlight?.shapes.length ?? 0));
+  expect(await page.getByTestId("overlay-canvas").evaluate((n) => (n as HTMLCanvasElement).dataset.emphasis)).toBe(opened.limbs.join(","));
+  const withMarks = coaching.cards.filter((c: { highlight?: unknown }) => c.highlight).length;
+  console.log(`cards with on-video marks ${withMarks} of ${coaching.cards.length}`);
+  expect(withMarks).toBeGreaterThan(0);
   // The card and its timeline marker are one selection.
   await expect(page.locator('[data-testid="timeline-cue"][aria-pressed="true"]')).toHaveCount(1);
 

@@ -1,12 +1,38 @@
 # ClimbReview status
 
-Last updated 2026-11-13 after adding the climb story. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
+Last updated 2026-11-14 after the self-review and high-step rework. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
 
 ## Bottom line
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Six new teammate clips, lift-off and sit-start detection (latest, 2026-11-13)
+## Self-review on eleven clips: what was wrong, and the high-step rework (latest, 2026-11-14)
+
+I read every card the app produced for the eleven current clips and compared a sample with frames from the footage. This is an AI-assisted review, not a rating by a climber.
+
+**What was going wrong**
+
+1. **Hands are hidden about half the time, so the most specific cards almost never fire.** Wrists were tracked 7 to 64% of each clip. Frames show the low-confidence wrists really are behind the body or head when the climber is filmed from directly behind, so lowering the visibility threshold (0.6) would add guessed positions, not real ones. Over eleven clips the reach rules produced two cards. This is a filming-angle limit, not a bug.
+2. **15 of 27 moment cards were "Large single foot move" with one generic suggestion** (find an intermediate foothold or smear). On IMG_7863 and IMG_7865 the footage shows something more specific: the foot steps onto a volume, the hips stay about one torso length beside it, and the climber cannot stand up (and comes off in 7863). The old text missed that.
+3. **Pause cards repeated the stays** already reported at the attempt level.
+4. **Stay and left-the-wall cards were vague** ("name what you were waiting for").
+5. **Nothing on the video said where to look** beyond a dotted path.
+6. IMG_7853 (low and steep, body near horizontal) still gets no cards: feet tracked 5 to 8%.
+
+**What changed**
+
+- **High steps are judged by the stand-up.** The card now measures how far sideways the hips are from the foot when it lands and how long they take to rise 0.5 torso lengths. Within 2 s is reported under "checked and not flagged" as a clean stand-up; 2.5 s or more, or leaving the wall first, is a card: "Hips stayed left of your right foot after a high step", with the suggestion to bring the hips over the foot before pushing. A high step followed by leaving the wall leads the list.
+- **Stay cards list what moved and when**; **left-the-wall cards name the last limb that moved**.
+- **Pause cards that mostly overlap a stay are dropped.**
+- **On-video highlight:** opening a card draws its limbs heavier and fades the rest, and draws yellow marks for what was measured (where the foot landed, where the hips were, an arrow for the suggested shift, the area the hips stayed in, the drop), with a one-line caption.
+
+**Results:** 11 high steps flagged across the clips, 5 reported as clean. IMG_7863 now shows "Hips stayed left of your right foot after a high step ... and then you left the wall" next to "You left the wall at 00:18.5 ... the last tracked movement before it was your right foot at 00:15.6".
+
+**Still weak:** no hand-specific feedback from a rear camera; "left" and "right" are picture directions; the hip-over-foot rule cannot see distance from the wall; all thresholds are untuned and no climber has rated any card.
+
+**Current verification:** `pytest` 317 passed. Playwright, 12 specs, passed, including highlight shapes and limb emphasis on real IMG_4301.
+
+## Six new teammate clips, lift-off and sit-start detection (2026-11-13)
 
 Six clips from the shared Drive folder were imported and analyzed: IMG_7850, 7852, 7853, 7855, 7863, 7865 (in `data/new_vids/`, ignored by git). They are development clips. Only the second zip part arrived, so 7 clips from "new vids 1" and IMG_7401, IMG_7732, IMG_7816 are still not on this computer.
 

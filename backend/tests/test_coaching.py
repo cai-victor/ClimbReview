@@ -180,7 +180,7 @@ def test_long_pause_needs_tracked_feet_and_says_hands_may_be_unseen():
 
 def test_card_count_is_capped_per_kind_and_overall():
     events = [event("foot_motion", "left", 3000 + i * 3000, 4000 + i * 3000, up=1.3) for i in range(6)]
-    output = build(events, ser=series(160), samples=[sample(i * 100) for i in range(160)])
+    output = build(events, ser=series(260), samples=[sample(i * 100) for i in range(260)], bounds=(0, 26000))
     assert kinds(output).count("large_step") == co.MAX_PER_KIND and output["cards_omitted"] == 3
 
 
@@ -388,3 +388,56 @@ def test_columns_are_added_to_a_database_without_them(tmp_path):
     assert row["x"] == 0.1 and row["role"] == "" and row["use"] == ""
     assert "scale" in {r["name"] for r in connection.execute("PRAGMA table_info(hold_maps)")}
     connection.close()
+
+
+def step_samples(hip_x, rise_after_ms=None, count=120, foot_x=0.55):
+    """Hips at `hip_x`; the right ankle sits at `foot_x`. Hips rise 0.6 L at `rise_after_ms` after the step ends at 4000 ms, if given."""
+    out = []
+    for i in range(count):
+        s = sample(i * 100)
+        up = 0.6 * L / H if rise_after_ms is not None and i * 100 >= 4000 + rise_after_ms else 0.0
+        s["joints"]["left_hip"], s["joints"]["right_hip"] = [hip_x - 0.03, 0.5 - up], [hip_x + 0.03, 0.5 - up]
+        s["joints"]["right_ankle"] = [foot_x, 0.55]
+        out.append(s)
+    return out
+
+
+def test_high_step_is_judged_by_whether_the_hips_come_over_the_foot_and_rise():
+    step = [event("foot_motion", "right", 3000, 4000, up=1.3)]
+    far = 0.55 - 1.0 * L / W                                    # hips one torso length to the left of the foot
+    stuck = build(step, samples=step_samples(far), bounds=(0, 12000))
+    card = next(c for c in stuck["cards"] if c["kind"] == "large_step")
+    assert card["title"] == "Hips stayed left of your right foot after a high step"
+    assert "1.0 torso lengths to the left" in card["moment"] and "did not rise" in card["moment"]
+    assert "move your hips to the right" in card["try_this"] and "intermediate" not in card["try_this"]
+    shapes = {shape["type"]: shape for shape in card["highlight"]["shapes"]}
+    assert set(shapes) == {"ring", "dot", "arrow"}
+    assert shapes["arrow"]["x2"] > shapes["arrow"]["x1"] and abs(shapes["ring"]["x"] - 0.55) < 1e-6   # the arrow points from the hips toward the foot
+    assert "not how close they are to the wall" in card["uncertainty"][0]
+
+    smooth = build(step, samples=step_samples(far, rise_after_ms=1000), bounds=(0, 12000))
+    assert "large_step" not in kinds(smooth) and "clean stand-up" in text(smooth["not_flagged"])
+
+    slow_over = build(step, samples=step_samples(0.55, rise_after_ms=4000), bounds=(0, 12000))
+    card = next(c for c in slow_over["cards"] if c["kind"] == "large_step")
+    assert card["title"].startswith("Slow to stand up") and "arrow" not in [shape["type"] for shape in card["highlight"]["shapes"]]
+
+    cut_short = build(step, samples=step_samples(far, count=55), bounds=(0, 5400))
+    assert "large_step" not in kinds(cut_short) and "not tracked for long enough" in text(cut_short["cannot_evaluate"])
+
+
+def test_high_step_followed_by_leaving_the_wall_is_flagged_and_leads_the_list():
+    # Steps up at 3 to 4 s, hips beside the foot and never rising, then a fast descent at 6 s.
+    samples = step_samples(0.55 - 1.0 * L / W, count=100)
+    for s in samples:
+        if s["t"] >= 6000:
+            drop = min(1.0, (s["t"] - 6000) / 800) * 3 * L / H
+            for hip in ("left_hip", "right_hip"):
+                s["joints"][hip][1] += drop
+    output = build([event("foot_motion", "right", 3000, 4000, up=1.3)], samples=samples, bounds=(0, 9900))
+    card = next(c for c in output["cards"] if c["kind"] == "large_step")
+    assert card["stand_up"]["left_wall_after"] and "then you left the wall" in card["moment"]
+    assert card["id"] in output["top_card_ids"]
+    left = next(c for c in output["cards"] if c["kind"] == "story_left_wall")
+    assert "right foot at 00:03.0" in left["moment"] and left["limbs"] == ["right_foot"]
+    assert [shape["type"] for shape in left["highlight"]["shapes"]] == ["dot", "arrow"]

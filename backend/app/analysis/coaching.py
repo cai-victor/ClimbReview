@@ -53,6 +53,11 @@ CRITERIA = {
     "together_min_overlap": 0.4,             # share of the shorter episode during which both limbs moved
     "foot_led_ms": 300,                      # a foot starting this much earlier counts as setting up the reach
     "large_step_min_rise_L": 1.0,
+    "stand_up_rise_L": 0.5,          # the hips count as having stood up once they are this much higher than when the foot landed
+    "stand_up_smooth_ms": 2000,      # ...within this time is a smooth stand-up, and is reported as such
+    "stand_up_slow_ms": 2500,        # ...not within this time is a slow one
+    "stand_up_watch_ms": 6000,
+    "hips_off_foot_L": 0.6,          # hips this far sideways from the high foot have not moved over it
     "ground_leave_ms": 1500,                 # steps this early are treated as leaving the ground
     "intermediate_min_step_L": 0.3,
     "pause_min_ms": 3500,
@@ -224,8 +229,41 @@ def _together_card(event, foot_event, overlap, lead_ms, arm) -> dict[str, Any]:
         sources=["feet_first"], target=None)
 
 
-def _large_step_cards(events, series, poses, bounds, hold_context, not_flagged) -> list[dict[str, Any]]:
+def _hip_mid(poses: Poses, ms: float) -> np.ndarray | None:
+    sample = poses.nearest(ms, 150)
+    if sample is None:
+        return None
+    left, right = poses.point(sample, "left_hip"), poses.point(sample, "right_hip")
+    return None if left is None or right is None else (left + right) / 2
+
+
+def _stand_up(event: dict[str, Any], poses: Poses, until: float) -> dict[str, Any] | None:
+    """Where the hips were when a high foot landed, and how long they took to rise. Sideways position only: depth is not visible."""
+    side = "left" if event["hand"] == "left" else "right"
+    landed = poses.nearest(event["end_ms"], 150)
+    foot = None if landed is None else poses.point(landed, f"{side}_ankle")
+    hips = _hip_mid(poses, event["end_ms"])
+    if foot is None or hips is None:
+        return None
+    limit = min(event["end_ms"] + C["stand_up_watch_ms"], until)
+    rose_ms, seen, last = None, 0, event["end_ms"]
+    for sample in poses.between(event["end_ms"], limit):
+        now = _hip_mid(poses, sample["t"])
+        if now is None:
+            continue
+        seen, last = seen + 1, sample["t"]
+        if (hips[1] - now[1]) / poses.length >= C["stand_up_rise_L"]:
+            rose_ms = int(sample["t"] - event["end_ms"])
+            break
+    return {"side": side, "foot": foot, "hips": hips, "offset_L": float(hips[0] - foot[0]) / poses.length, "hips_above_foot_L": float(foot[1] - hips[1]) / poses.length,
+            "rose_ms": rose_ms, "watched_ms": int(last - event["end_ms"]), "samples": seen}
+
+
+def _large_step_cards(events, series, poses, bounds, hold_context, not_flagged, cannot=None, wall_end: int | None = None) -> list[dict[str, Any]]:
+    """A high step is judged by what follows it: did the hips move over the foot and rise, or stay beside it?"""
     cards = []
+    cannot = cannot if cannot is not None else []
+    until = wall_end if wall_end is not None else bounds["end"]
     for event in sorted((e for e in events if e["type"] == "foot_motion"), key=lambda e: e["start_ms"]):
         if is_uncertain(event) or event["truncated"] or event["evidence"]["net_up_L"] < C["large_step_min_rise_L"]:
             continue
@@ -234,21 +272,49 @@ def _large_step_cards(events, series, poses, bounds, hold_context, not_flagged) 
             not_flagged.append({"start_ms": event["start_ms"], "text": f"{foot.capitalize()} at {clock(event['start_ms'])}: this large step was at the very start, so it may simply be leaving the ground."})
             continue
         rise = event["evidence"]["net_up_L"]
+        after = _stand_up(event, poses, until)
+        label = f"{foot.capitalize()} high step at {clock(event['start_ms'])}"
+        # Leaving the wall before the hips rose settles the question, however short the time in between.
+        came_off = after is not None and wall_end is not None and after["rose_ms"] is None and wall_end - event["end_ms"] <= C["stand_up_watch_ms"] and after["watched_ms"] >= 800
+        if after is None or (after["rose_ms"] is None and after["watched_ms"] < C["stand_up_slow_ms"] and not came_off):
+            cannot.append({"start_ms": event["start_ms"], "text": f"{label}: the hips were not tracked for long enough afterwards to see whether you stood up on it."})
+            continue
+        if after["rose_ms"] is not None and after["rose_ms"] <= C["stand_up_smooth_ms"]:
+            not_flagged.append({"start_ms": event["start_ms"], "text": f"{label} ({rise:.1f} torso lengths up): your hips rose over it within {after['rose_ms'] / 1000:.1f} s. That looked like a clean stand-up."})
+            continue
+        if after["rose_ms"] is not None and after["rose_ms"] < C["stand_up_slow_ms"]:
+            continue
+        offset = after["offset_L"]
+        beside = abs(offset) >= C["hips_off_foot_L"]
+        side_word, toward = ("left", "right") if offset < 0 else ("right", "left")
+        left_wall = wall_end is not None and after["rose_ms"] is None and wall_end - event["end_ms"] <= C["stand_up_watch_ms"]
+        waited = (f"They rose {C['stand_up_rise_L']:g} torso lengths only after {after['rose_ms'] / 1000:.1f} s." if after["rose_ms"] is not None
+                  else f"In the next {after['watched_ms'] / 1000:.1f} s they did not rise {C['stand_up_rise_L']:g} torso lengths" + (", and then you left the wall." if left_wall else "."))
+        end_ms = int(min(until, event["end_ms"] + (after["rose_ms"] if after["rose_ms"] is not None else after["watched_ms"])))
+        to_px = lambda point: {"x": float(point[0]) / poses.width, "y": float(point[1]) / poses.height}
+        foot_at, hips_at = to_px(after["foot"]), to_px(after["hips"])
+        shapes = [{"type": "ring", **foot_at, "label": f"{foot} lands here"}, {"type": "dot", **hips_at, "label": "hips"}]
+        if beside:
+            shapes.append({"type": "arrow", "x1": hips_at["x"], "y1": hips_at["y"], "x2": foot_at["x"], "y2": hips_at["y"], "label": "move hips this way first"})
         card = _base_card(
-            "large_step", "Large single foot move", event, event["start_ms"], event["end_ms"], [limb_of(event)],
-            moment=f"At {clock(event['start_ms'])} your {foot} rose {rise:.2f} torso lengths in one move lasting {event['evidence']['duration_ms'] / 1000:.1f} s.",
+            "large_step", f"Hips stayed {side_word} of your {foot} after a high step" if beside else f"Slow to stand up on your {foot} after a high step",
+            event, event["start_ms"], end_ms, [limb_of(event)],
+            moment=(f"At {clock(event['start_ms'])} your {foot} stepped up {rise:.1f} torso lengths. When it landed, your hips were {abs(offset):.1f} torso lengths to the {side_word} of it in the picture"
+                    + (f" and {abs(after['hips_above_foot_L']):.1f} below it. " if after["hips_above_foot_L"] < 0 else ". ") + waited),
             measurements=[_measurement("Foot rise", f"{rise:.2f} L", f"at least {C['large_step_min_rise_L']} L"),
-                          _measurement("Peak foot speed", f"{event['evidence']['peak_speed_L_per_s']:.1f} L/s")],
-            why="A very high step is powerful when the hips can follow it, but it can be hard to stand up from. An intermediate foot, even a smear, may split the move into two easier parts.",
-            try_this=f"Look for a spot about halfway up, roughly {rise / 2:.1f} torso lengths above where your {foot} started. Try one small intermediate step or a smear there, then step to the high foot.",
-            keep_if="If you stood up smoothly from this foot, a high step may be the better choice. High steps are ordinary technique.",
-            uncertainty=[UNCERTAIN_ALWAYS, "Whether a usable intermediate spot exists cannot be seen from the tracked points. Smearing depends on the wall surface and shoe, which the video cannot measure."],
-            sources=["smearing"], target=None)
-        if not hold_context:
-            card["map_action"] = "Mark the holds on this route to see whether a marked foothold lies between these two heights."
-        elif not hold_context["usable"]:
-            card["map_action"] = hold_context["message"]
-        else:
+                          _measurement("Hips sideways from the high foot when it landed", f"{abs(offset):.2f} L to the {side_word}", f"beside the foot at {C['hips_off_foot_L']} L or more"),
+                          _measurement("Time for the hips to rise", "did not rise while watched" if after["rose_ms"] is None else f"{after['rose_ms'] / 1000:.1f} s", f"slow at {C['stand_up_slow_ms'] / 1000:g} s or more"),
+                          _measurement("Hips tracked afterwards", f"{after['watched_ms'] / 1000:.1f} s")],
+            why=("Standing up on a high foot is easiest once your weight is over it. With the hips still beside the foot, the leg has to lift you sideways as well as up, and the arms take the load meanwhile."
+                 if beside else "A high foot only helps once you stand on it. A long gap between placing it and rising is time spent holding the position on your arms."),
+            try_this=(f"Before you push, move your hips to the {toward} until they are over your {foot}, as if bringing your nose over your toes. Then stand up in one motion. Compare how long the stand-up takes."
+                      if beside else f"As your {foot} lands, keep moving: push through that leg straight away instead of settling under it. Compare how long the stand-up takes."),
+            keep_if="Staying beside a high foot can be deliberate, for example to keep a sidepull loaded or when the next hold is off to the side. If the move worked for you, keep it.",
+            uncertainty=["From behind, the camera sees how far the hips are to the side of the foot, but not how close they are to the wall.", UNCERTAIN_ALWAYS],
+            sources=[], target=None,
+            highlight={"at_ms": event["end_ms"], "shapes": shapes, "caption": f"Hips {abs(offset):.1f} torso lengths {side_word} of the {foot}" if beside else f"{foot.capitalize()} placed; hips slow to rise"})
+        card["stand_up"] = {"offset_L": round(offset, 2), "rose_ms": after["rose_ms"], "left_wall_after": left_wall}
+        if hold_context and hold_context["usable"]:
             begin, end = _position(event, series, limb_of(event), event["start_ms"]), _position(event, series, limb_of(event), event["end_ms"])
             if begin and end:
                 options = []
@@ -259,8 +325,8 @@ def _large_step_cards(events, series, poses, bounds, hold_context, not_flagged) 
                     if step >= C["intermediate_min_step_L"]:
                         options.append({"limb": limb_of(event), "hold_index": index, "hold_id": hold["id"], "step_L": round(step, 2), "margin_L": None, "gain_L": None, "x": hold["x"], "y": hold["y"]})
                 card["alternatives"] = sorted(options, key=lambda o: o["step_L"])[:2]
-                if not options:
-                    card["alternative_summary"] = "No marked foothold lies between these two foot heights. An unmarked spot or a smear might still work."
+                if options:
+                    card["alternative_note"] = "A marked foothold lies between the two foot heights. A lower intermediate foot is another way to make this stand-up shorter."
         cards.append(card)
     return cards
 
@@ -546,11 +612,12 @@ def top_card_ids(cards: Sequence[dict[str, Any]]) -> list[str]:
     """Cards to start with: up to two whole-attempt cards, then up to three moments, one per kind in a fixed order of how specific the suggestion is."""
     lead = [c["id"] for c in cards if c.get("scope") == "attempt"][:STORY_TOP]
     moments = [c for c in cards if c.get("scope") != "attempt"]
-    chosen: list[str] = []
+    chosen: list[str] = [c["id"] for c in moments if c.get("stand_up", {}).get("left_wall_after")][:1]
     for kind in KIND_PRIORITY:
         first = next((c for c in moments if c["kind"] == kind), None)
         if first is not None and len(chosen) < TOP_COUNT:
             chosen.append(first["id"])
+    chosen = list(dict.fromkeys(chosen))[:TOP_COUNT]
     for card in moments:
         if len(chosen) < TOP_COUNT and card["id"] not in chosen:
             chosen.append(card["id"])
@@ -618,7 +685,7 @@ def _story_cards(story: dict[str, Any]) -> list[dict[str, Any]]:
     return [{"id": item["id"], "kind": f"story_{item['kind']}", "scope": "attempt", "title": item["title"], "start_ms": item["start_ms"], "end_ms": item["end_ms"],
              "status_label": "Whole attempt", "limbs": item["limbs"], "moment": item["observed"], "why": item["why"], "try_this": item["try_this"], "keep_if": item["keep_if"],
              "measurements": [_measurement(m["label"], m["value"]) for m in item["measurements"]], "uncertainty": [item["verify"], story["note"]],
-             "sources": [], "alternatives": [], "map_action": None, "target": None, "moments": item.get("moments", [])} for item in story.get("takeaways", [])]
+             "sources": [], "alternatives": [], "map_action": None, "target": None, "moments": item.get("moments", []), "highlight": item.get("highlight")} for item in story.get("takeaways", [])]
 
 
 def build_coaching(result: dict[str, Any], events: list[dict[str, Any]], series: dict[str, Any], samples: Sequence[dict[str, Any]],
@@ -635,24 +702,25 @@ def build_coaching(result: dict[str, Any], events: list[dict[str, Any]], series:
     pairs, not_flagged, cannot, tally = _evaluate_reaches(events, series, poses, references, bounds)
     body = beta.body_model(samples, width, height, length)
     _attach_alternatives(pairs, series, poses, body, hold_context)
+    story = story_module.build_story(result, events, samples, width, height, length)
+    wall_end = story["on_wall"]["end_ms"] if story.get("available") and story["drop"] else None
     cards = ([card for _, card in pairs] + _repeat_cards(events, not_flagged) + _shift_cards(events, poses, not_flagged, cannot)
-             + _large_step_cards(events, series, poses, bounds, hold_context, not_flagged) + _pause_cards(events, series, bounds, cannot))
+             + _large_step_cards(events, series, poses, bounds, hold_context, not_flagged, cannot, wall_end) + _pause_cards(events, series, bounds, cannot))
     order = {"step_after_reach": 0, "extended_reach": 1, "repeat_foot_adjust": 2, "foot_shift_during_reach": 3, "hand_foot_together": 4, "large_step": 5, "long_pause": 6}
     chosen: list[dict[str, Any]] = []
     for card in sorted(cards, key=lambda c: (order[c["kind"]], c["start_ms"])):
         if sum(c["kind"] == card["kind"] for c in chosen) < MAX_PER_KIND and len(chosen) < MAX_CARDS:
             chosen.append(card)
-    story = story_module.build_story(result, events, samples, width, height, length)
-    wall_end = story["on_wall"]["end_ms"] if story.get("available") and story["drop"] else None
     wall_start = story["on_wall"]["start_ms"] if story.get("available") and story["on_wall"]["started_by"] != "start_of_clip" else None
     # Nothing before the climber left the ground or after they left the wall is climbing.
     off_wall = lambda ms: (wall_end is not None and ms >= wall_end) or (wall_start is not None and ms < wall_start)
     after_wall = sum(off_wall(c["start_ms"]) for c in chosen)
     chosen = [c for c in chosen if not off_wall(c["start_ms"])]
     story_cards = _story_cards(story) if story.get("available") else []
-    stops = [c for c in story_cards if c["kind"] in {"story_longest_stop", "story_slow_start"}]
-    # A whole-attempt card about a stay replaces the pause cards inside it, so one stop is not reported twice.
-    chosen = [c for c in chosen if not (c["kind"] == "long_pause" and any(s["start_ms"] - 500 <= c["start_ms"] and c["end_ms"] <= s["end_ms"] + 500 for s in stops))]
+    # Every stay is already listed with the climb profile, so a pause card that mostly overlaps one would report it twice.
+    stays = [stop for stop in story["stops"] if stop["role"] != "start"] if story.get("available") else []
+    overlap = lambda c, s: max(0, min(c["end_ms"], s["end_ms"]) - max(c["start_ms"], s["start_ms"])) / max(1, c["end_ms"] - c["start_ms"])
+    chosen = [c for c in chosen if not (c["kind"] == "long_pause" and any(overlap(c, s) >= 0.5 for s in stays))]
     chosen.sort(key=lambda c: c["start_ms"])
     chosen = [*story_cards, *chosen]
     if plane is not None:

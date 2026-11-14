@@ -1,5 +1,5 @@
 import { forwardRef, ReactNode, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Hold, OverlaySample } from "./api";
+import { Highlight, Hold, OverlaySample } from "./api";
 
 const BONES: [string, string][] = [
   ["left_shoulder", "right_shoulder"], ["left_hip", "right_hip"], ["left_shoulder", "left_hip"], ["right_shoulder", "right_hip"],
@@ -35,15 +35,22 @@ interface Props {
   loop: { start: number; end: number } | null; focus?: Focus; trails?: Trail[]; holds?: Hold[]; marks?: Mark[];
   /** Called when the viewer scrubs out of the looped range, so a loop never pulls them back. */
   onLoopExit?: () => void; toolbar?: ReactNode;
+  /** Limbs of the selected card: drawn heavier while the rest of the skeleton fades back. */
+  emphasis?: string[]; highlight?: Highlight | null;
 }
+const CHAIN = (limb: string): string[] => {
+  const side = limb.startsWith("left") ? "left" : "right";
+  return limb.endsWith("foot") ? [`${side}_hip`, `${side}_knee`, `${side}_ankle`, `${side}_heel`, `${side}_foot_index`] : [`${side}_shoulder`, `${side}_elbow`, `${side}_wrist`];
+};
+const MARK = "#ffe14a";
 export interface Mark { x: number; y: number; label: string }
 
-export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, samples, showSkeleton, onTime, loop, focus = "all", trails = [], holds = [], marks = [], onLoopExit, toolbar }, ref) {
+export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, samples, showSkeleton, onTime, loop, focus = "all", trails = [], holds = [], marks = [], onLoopExit, toolbar, emphasis = [], highlight = null }, ref) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [rate, setRate] = useState(1);
-  const latest = useRef({ samples, showSkeleton, loop, onTime, focus, trails, holds, marks, onLoopExit });
-  latest.current = { samples, showSkeleton, loop, onTime, focus, trails, holds, marks, onLoopExit };
+  const latest = useRef({ samples, showSkeleton, loop, onTime, focus, trails, holds, marks, onLoopExit, emphasis, highlight });
+  latest.current = { samples, showSkeleton, loop, onTime, focus, trails, holds, marks, onLoopExit, emphasis, highlight };
   const ownSeek = useRef(false);   // true while a seek made by the app, not the viewer, is in flight
 
   useImperativeHandle(ref, () => ({
@@ -59,7 +66,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
     let frame = 0;
 
     const draw = () => {
-      const { samples, showSkeleton, onTime, focus, trails, holds, marks } = latest.current;
+      const { samples, showSkeleton, onTime, focus, trails, holds, marks, emphasis, highlight } = latest.current;
       const ms = element.currentTime * 1000;
       onTime(ms);
       const dpr = window.devicePixelRatio || 1;
@@ -95,6 +102,45 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
         context.font = "600 12px system-ui, sans-serif"; context.lineWidth = 3; context.strokeStyle = "rgba(0,0,0,.8)"; context.strokeText(mark.label, cx + 16, cy + 4);
         context.fillStyle = "#fff"; context.fillText(mark.label, cx + 16, cy + 4);
       });
+      // The selected card's marks: where to look, drawn at the positions measured for that card.
+      surface.dataset.shapes = String(highlight?.shapes.length ?? 0);
+      const text = (label: string, x: number, y: number) => {
+        if (!label) return;
+        context.font = "600 13px system-ui, sans-serif"; context.lineWidth = 4; context.strokeStyle = "rgba(0,0,0,.85)"; context.strokeText(label, x, y);
+        context.fillStyle = MARK; context.fillText(label, x, y);
+      };
+      for (const shape of highlight?.shapes ?? []) {
+        context.setLineDash([]);
+        if (shape.type === "arrow") {
+          const x1 = offsetX + shape.x1 * contentW, y1 = offsetY + shape.y1 * contentH, x2 = offsetX + shape.x2 * contentW, y2 = offsetY + shape.y2 * contentH;
+          const angle = Math.atan2(y2 - y1, x2 - x1);
+          for (const [color, width] of [["rgba(0,0,0,.85)", 7], [MARK, 3.5]] as const) {
+            context.strokeStyle = color; context.lineWidth = width; context.beginPath(); context.moveTo(x1, y1); context.lineTo(x2, y2);
+            context.moveTo(x2, y2); context.lineTo(x2 - 14 * Math.cos(angle - 0.45), y2 - 14 * Math.sin(angle - 0.45));
+            context.moveTo(x2, y2); context.lineTo(x2 - 14 * Math.cos(angle + 0.45), y2 - 14 * Math.sin(angle + 0.45)); context.stroke();
+          }
+          text(shape.label, Math.min(x1, x2), Math.min(y1, y2) - 30);
+          continue;
+        }
+        const cx = offsetX + shape.x * contentW, cy = offsetY + shape.y * contentH;
+        const radius = shape.type === "area" ? shape.r * contentW : shape.type === "ring" ? 18 : 7;
+        if (shape.type === "area") { context.fillStyle = "rgba(255,225,74,.16)"; context.beginPath(); context.arc(cx, cy, radius, 0, Math.PI * 2); context.fill(); }
+        if (shape.type !== "dot") context.setLineDash([6, 5]);
+        for (const [color, width] of [["rgba(0,0,0,.85)", 6], [MARK, 3]] as const) {
+          context.strokeStyle = color; context.lineWidth = width; context.beginPath(); context.arc(cx, cy, radius, 0, Math.PI * 2); context.stroke();
+        }
+        context.setLineDash([]);
+        if (shape.type === "dot") { context.fillStyle = MARK; context.beginPath(); context.arc(cx, cy, radius - 1, 0, Math.PI * 2); context.fill(); }
+        if (shape.type === "dot") text(shape.label, cx - 14, cy + 26); else text(shape.label, cx - radius, cy + radius + 20);
+      }
+      if (highlight?.caption) {
+        context.font = "600 14px system-ui, sans-serif";
+        const wide = Math.min(contentW - 16, context.measureText(highlight.caption).width + 16);
+        context.fillStyle = "rgba(0,0,0,.72)"; context.fillRect(offsetX + 8, offsetY + 8, wide, 26);
+        context.fillStyle = "#fff"; context.fillText(highlight.caption, offsetX + 16, offsetY + 26, wide - 16);
+      }
+      const strong = new Set(emphasis.flatMap(CHAIN));
+      surface.dataset.emphasis = emphasis.join(",");
       const sample = samples.length ? nearest(samples, ms) : null;
       if (!sample) return;
       surface.dataset.sampleT = String(sample.t); // lets verification compare the drawn pose time with media time
@@ -126,15 +172,22 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
         if (!inFocus(focus, a) || !inFocus(focus, b)) continue;
         const p = at(a), q = at(b);
         if (!p || !q) continue; // never draw across an unavailable joint
+        const heavy = strong.has(a) && strong.has(b);
+        context.globalAlpha = strong.size && !heavy ? 0.35 : 1;
+        if (heavy) { context.strokeStyle = "rgba(0,0,0,.8)"; context.lineWidth = 9; context.beginPath(); context.moveTo(p[0], p[1]); context.lineTo(q[0], q[1]); context.stroke(); }
+        context.lineWidth = heavy ? 5 : 3;
         context.strokeStyle = a.split("_")[0] === b.split("_")[0] ? side(a) : COLOR.center;
         context.beginPath(); context.moveTo(p[0], p[1]); context.lineTo(q[0], q[1]); context.stroke();
       }
+      context.lineWidth = 3;
       for (const name of Object.keys(sample.joints)) {
         if (!inFocus(focus, name)) continue;
         const p = at(name)!;
+        context.globalAlpha = strong.size && !strong.has(name) ? 0.35 : 1;
         context.fillStyle = side(name);
-        context.beginPath(); context.arc(p[0], p[1], focus === "feet" ? 6 : 4, 0, Math.PI * 2); context.fill();
+        context.beginPath(); context.arc(p[0], p[1], strong.has(name) ? 7 : focus === "feet" ? 6 : 4, 0, Math.PI * 2); context.fill();
       }
+      context.globalAlpha = 1;
       if (focus === "feet") {
         context.font = "600 13px system-ui, sans-serif";
         for (const [name, label] of FOOT_ANCHOR) {

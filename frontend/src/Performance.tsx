@@ -61,6 +61,7 @@ export function CoachingCardView({ card, selected, onSelect, onWatch, onFeedback
             <button className="button primary small" data-testid="cue-watch" onClick={onWatch}>▶ Watch this moment</button>
             <span className="muted small-text num">{clock(card.start_ms)} to {clock(card.end_ms)}, with 1 s of lead-in</span>
           </div>
+          {(card.highlight || card.limbs.length > 0) && <p className="muted small-text" data-testid="cue-on-video">On the video: {card.limbs.length > 0 ? `your ${card.limbs.map((limb) => LIMB_WORD[limb]?.toLowerCase()).join(" and ")} ${card.limbs.length > 1 ? "are" : "is"} drawn heavier` : ""}{card.limbs.length > 0 && card.highlight ? ", and " : ""}{card.highlight ? "yellow marks show what was measured" : ""}.</p>}
           <div className="cue-section">
             <h3>What happened</h3>
             <p>{card.moment}</p>

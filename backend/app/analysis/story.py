@@ -11,7 +11,7 @@ from typing import Any, Sequence
 
 import numpy as np
 
-from .explain import clock, is_uncertain, limb_of
+from .explain import NAMES, clock, is_uncertain, limb_of
 
 STORY_VERSION = "climb-story-v1"
 C = {
@@ -101,6 +101,9 @@ def find_lift_off(samples: Sequence[dict[str, Any]], height: int, length_px: flo
         last = moment
     if last - standing[0] < C["ground_min_ms"]:
         return None
+    # A foot that stays on the lowest foothold for most of the clip is climbing, not standing on the ground.
+    if last - standing[0] > 0.5 * (rows[-1]["t"] - rows[0]["t"]):
+        return None
     return {"start_ms": int(standing[0]), "end_ms": int(last), "ground_y_px": round(ground, 1)}
 
 
@@ -168,6 +171,14 @@ def _activity(start: int, end: int, events: Sequence[dict[str, Any]]) -> dict[st
             else:
                 counts[limb] += 1
     return counts
+
+
+def _moves_text(start: int, end: int, events: Sequence[dict[str, Any]]) -> str:
+    """Each tracked movement inside a window, by limb and time, so the climber can jump to it."""
+    inside = sorted((e for e in events if limb_of(e) and not is_uncertain(e) and e["start_ms"] < end and e["end_ms"] > start), key=lambda e: e["start_ms"])
+    if not inside:
+        return ""
+    return " In order: " + ", ".join(f"{NAMES[limb_of(e)]} at {clock(e['start_ms'])} ({e['evidence'].get('max_displacement_L', 0):.1f})" for e in inside[:6]) + (", and more." if len(inside) > 6 else ". The number is how far it moved, in torso lengths.")
 
 
 def _limb_text(counts: dict[str, int]) -> str:
@@ -262,7 +273,9 @@ def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], sample
         takeaways.append({
             "id": _id("stall", longest["start_ms"]), "kind": "longest_stop", "pattern": pattern, "start_ms": longest["start_ms"], "end_ms": longest["end_ms"],
             "title": f"{seconds:.0f} s in one area, {share:.0%} of your time on the wall",
-            "observed": f"From {clock(longest['start_ms'])} to {clock(longest['end_ms'])} your hips stayed within {max(longest['spread_L'], 0.1):.1f} torso lengths of one place, about {longest['height_L']:.1f} torso lengths above your lowest point. {_limb_text(longest['counts'])}",
+            "observed": f"From {clock(longest['start_ms'])} to {clock(longest['end_ms'])} your hips stayed within {max(longest['spread_L'], 0.1):.1f} torso lengths of one place, about {longest['height_L']:.1f} torso lengths above your lowest point. {_limb_text(longest['counts'])}{_moves_text(longest['start_ms'], longest['end_ms'], events)}",
+            "highlight": {"at_ms": longest["start_ms"], "caption": f"Hips stayed inside this circle for {seconds:.0f} s",
+                          "shapes": [{"type": "area", "x": longest["x"] * length_px / width, "y": longest["y"] * length_px / height, "r": max(longest["spread_L"], C["stall_radius_L"]) * length_px / width, "label": "hips stayed here"}]},
             "why": "Time spent holding on in one place adds up over a boulder problem. It usually goes to a decision or to a rest, and the two call for different changes.",
             "limbs": [], "try_this": try_this, "keep_if": keep_if,
             "verify": "The video cannot tell a planned rest from hesitation, and a hidden hand or foot may have moved unseen.",
@@ -274,13 +287,25 @@ def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], sample
         last = next((s for s in stalls if s["role"] == "before_leaving"), None)
         reached = (floor - float(y[np.flatnonzero(t == drop["start_ms"])[0]])) / max(stats["height_gained_L"], 1e-6)
         waited = f" You had been in that spot for {last['duration_ms'] / 1000:.0f} s." if last else ""
+        before = [e for e in events if limb_of(e) and not is_uncertain(e) and drop["start_ms"] - 4000 <= e["start_ms"] and e["end_ms"] <= drop["start_ms"] + 300]
+        final = max(before, key=lambda e: e["end_ms"], default=None)
+        final_text = (f" The last tracked movement before it was your {NAMES[limb_of(final)]} at {clock(final['start_ms'])}, {final['evidence'].get('max_displacement_L', 0):.1f} torso lengths."
+                      if final else " No hand or foot movement was tracked in the 4 s before it.")
+        at = lambda ms: int(np.flatnonzero(t == ms)[0])
+        top_i, low_i = at(drop["start_ms"]), at(drop["end_ms"])
+        norm = lambda i: (float(x[i]) * length_px / width, float(y[i]) * length_px / height)
         takeaways.append({
             "id": _id("drop", drop["start_ms"]), "kind": "left_wall", "start_ms": max(wall_start, drop["start_ms"] - 2000), "end_ms": drop["end_ms"],
             "title": f"You left the wall at {clock(drop['start_ms'])}",
-            "observed": f"At {clock(drop['start_ms'])} your hips dropped {drop['drop_L']:.1f} torso lengths in {(drop['end_ms'] - drop['start_ms']) / 1000:.1f} s, from {reached:.0%} of the highest point you reached.{waited}",
-            "try_this": ("If this was a fall, watch the two seconds before it and name the last thing that moved. On the next attempt, try the move sooner after you arrive at that position, or step back down to your last comfortable stance before trying it, and compare."
-                         if last else "If this was a fall, watch the two seconds before it and name the last thing that moved. Set that limb more deliberately on the next attempt and compare."),
-            "why": "The last seconds before leaving the wall show what the final move depended on, which is the most specific thing to practice.", "limbs": [],
+            "observed": f"At {clock(drop['start_ms'])} your hips dropped {drop['drop_L']:.1f} torso lengths in {(drop['end_ms'] - drop['start_ms']) / 1000:.1f} s, from {reached:.0%} of the highest point you reached.{waited}{final_text}",
+            "highlight": {"at_ms": drop["start_ms"], "caption": f"Hips dropped {drop['drop_L']:.1f} torso lengths from here",
+                          "shapes": [{"type": "dot", "x": norm(top_i)[0], "y": norm(top_i)[1], "label": "hips when it began"},
+                                     {"type": "arrow", "x1": norm(top_i)[0], "y1": norm(top_i)[1], "x2": norm(low_i)[0], "y2": norm(low_i)[1], "label": ""}]},
+            "last_limb": limb_of(final) if final else None,
+            "try_this": ((f"If this was a fall, watch your {NAMES[limb_of(final)]} from {clock(final['start_ms'])}: that was the last thing to move. On the next attempt, settle that limb before you put weight on it, and compare. "
+                          if final else "If this was a fall, watch the two seconds before it and look for what gave way. ")
+                         + ("You had waited in that position first, so also try the move sooner after you arrive there." if last else "")).strip(),
+            "why": "The last seconds before leaving the wall show what the final move depended on, which is the most specific thing to practice.", "limbs": [limb_of(final)] if final else [],
             "keep_if": "If you had finished and jumped down on purpose, there is nothing to change here.",
             "verify": "The video cannot tell a fall from a jump down, or show why a hand or foot came off.",
             "measurements": [measure("Hip drop", f"{drop['drop_L']:.1f} torso lengths"), measure("Height when it began", f"{reached:.0%} of your high point"),

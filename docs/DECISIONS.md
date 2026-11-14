@@ -209,3 +209,13 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 
 **D91. A steady attempt gets a reference card.** No fast descent, at least 8 s on the wall, under 15% of it stopped, and hips tracked at least 90%. It suggests no change, so that an attempt with nothing flagged still says what was checked.
 
+## Self-review (2026-11-14)
+
+**D92. A high step is judged by the stand-up that follows it, not by its size.** Measured when the foot lands: sideways distance from the hip midpoint to that ankle, and the time for the hips to rise 0.5 torso lengths (watched for 6 s). Rising within 2 s is reported as a clean stand-up and not flagged. Not rising within 2.5 s, or leaving the wall first, is a card; hips 0.6 torso lengths or more to the side get the hips-over-foot suggestion. The kind stays `large_step` so saved decisions still attach. Reason: on IMG_7863 and IMG_7865 the old intermediate-foothold advice missed what the footage shows. The intermediate foothold is still offered when a marked foothold lies between the two heights.
+
+**D93. The wrist visibility threshold stays at 0.6.** Frames from IMG_7850 and IMG_7238 show low-visibility wrists placed on the torso or head while the real hands are hidden, so accepting them would feed guessed positions to the reach rules.
+
+**D94. Cards carry a highlight.** Fixed marks at positions measured for that card plus a caption, drawn only while the card is selected, and the card's limbs drawn heavier. Marks are measurements (where a foot landed, where the hips were) or the suggested direction, labelled as such; none marks contact.
+
+**D95. A foot planted on the lowest foothold for more than half the clip is not a ground phase**, and a pause card is dropped when half or more of it lies inside a stay that is not the starting position.
+
