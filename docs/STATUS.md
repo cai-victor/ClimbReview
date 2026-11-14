@@ -6,7 +6,17 @@ Last updated 2026-11-14 after the self-review and high-step rework. Start with `
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Lavender theme (latest, 2026-11-14)
+## Installer and tester release (latest, 2026-11-14)
+
+Added `install.sh`, `start.command`, `TESTER_README.md`, and `scripts/make_release.sh`.
+
+- `scripts/make_release.sh tester-1` writes `dist/ClimbReview-tester-1.zip` (236 KB): the backend, built web pages, config, and the install and start scripts. It contains no course material, footage, database, tests, or notes; the script counts such files and reported 0.
+- `bash install.sh` uses an existing conda or mamba, or asks before downloading micromamba into the folder. It creates `.venv` with Python 3.12 and FFmpeg, installs the locked packages, downloads the pose model and checks its SHA-256, and verifies that the packages and FFmpeg load. Everything stays inside the folder (about 1.1 GB installed). Running it again is safe.
+- `bash start.command` starts the app and opens the browser, or just opens the browser if it is already running.
+
+**Verified on this Mac (Apple Silicon) only:** unzipped the release into an empty folder with a space in its path, ran the installer with no conda on the PATH (the micromamba route), started it on port 8320, uploaded the public Khazanov sample through the API, and got a finished analysis with coaching and a climb story. Also checked a second install run, the already-running case, and the not-installed message. **Not tested:** Intel Mac, Linux, Windows/WSL, a Mac that has never had developer tools, and double-clicking `start.command` from Finder (macOS may block a downloaded script; the guide uses Terminal commands instead).
+
+## Lavender theme (2026-11-14)
 
 Visual pass only: a purple pastel palette, a sticky header with a logo mark and a "stays on this computer" badge, pill tabs, softer cards and shadows, stat tiles, a favicon, and dark backing behind the on-video labels. No behaviour, analysis, or API changed. The violet accent on white measures about 5.6:1 and muted text about 5.9:1. Playwright, 12 specs, passed; checked by screenshot at 1280 and 390 px with no horizontal scroll or console errors. Safari and a real phone were not checked.
 
