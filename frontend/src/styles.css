@@ -287,3 +287,8 @@ progress { height:8px; border-radius:99px; overflow:hidden; } progress::-webkit-
 .length-field label { display:flex; flex-direction:column; font-size:.78rem; margin:0; } .length-field input { width:4.5em; }
 .limb-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:baseline; }
 .phase-list .link[aria-current=step] { font-weight:700; }
+.hold-canvas img.wall-layer { opacity:0; transition:opacity .5s ease; pointer-events:none; } .hold-canvas img.wall-layer.on { opacity:1; }
+.wall-choice { margin-top:var(--s2); } .wall-choice p { margin:0; }
+.spinner { display:inline-block; width:12px; height:12px; border:2px solid var(--line-strong); border-top-color:var(--accent); border-radius:50%; vertical-align:-1px; margin-right:6px; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .hold-canvas img.wall-layer { transition:none; } .spinner { animation:none; } }

@@ -21,6 +21,8 @@ A more experienced climber tested the release and sent 22 points. Decisions are 
 - Seconds are written "52s".
 - Installer: smaller package list for testers and a parallel downloader.
 
+**Hold editor follow-up (2026-11-15):** the combined "climber removed" picture is no longer loaded and swapped in unasked. The editor opens on the chosen frame and offers "Load combined frames", says it can take up to a minute, lets marking continue meanwhile, and fades the picture in. A two-way switch returns to the frame. The choice is remembered per map in the browser. The 12 browser tests pass with this change.
+
 **Not done, and why**
 - Automatic recognition of start and finish holds: the app cannot read tape or tags, and an earlier rule based on tracked hands picked the wrong start on both routes tried. The finish is offered as the highest mark; the start stays a one-click choice.
 - Holds that are not circles: marks stay circles. The planner measures from each circle's center, and the tips say to put one mark at each place you would grab.

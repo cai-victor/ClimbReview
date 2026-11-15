@@ -171,10 +171,14 @@ test("coaching cards, placements, candidate beta, and matched comparison", async
   const editor = await page.context().newPage();
   await editor.goto(`/#/holds/${attemptId}`);
   await editor.getByRole("button", { name: /Open map/ }).click();
-  await expect(editor.getByTestId("wall-toggle")).toBeChecked({ timeout: 30_000 });
+  // The clear picture is never swapped in unasked: the editor opens on the chosen frame and offers to combine frames.
+  await expect(editor.getByTestId("hold-image")).toHaveAttribute("src", /frame\?ms=/);
+  await expect(editor.getByTestId("wall-status")).toContainText("If the climber is covering holds");
+  await editor.getByTestId("build-wall").click();
+  await expect(editor.getByTestId("wall-toggle")).toHaveAttribute("aria-pressed", "true", { timeout: 60_000 });
   await expect(editor.getByTestId("hold-image")).toHaveAttribute("src", /wall-image/);
   expect(await editor.getByTestId("hold-image").evaluate((n) => (n as HTMLImageElement).naturalWidth)).toBe(720);
-  await editor.getByTestId("wall-toggle").uncheck();
+  await editor.getByTestId("wall-off").click();
   await expect(editor.getByTestId("hold-image")).toHaveAttribute("src", /frame\?ms=/);
   await editor.close();
   await page.reload();

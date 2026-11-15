@@ -27,6 +27,10 @@ function toBody(hold: Hold) {
 const isTopOut = (hold: Hold) => hold.role === "finish" && hold.hold_type.trim().toLowerCase() === TOP_OUT;
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
 
+const wallKey = (mapId: string) => `climbreview.clearWall.${mapId}`;
+const wallChoice = (mapId: string) => { try { return window.localStorage.getItem(wallKey(mapId)) === "1"; } catch { return false; } };
+const rememberWall = (mapId: string, on: boolean) => { try { if (on) window.localStorage.setItem(wallKey(mapId), "1"); else window.localStorage.removeItem(wallKey(mapId)); } catch { /* the choice is a convenience only */ } };
+
 export function HoldEditor({ attemptId }: { attemptId: string }) {
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [maps, setMaps] = useState<HoldMap[]>([]);
@@ -49,7 +53,8 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
   const [scaleUnit, setScaleUnit] = useState<"cm" | "in">("cm");
   const [busy, setBusy] = useState(false);
   const [wall, setWall] = useState<WallInfo | null>(null);
-  const [showWall, setShowWall] = useState(true);
+  const [showWall, setShowWall] = useState(false);
+  const [wallState, setWallState] = useState<"idle" | "loading" | "ready" | "failed">("idle");
   const [geometry, setGeometry] = useState<WallGeometry | null>(null);
   const [showGrid, setShowGrid] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -59,10 +64,19 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
   const dragRef = useRef<Drag | null>(null);
   const justDragged = useRef(false);
   const activeId = active?.id;
+  const wanted = useRef<string | null>(null);
+  const buildWall = async (mapId: string) => {
+    wanted.current = mapId; setWallState("loading");
+    try {
+      const info = await holdApi.wallInfo(mapId);
+      if (wanted.current !== mapId) return;                 // another map was opened while this one was building
+      setWall(info); setWallState("ready"); setShowWall(info.combined); rememberWall(mapId, info.combined);
+    } catch { if (wanted.current === mapId) setWallState("failed"); }   // the single frame stays usable
+  };
   useEffect(() => {
-    setWall(null);
-    setGeometry(null);
-    if (activeId) holdApi.wallInfo(activeId).then(setWall).catch(() => setWall(null));   // the single frame stays usable if this fails
+    setWall(null); setGeometry(null); setShowWall(false); setWallState("idle");
+    // The combined picture is built only when asked for. A map where it was chosen before loads it again, which is quick once built.
+    if (activeId && wallChoice(activeId)) void buildWall(activeId);
   }, [activeId]);
 
   const load = useCallback(async () => {
@@ -222,7 +236,7 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
   const width = active?.width ?? attempt.width ?? 1, height = active?.height ?? attempt.height ?? 1;
   const useWall = Boolean(active && wall?.combined && showWall);
   const lastMs = Math.max(0, (attempt.duration_ms ?? 1) - 1);
-  const image = useWall ? wall!.image_url : active ? active.frame_url : `/api/attempts/${attemptId}/frame?ms=${Math.min(previewMs, lastMs)}`;
+  const image = active ? active.frame_url : `/api/attempts/${attemptId}/frame?ms=${Math.min(previewMs, lastMs)}`;
   const pickFromVideo = !active && attempt.kind !== "photo" && Boolean(attempt.video_url);
   const shown = (item: Hold) => (drag?.id === item.id ? { ...item, x: drag.x, y: drag.y, radius: drag.radius } : item);
   const stroke = Math.max(1.5, width / 400) / Math.sqrt(zoom);
@@ -261,7 +275,8 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
                 onTimeUpdate={(e) => setFrameSeconds(e.currentTarget.currentTime.toFixed(1))} onSeeked={(e) => setFrameSeconds(e.currentTarget.currentTime.toFixed(1))} />
             ) : (
               <div className="hold-canvas" style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }}>
-                <img src={image} alt={useWall ? "Wall picture combined from the video, with the climber removed" : `Reference frame at ${clock(active?.reference_frame_ms ?? previewMs)}`} data-testid="hold-image" />
+                <img src={image} alt={`Reference frame at ${clock(active?.reference_frame_ms ?? previewMs)}`} data-testid={useWall ? undefined : "hold-image"} />
+                {active && wall?.combined && <img src={wall.image_url} className={`wall-layer ${useWall ? "on" : ""}`} alt="Wall picture combined from the video, with the climber removed" aria-hidden={!useWall} data-testid={useWall ? "hold-image" : undefined} />}
                 {active && (
                   <svg ref={svg} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet" data-testid="hold-svg" onClick={addAt}>
                     {active.holds.map((raw, index) => {
@@ -298,12 +313,26 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
               </div>
             )}
           </div>
-          {active && !wall && <p className="muted small-text" role="status">Building a clear wall picture from the video…</p>}
-          {active && wall && (
-            <p className="small-text" data-testid="wall-status">
-              {wall.combined && <label className="choice"><input type="checkbox" checked={showWall} data-testid="wall-toggle" onChange={(e) => setShowWall(e.target.checked)} /> Clear wall picture</label>}
-              {wall.detail}{wall.combined ? " Marks line up with the video because the camera did not move." : ""}
-            </p>
+          {active && attempt.kind !== "photo" && (
+            <div className="wall-choice" data-testid="wall-status">
+              {wallState === "idle" && (
+                <p className="small-text">This is the frame you picked, from {clock(active.reference_frame_ms)}. If the climber is covering holds, the app can combine frames from the whole video into one picture with the climber removed.{" "}
+                  <button className="button small" data-testid="build-wall" onClick={() => void buildWall(active.id)}>Load combined frames</button></p>
+              )}
+              {wallState === "loading" && <p className="small-text" role="status" data-testid="wall-loading"><span className="spinner" aria-hidden="true" /> Combining frames from the video into a clear picture. This can take up to a minute the first time. You can keep marking on the frame meanwhile; the marks stay in place when the picture changes.</p>}
+              {wallState === "failed" && <p className="small-text">The combined picture could not be built, so the single frame stays. <button className="button small" onClick={() => void buildWall(active.id)}>Try again</button></p>}
+              {wallState === "ready" && wall && (
+                <p className="small-text">
+                  {wall.combined
+                    ? <span className="seg" role="group" aria-label="Picture shown">
+                        <button className="button small" aria-pressed={!showWall} data-testid="wall-off" onClick={() => { setShowWall(false); rememberWall(active.id, false); }}>Your frame</button>
+                        <button className="button small" aria-pressed={showWall} data-testid="wall-toggle" onClick={() => { setShowWall(true); rememberWall(active.id, true); }}>Combined, climber removed</button>
+                      </span>
+                    : <strong>The frames could not be combined, so the single frame stays. </strong>}
+                  {" "}{wall.detail}{wall.combined ? " Marks line up with the video because the camera did not move." : ""}
+                </p>
+              )}
+            </div>
           )}
           {active && (
             <div data-testid="grid-status">
@@ -345,7 +374,7 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
                     <button className="button small" data-testid="frame-forward" onClick={() => setFrame(parseFloat(frameSeconds || "0") + 0.5)}>+ 0.5s</button>
                     <label className="inline-field">Time (s)<input type="number" min="0" step="0.1" value={frameSeconds} data-testid="map-frame" onChange={(e) => { setFrameSeconds(e.target.value); const value = parseFloat(e.target.value); if (picker.current && Number.isFinite(value)) picker.current.currentTime = clamp(value, 0, lastMs / 1000); }} /></label>
                   </div>
-                  <p className="muted small-text">Drag the slider or the video's own bar. Pick a moment when the climber covers as few holds as possible: the picture on the left is the frame that will be used.</p>
+                  <p className="muted small-text">Drag the slider or the video's own bar to a moment when every hold of your route is visible: the picture on the left is the frame that will be used. If the climber covers holds in every frame, create the map anyway and choose "Load combined frames" afterwards to remove the climber.</p>
                 </>
               )}
               <button className="button primary" data-testid="create-map" onClick={() => void run(() => holdApi.create(attemptId, { name, reference_frame_ms: Math.min(previewMs, lastMs) }))}>Create map from this frame</button>
