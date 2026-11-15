@@ -57,7 +57,7 @@ def test_slow_drift_is_joined_into_one_stay_but_a_real_move_is_not():
 
 
 def test_a_stop_is_never_read_across_a_long_tracking_gap():
-    points = climb([(2, 0, 1), (3, 0, 0), (2, 0, 1)])          # 2 s seen, 3 s unseen, 2 s seen, all at one height
+    points = climb([(2, 0, 1), (3, 0, 0), (2, 0, 1)])          # 2s seen, 3s unseen, 2s seen, all at one height
     _, track = track_of(points)
     assert find_stalls(track, points[-1][0]) == []               # neither seen part is long enough alone
     assert len(set(track["run"][track["valid"]])) == 2
@@ -141,7 +141,7 @@ def standing(t: int, hip_y: float, ankle_y: float, other_ankle: float | None = N
 
 def test_standing_on_the_ground_before_pulling_on_is_not_counted_as_climbing():
     from app.analysis.story import find_lift_off
-    samples = [standing(t, 900, 1100, 1100) for t in range(0, 6000, 100)]                       # 6 s standing: legs 200 px tall
+    samples = [standing(t, 900, 1100, 1100) for t in range(0, 6000, 100)]                       # 6s standing: legs 200 px tall
     samples += [standing(6000 + k * 100, 900 - k * 5, 1000 - k * 5, 980 - k * 5) for k in range(100)]   # then climbing with bent legs, feet off the ground
     ground = find_lift_off(samples, H, L, 0, 16_000)
     assert ground and 5500 <= ground["end_ms"] <= 6100
@@ -157,7 +157,7 @@ def test_standing_on_the_ground_before_pulling_on_is_not_counted_as_climbing():
 
 
 def test_lowering_into_a_sit_start_is_not_leaving_the_wall():
-    points = climb([(1, 0, 1), (1, -1.8, 1), (4, 0, 1), (20, 3, 1)])          # goes down early, then climbs for 20 s
+    points = climb([(1, 0, 1), (1, -1.8, 1), (4, 0, 1), (20, 3, 1)])          # goes down early, then climbs for 20s
     samples, _ = track_of(points)
     story = build_story(result(points[-1][0]), [], samples, W, H, L)
     assert story["on_wall"]["started_by"] == "lowered_into_start" and story["on_wall"]["ended_by"] == "end_of_clip"
@@ -177,6 +177,6 @@ def test_a_steady_climb_gets_a_reference_card_and_a_stop_or_a_fall_does_not():
 
 def test_a_foot_that_never_leaves_the_lowest_foothold_is_not_a_ground_phase():
     from app.analysis.story import find_lift_off
-    samples = [standing(k * 100, 900 - k * 2, 1100, 1000 - k * 3) for k in range(150)]       # one straight leg planted for the whole 15 s
+    samples = [standing(k * 100, 900 - k * 2, 1100, 1000 - k * 3) for k in range(150)]       # one straight leg planted for the whole 15s
     assert find_lift_off(samples, H, L, 0, 15_000) is None
     assert build_story(result(14_900), [], samples, W, H, L)["on_wall"]["started_by"] == "start_of_clip"

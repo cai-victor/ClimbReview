@@ -427,7 +427,7 @@ def test_high_step_is_judged_by_whether_the_hips_come_over_the_foot_and_rise():
 
 
 def test_high_step_followed_by_leaving_the_wall_is_flagged_and_leads_the_list():
-    # Steps up at 3 to 4 s, hips beside the foot and never rising, then a fast descent at 6 s.
+    # Steps up at 3 to 4s, hips beside the foot and never rising, then a fast descent at 6s.
     samples = step_samples(0.55 - 1.0 * L / W, count=100)
     for s in samples:
         if s["t"] >= 6000:
@@ -441,3 +441,108 @@ def test_high_step_followed_by_leaving_the_wall_is_flagged_and_leads_the_list():
     left = next(c for c in output["cards"] if c["kind"] == "story_left_wall")
     assert "right foot at 00:03.0" in left["moment"] and left["limbs"] == ["right_foot"]
     assert [shape["type"] for shape in left["highlight"]["shapes"]] == ["dot", "arrow"]
+
+
+# ---- planner rules added after a climber's review: humanly possible moves, low feet, pull direction, alternative start feet
+
+def ladder(**changes):
+    """Two start hands, footholds below, alternating hand holds up to a finish, with footholds beside the line."""
+    holds = [hold(0.45, 0.60, role="start", use="hand", hid="a"), hold(0.55, 0.60, role="start", use="hand", hid="b"),
+             hold(0.45, 0.82, use="foot", hid="c"), hold(0.55, 0.82, use="foot", hid="d"), hold(0.45, 0.72, use="foot", hid="e"), hold(0.55, 0.70, use="foot", hid="f"),
+             hold(0.5, 0.52, use="hand", hid="g"), hold(0.5, 0.46, role="finish", use="hand", hid="h")]
+    for index, change in changes.items():
+        holds[int(index[1:])].update(change)
+    return holds
+
+
+def placements(candidate):
+    state = dict(candidate["start"])
+    yield dict(state)
+    for step in candidate["steps"]:
+        state[step["limb"]] = step["to_hold"]
+        yield dict(state)
+
+
+def test_no_candidate_crosses_the_feet_or_takes_a_step_longer_than_a_leg():
+    holds = ladder()
+    result = beta.candidate_sequences(holds, W, H, L, BODY)
+    assert result["status"] == "ready" and result["method"] == "candidate-beta-v2"
+    points = beta.hold_points(holds, W, H, L)
+    for candidate in result["candidates"]:
+        for state in placements(candidate):
+            if state["left_foot"] >= 0 and state["right_foot"] >= 0:
+                assert points[state["left_foot"]][0] - points[state["right_foot"]][0] <= beta.MAX_FOOT_CROSS_L
+        assert all(s["distance_L"] <= beta.MAX_FOOT_MOVE_OF_LEG * BODY.leg_L for s in candidate["steps"] if s["limb"].endswith("foot"))
+        assert len(candidate["figures"]) == len(candidate["steps"]) + 1 and set(candidate["figures"][0]) >= {"head", "left_elbow", "right_knee", "pelvis"}
+
+
+def test_crossed_feet_and_splits_are_refused_as_positions():
+    holds = ladder()
+    problem = beta._Problem(holds, beta.hold_points(holds, W, H, L), BODY)
+    assert problem.humanly((0, 1, 2, 3)) and not problem.humanly((0, 1, 3, 2))          # left foot far to the right of the right foot
+    wide = [*holds, hold(0.05, 0.82, use="foot", hid="w"), hold(0.95, 0.82, use="foot", hid="x")]
+    spread = beta._Problem(wide, beta.hold_points(wide, W, H, L), BODY)
+    assert not spread.humanly((0, 1, 8, 9))                                               # wider than one and a half leg lengths
+
+
+def test_low_feet_profile_avoids_a_high_foot_another_profile_accepts():
+    labels = {key: value["label"] for key, value in beta.PROFILES.items()}
+    assert labels == {"balanced": "Balanced", "fewer_moves": "Fewer moves", "low_feet": "Low feet, small steps"}
+    assert beta.PROFILES["low_feet"]["high_foot"] > beta.PROFILES["balanced"]["high_foot"] > beta.PROFILES["fewer_moves"]["high_foot"]
+    hands, body = [[0.0, 0.0], [0.4, 0.0]], BODY
+    _, _, _, low_when_feet_low = beta.solve_pose(hands, [[0.0, 2.6], [0.4, 2.6]], body)
+    _, _, _, low_when_foot_high = beta.solve_pose(hands, [[0.0, 2.6], [0.4, 1.0]], body)
+    assert low_when_feet_low >= 0 > low_when_foot_high                                    # a foot one torso length under the hands needs a high step
+
+
+def test_a_marked_pull_direction_limits_where_the_body_can_be():
+    hands, feet = [[0.0, 0.0], [0.6, 0.0]], [[0.0, 2.4], [0.6, 2.4]]
+    free = beta.solve_pose(hands, feet, BODY)
+    left = beta.solve_pose(hands, feet, BODY, pulls=["left", ""])
+    assert left[1][0] + 0.5 * np.sin(left[2]) <= hands[0][0] + beta.PULL_SIDE_L + 1e-6   # shoulders stay on the side the hold is pulled toward
+    assert left[0] <= free[0]
+    feet = [[0.0, 3.3], [0.6, 3.3]]
+    free = beta.solve_pose(hands, feet, BODY)
+    under = beta.solve_pose(hands, feet, BODY, pulls=["up", "up"])
+    assert under[0] < 0 <= free[0]                                                        # underclings cannot be used from this far below
+    marked = ladder(h6={"pull": "up"})
+    assert any("Pull directions you marked" in text for text in beta.candidate_sequences(marked, W, H, L, BODY)["assumptions"])
+
+
+def test_two_alternative_start_footholds_do_not_have_to_be_used_together():
+    holds = [hold(0.45, 0.60, role="start", use="hand", hid="a"), hold(0.55, 0.60, role="start", use="hand", hid="b"),
+             hold(0.02, 0.80, role="start", use="foot", hid="c"), hold(0.98, 0.80, role="start", use="foot", hid="d"),      # too far apart to stand on both
+             hold(0.5, 0.74, use="foot", hid="e"), hold(0.5, 0.52, use="hand", hid="g"), hold(0.5, 0.46, role="finish", use="hand", hid="h")]
+    problem = beta._Problem(holds, beta.hold_points(holds, W, H, L), BODY)
+    assert not problem.allowed((0, 1, 2, 3))
+    assert all(state[2:] != (2, 3) for state in problem.start_states()) and (0, 1, -1, -1) in problem.start_states()
+    assert beta.candidate_sequences(holds, W, H, L, BODY)["status"] == "ready"
+
+
+def test_a_blocked_route_says_how_far_the_search_got():
+    holds = [hold(0.45, 0.60, role="start", use="hand", hid="a"), hold(0.55, 0.60, role="start", use="hand", hid="b"), hold(0.5, 0.70, use="foot", hid="c"),
+             hold(0.5, 0.56, use="hand", hid="f"), hold(0.5, 0.05, role="finish", use="hand", hid="h")]
+    result = beta.candidate_sequences(holds, W, H, L, BODY)
+    assert result["status"] == "no_candidate" and result["stuck"]["hands_reached"] and not result["stuck"]["search_limit_reached"]
+    assert "got the hands as far as H" in result["note"] and "does not mean the problem is impossible" in result["note"]
+
+
+def test_matches_and_top_outs_are_named():
+    holds = ladder(h7={"hold_type": "top-out"})
+    result = beta.candidate_sequences(holds, W, H, L, BODY)
+    assert all(c["tops_out"] for c in result["candidates"])
+    steps = [s for c in result["candidates"] for s in c["steps"]]
+    assert all(isinstance(s["match"], bool) and isinstance(s["high_foot"], bool) for s in steps)
+    for candidate in result["candidates"]:
+        states = list(placements(candidate))
+        for step, state in zip(candidate["steps"], states[1:]):
+            if step["limb"].endswith("hand"):
+                assert step["match"] == (state["left_hand"] == state["right_hand"])       # a match is both hands on one hold
+
+
+def test_the_body_never_hangs_below_its_feet():
+    hands, feet = [[0.0, 0.0], [0.4, 0.0]], [[0.0, 0.3], [0.4, 0.3]]          # feet almost level with the hands
+    margin, core, lean, _ = beta.solve_pose(hands, feet, BODY)
+    assert core[1] + 0.5 * np.cos(lean) <= 0.3 + beta.HIPS_BELOW_FEET_L + 1e-6   # hips are not below the feet
+    core, lean = beta.natural_pose(hands, feet, BODY)
+    assert core[1] + 0.5 * np.cos(lean) <= 0.3 + beta.HIPS_BELOW_FEET_L + 1e-6

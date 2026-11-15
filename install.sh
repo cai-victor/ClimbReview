@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # ClimbReview installer. Puts everything inside this folder (.venv, models, .tools) and nothing system-wide.
 #   bash install.sh
-# Tested on macOS with Apple Silicon. Needs about 2 GB of disk and an internet connection for the first run.
+# Tested on macOS with Apple Silicon. Needs about 1.5 GB of disk and an internet connection for the first run.
 set -euo pipefail
 cd "$(dirname "$0")"
-say() { printf '\n==> %s\n' "$*"; }
+STARTED=$(date +%s)
+UV_VERSION=0.13.8
+say() { printf '\n==> %s  (%s)\n' "$*" "$(( ($(date +%s) - STARTED) / 60 )) min $(( ($(date +%s) - STARTED) % 60 ))s so far"; }
 fail() { printf '\nInstall stopped: %s\n' "$*" >&2; exit 1; }
 
 case "$(uname -s)-$(uname -m)" in
@@ -50,8 +52,15 @@ else
 fi
 
 # 3. Python packages at the exact versions the app was tested with.
-say "Installing Python packages (about 1 GB)"
-.venv/bin/python -m pip install --quiet --disable-pip-version-check --no-deps -r requirements.lock.txt
+say "Installing Python packages"
+# uv downloads packages in parallel, which is several times faster than pip. pip remains the fallback.
+if .venv/bin/python -m pip install --quiet --disable-pip-version-check "uv==$UV_VERSION" 2>/dev/null \
+    && .venv/bin/python -m uv pip install --quiet --python .venv/bin/python --no-deps -r requirements.lock.txt; then
+  :
+else
+  echo "The fast installer was not available, so this step uses pip and takes a few minutes longer."
+  .venv/bin/python -m pip install --quiet --disable-pip-version-check --no-deps -r requirements.lock.txt
+fi
 .venv/bin/python -m pip check >/dev/null || fail "the installed packages do not fit together on this computer. Send the lines above to whoever gave you the app."
 
 # 4. The pose model, checked against a known SHA-256.

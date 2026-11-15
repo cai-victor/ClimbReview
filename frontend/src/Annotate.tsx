@@ -116,19 +116,19 @@ export function Annotate({ attemptId }: { attemptId: string }) {
         <section className="card">
           <video ref={video} src={attempt.video_url ?? undefined} controls playsInline preload="auto" data-testid="annotate-video" />
           <div className="row tight">
-            <button className="button small" onClick={() => step(-0.1)}>−0.1 s</button>
-            <button className="button small" onClick={() => step(0.1)}>+0.1 s</button>
+            <button className="button small" onClick={() => step(-0.1)}>−0.1s</button>
+            <button className="button small" onClick={() => step(0.1)}>+0.1s</button>
             <button className="button small" onClick={markStart} disabled={!active}>Mark start</button>
             <button className="button small" onClick={markEnd} disabled={!active}>Mark end</button>
             <label className="check"><input type="checkbox" checked={loop} onChange={(e) => setLoop(e.target.checked)} /> Loop marked range</label>
           </div>
-          <p className="muted small-text">Keys, outside text fields: <span className="kbd">[</span> mark start, <span className="kbd">]</span> mark end, <span className="kbd">,</span> and <span className="kbd">.</span> step 0.1 s. Times are canonical video seconds.</p>
+          <p className="muted small-text">Keys, outside text fields: <span className="kbd">[</span> mark start, <span className="kbd">]</span> mark end, <span className="kbd">,</span> and <span className="kbd">.</span> step 0.1s. Times are canonical video seconds.</p>
           <details>
             <summary>Annotation guide</summary>
             <ul>
-              <li><strong>Low visible movement:</strong> at least 2 s when both wrists, both ankles, and hips look approximately stationary. Mark what you see, not intent.</li>
-              <li><strong>Wrist movement:</strong> the climber's own left or right wrist, from leaving relative stillness until returning to it, at least 0.3 s. Do not require a new hold.</li>
-              <li><strong>Foot movement:</strong> the climber's own left or right foot, from leaving relative stillness until returning to it, at least 0.3 s. Use the visible shoe, and do not decide whether it touched, slipped, or carried weight.</li>
+              <li><strong>Low visible movement:</strong> at least 2s when both wrists, both ankles, and hips look approximately stationary. Mark what you see, not intent.</li>
+              <li><strong>Wrist movement:</strong> the climber's own left or right wrist, from leaving relative stillness until returning to it, at least 0.3s. Do not require a new hold.</li>
+              <li><strong>Foot movement:</strong> the climber's own left or right foot, from leaving relative stillness until returning to it, at least 0.3s. Use the visible shoe, and do not decide whether it touched, slipped, or carried weight.</li>
               <li><strong>Unscorable:</strong> a person cannot judge the event because the body is hidden or off screen. Do not use it because tracking might fail.</li>
             </ul>
             <p className="muted small-text">Full protocol: docs/ANNOTATION_GUIDE.md.</p>

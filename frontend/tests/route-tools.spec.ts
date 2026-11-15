@@ -61,12 +61,60 @@ test("photo: suggest holds by color, confirm, set scale, and plan with height an
   await page.getByTestId("mode-add").click();
   await clickAt(180, 970);
   await expect(page.getByTestId("hold-circle")).toHaveCount(5);
-  await page.getByTestId("hold-use").selectOption("foot");
+  await page.getByTestId("hold-use-foot").click();
+  await expect(page.getByTestId("hold-use-foot")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("hold-pull")).toHaveCount(0);                 // a foothold has no pull direction
+  await expect(page.getByTestId("save-state")).toHaveText("All changes saved");
+
+  // Zooming in keeps clicks on target, and a hold can be dragged to a new place and resized by its handle.
+  await page.getByTestId("zoom-in").click();
+  await page.getByTestId("zoom-in").click();
+  await expect(page.getByTestId("zoom-level")).toHaveText("200%");
+  await page.waitForTimeout(150);                                            // the view re-centers one frame after the zoom changes
+  const before = (await (await request.get(`/api/attempts/${attemptId}/hold-maps`)).json())[0].holds[4];
+  const grab = await svg.evaluate((node, [px, py]) => {
+    const s = node as SVGSVGElement, p = new DOMPoint(px, py).matrixTransform(s.getScreenCTM()!);
+    (document.querySelector('[data-testid="hold-stage"]') as HTMLElement).scrollTo({ left: 0, top: 1e6 });
+    const q = new DOMPoint(px, py).matrixTransform(s.getScreenCTM()!);
+    return { x: q.x, y: q.y, moved: p.y - q.y };
+  }, [before.x * 480, before.y * 1000]);
+  await page.mouse.move(grab.x, grab.y);
+  await page.mouse.down();
+  await page.mouse.move(grab.x + 30, grab.y - 20, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(async () => (await (await request.get(`/api/attempts/${attemptId}/hold-maps`)).json())[0].holds[4].x).toBeGreaterThan(before.x + 0.01);
+  const moved = (await (await request.get(`/api/attempts/${attemptId}/hold-maps`)).json())[0].holds[4];
+  expect(moved.y).toBeLessThan(before.y - 0.005);
+  expect(moved.radius).toBeCloseTo(before.radius, 6);
+  await expect(page.getByTestId("hold-circle")).toHaveCount(5);              // dragging did not add a hold
+  const handle = (await page.getByTestId("hold-handle").boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2 + 24, handle.y + handle.height / 2, { steps: 3 });
+  await page.mouse.up();
+  await expect.poll(async () => (await (await request.get(`/api/attempts/${attemptId}/hold-maps`)).json())[0].holds[4].radius).toBeGreaterThan(moved.radius * 1.2);
+  await page.getByTestId("zoom-reset").click();
+  await expect(page.getByTestId("zoom-level")).toHaveText("100%");
+
+  // One click sets a role, the highest hold is offered as the finish, and a top out needs no finish hold.
+  await expect(page.getByTestId("finish-proposal")).toContainText("highest mark");
+  await page.getByTestId("propose-top").click();
+  await expect(page.getByTestId("finish-proposal")).toHaveCount(0);
+  await expect(page.locator('[data-testid="hold-circle"][data-role="finish"]')).toHaveCount(1);
+  await page.locator('[data-testid="hold-circle"][data-role="finish"]').focus();
+  await expect(page.getByTestId("hold-role-top")).toHaveAttribute("aria-pressed", "true");
+  await page.getByTestId("hold-pull-left").click();
+  await expect(page.getByTestId("pull-arrow")).toHaveCount(1);
+  await page.keyboard.press("Tab");
+  await page.locator('[data-testid="hold-circle"][data-role="finish"]').focus();
+  await page.keyboard.press("m");                                            // keyboard: back to a middle hold
+  await expect(page.locator('[data-testid="hold-circle"][data-role="finish"]')).toHaveCount(0);
+  await expect(page.getByTestId("marking-tips")).toContainText("Volumes");
   const map = (await (await request.get(`/api/attempts/${attemptId}/hold-maps`)).json())[0];
   const byHeight = [...map.holds].sort((a: { y: number }, b: { y: number }) => b.y - a.y);
   for (const [index, role, use] of [[1, "start", "both"], [2, "", "both"], [3, "", "both"], [4, "finish", "hand"]] as const) {
     const hold = byHeight[index];
-    await request.put(`/api/hold-maps/${map.id}/holds/${hold.id}`, { data: { x: hold.x, y: hold.y, radius: hold.radius, route: "", hold_type: "", role, use } });
+    await request.put(`/api/hold-maps/${map.id}/holds/${hold.id}`, { data: { x: hold.x, y: hold.y, radius: hold.radius, route: "", hold_type: "", role, use, pull: "" } });
   }
 
   // Without a scale the planner says what is missing.
@@ -94,7 +142,27 @@ test("photo: suggest holds by color, confirm, set scale, and plan with height an
   await expect(page.getByTestId("body-height")).toHaveValue("170");
   await page.getByTestId("run-plan").click();
   await expect(page.getByTestId("plan-steps").getByRole("listitem").first()).toBeVisible();
-  await expect(page.getByTestId("plan-body")).toContainText("arm 58.3 cm");
+  await expect(page.getByTestId("plan-body")).toContainText("arm 58 cm");
+
+  // The sketch climber is drawn on the holds, can be stepped and played, and hands and feet have their own colors.
+  await expect(page.getByTestId("beta-stick")).toBeVisible();
+  await expect(page.getByTestId("plan-legend")).toContainText("Hands");
+  await expect(page.getByTestId("beta-figure")).toHaveAttribute("data-position", "0");
+  await page.getByTestId("plan-next").click();
+  await expect(page.getByTestId("beta-figure")).toHaveAttribute("data-position", "1");
+  await page.getByTestId("plan-play").click();
+  await expect(page.getByTestId("beta-figure")).not.toHaveAttribute("data-position", "1", { timeout: 5000 });
+  await page.getByTestId("plan-prev").click();
+
+  // Measurements can be entered in feet and inches; the same person gets the same reach lengths.
+  await page.getByTestId("unit-in").click();
+  await expect(page.getByTestId("body-height-ft")).toHaveValue("5");
+  await expect(page.getByTestId("body-height-in")).toHaveValue("7");
+  await page.getByTestId("run-plan").click();
+  await expect(page.getByTestId("plan-body")).toContainText("arm 2");
+  await expect(page.getByTestId("plan-body")).toContainText(" in");
+  await page.getByTestId("unit-cm").click();
+  await expect(page.getByTestId("body-height")).toHaveValue("170");
   await expect(page.getByText("average body proportions")).toBeVisible();
   await expect(page.getByTestId("beta-figure")).toBeVisible();
   // The drawn wall has no bolt holes, so the planner says it could not correct for the wall's angle.

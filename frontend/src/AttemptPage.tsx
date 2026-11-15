@@ -41,9 +41,19 @@ export function AttemptPage({ id }: { id: string }) {
   if (!attempt) return <div className="page"><p className="muted">Loading…</p></div>;
 
   const remove = async () => {
-    if (!window.confirm("Delete this attempt, its video copies, analyses, and notes from this computer?")) return;
-    try { await api.deleteAttempt(id); window.localStorage.removeItem("climbreview.lastAttempt"); window.location.hash = "#/"; }
-    catch (e) { setError((e as Error).message); }
+    const working = importing ? "import" : analyzing ? "analysis" : null;
+    if (!window.confirm(working ? `Stop the ${working} and delete this attempt, its video copies, analyses, and notes from this computer?`
+      : "Delete this attempt, its video copies, analyses, and notes from this computer?")) return;
+    setBusy(true);
+    try {
+      if (importing) await api.cancelImport(id);
+      else if (analyzing && latest) await api.cancelJob(latest.id);
+      for (let tries = 0; ; tries += 1) {           // a running job stops at its next checkpoint, so deletion may need a moment
+        try { await api.deleteAttempt(id); break; }
+        catch (e) { if (!working || tries >= 40) throw e; await new Promise((resolve) => window.setTimeout(resolve, 500)); }
+      }
+      window.localStorage.removeItem("climbreview.lastAttempt"); window.location.hash = "#/";
+    } catch (e) { setError((e as Error).message); setBusy(false); }
   };
   const retry = async () => {
     setBusy(true);
@@ -142,7 +152,7 @@ export function AttemptPage({ id }: { id: string }) {
             </>}
             {ready && attempt.kind !== "photo" && <><div className="menu-sep" /><div className="menu-note">For evaluating the app</div><a href={`#/annotate/${attempt.id}`}>Label reference events</a></>}
             <div className="menu-sep" />
-            <button className="danger" onClick={remove} disabled={Boolean(importing || analyzing)}>Delete attempt</button>
+            <button className="danger" data-testid="delete-attempt" onClick={remove} disabled={busy}>{importing ? "Stop import and delete" : analyzing ? "Stop analysis and delete" : "Delete attempt"}</button>
           </Menu>
         </div>
       </div>

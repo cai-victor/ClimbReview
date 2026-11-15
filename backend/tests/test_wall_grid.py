@@ -43,7 +43,7 @@ def draw(matrix, extent=22, clutter=0, seed=1, skip=0.0, extra=None):
 
 
 def fit(image, focus=None):
-    return wg.fit_grid(wg.detect_bolts(image), W, H, focus)
+    return wg.fit_image(image, W, H, focus)
 
 
 def plane_distance(plane, a, b):
@@ -139,10 +139,10 @@ def test_failed_fit_gives_no_plane_and_a_reason():
 def test_planner_reaches_differ_once_measured_on_the_wall():
     truth = camera(pitch_deg=-30)                           # the top leans away, so the picture shrinks the upper holds
     plane = wg.WallPlane(fit(draw(truth)), W, H)
-    lattice = [[-1, 9], [1, 9], [0, 12], [0, 4], [0, -1], [0, -6]]
+    lattice = [[-1, 9], [1, 9], [0, 12], [0, 4], [0, -1], [0, -6], [1, 8], [-1, 3]]         # the last two are footholds between the hand holds
     pixels = project(truth, lattice)
     holds = [{"id": str(i), "x": p[0] / W, "y": p[1] / H, "radius": 0.02, "role": r, "use": u} for i, (p, (r, u)) in enumerate(zip(pixels, [
-        ("start", "hand"), ("start", "hand"), ("", "foot"), ("", "both"), ("", "both"), ("finish", "hand")]))]
+        ("start", "hand"), ("start", "hand"), ("", "foot"), ("", "both"), ("", "both"), ("finish", "hand"), ("", "foot"), ("", "foot")]))]
     torso_steps = 3.3                                                        # the climber's torso spans 3.3 grid steps
     on_wall = plane.plane(pixels) / torso_steps
     gaps = np.linalg.norm(np.diff(on_wall[[0, 3, 4, 5]], axis=0), axis=1)
@@ -150,12 +150,13 @@ def test_planner_reaches_differ_once_measured_on_the_wall():
     body = beta.Body(1.05, 1.75, 100, 100)
     torso_px_low = torso_steps / plane.local_scale(pixels[2])               # what a picture-based scale near the feet would use
     flat = beta.candidate_sequences(holds, W, H, torso_px_low, body)
-    corrected = beta.candidate_sequences(holds, W, H, torso_px_low, body, on_wall)
+    corrected = beta.candidate_sequences(holds, W, H, torso_px_low, body, on_wall, beta.plane_to_image(plane, torso_steps, W, H))
     assert flat["status"] == "ready" and corrected["status"] == "ready"
     flat_points = beta.hold_points(holds, W, H, torso_px_low)
     top_flat = float(np.linalg.norm(flat_points[5] - flat_points[4]))
     assert gaps[2] > 1.15 * top_flat                                        # the picture understated the last reach
-    assert corrected["candidates"][0]["largest_move_L"] > flat["candidates"][0]["largest_move_L"]
+    figure = corrected["candidates"][0]["figures"][0]                        # the stick figure is drawn back in picture coordinates
+    assert figure["left_hand"] == pytest.approx([holds[0]["x"], holds[0]["y"]], abs=0.002) and figure["neck"][1] > figure["left_hand"][1]
 
 
 def test_dense_speckle_does_not_stall_the_fit():
@@ -171,3 +172,20 @@ def test_dense_speckle_does_not_stall_the_fit():
     on_wall = wg.fit_grid(points, W, H, focus=(360, 400))
     assert time.perf_counter() - began < 5
     assert in_speckle["status"] == "not_found" and on_wall["status"] == "ok"
+
+
+def test_the_grid_is_found_under_wall_speckle_and_the_setting_used_is_reported():
+    truth = camera(pitch_deg=-20)
+    image = draw(truth)
+    rng = np.random.default_rng(3)
+    for x, y in zip(rng.integers(4, W - 4, 2500), rng.integers(4, H - 4, 2500)):
+        cv2.circle(image, (int(x), int(y)), 2, (178, 178, 178), -1)          # faint dots, far lighter than a bolt hole
+    result = wg.fit_image(image, W, H)
+    assert result["status"] == "ok" and result["inliers"] >= wg.MIN_INLIERS and result["method"] == "bolt-grid-v2" and result["detection"]
+    strict, loose = wg.detect_bolts(image, 0.3), wg.detect_bolts(image, 0.1)
+    assert len(loose) > len(strict) >= wg.MIN_INLIERS                          # a lower share lets the faint dots in
+
+
+def test_a_blank_wall_still_gives_no_fit_under_every_setting():
+    result = wg.fit_image(np.full((H, W, 3), 215, np.uint8), W, H)
+    assert result["status"] == "not_found" and "Too few bolt holes" in result["reason"]

@@ -267,3 +267,23 @@ progress { height:8px; border-radius:99px; overflow:hidden; } progress::-webkit-
 @media (max-width:1000px) { .review-main { top:auto; max-height:none; } .stage video { height:min(58vh,560px); } }
 @media (max-width:600px) { .topbar { padding:0 var(--s3); } .page { padding:var(--s3) var(--s3) 40px; } .topnav a { padding:6px 8px; } .tabs { border-radius:12px; } .tab { padding:6px 10px; } .stat { padding:6px 8px; } }
 @media (max-width:600px) { .topbar .local { display:none; } }
+
+/* Hold editor: zoom, drag handles, one-click roles */
+.hold-stage { overflow:hidden; } .hold-stage.zoomed { overflow:auto; overscroll-behavior:contain; }
+.hold-canvas { position:relative; min-width:100%; min-height:100%; }
+.hold-canvas img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+.hold-canvas svg { position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; touch-action:manipulation; }
+.hold-mark { cursor:grab; } .hold-mark:active { cursor:grabbing; } .hold-mark:focus-visible { outline:none; stroke:#fff; }
+.hold-handle { cursor:ew-resize; }
+.frame-picker { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:var(--stage); border-radius:var(--r-sm); }
+.zoom-bar { margin-bottom:var(--s2); align-items:center; }
+.field { margin:var(--s2) 0; } .field-label { display:block; font-size:.82rem; font-weight:600; color:var(--ink-2); margin-bottom:4px; }
+.field .seg { flex-wrap:wrap; }
+.seg .button[aria-pressed=true] { background:var(--accent); color:#fff; border-color:var(--accent); }
+.inline-field { display:inline-flex; align-items:center; gap:6px; margin:0; } .inline-field input { width:6.5em; }
+.hold-details details, .tips { margin:var(--s2) 0; } .tips li { margin-bottom:4px; }
+.length-field { border:0; padding:0; margin:0 0 var(--s2); display:flex; gap:var(--s2); align-items:flex-end; }
+.length-field legend { font-size:.82rem; font-weight:600; color:var(--ink-2); padding:0; margin-bottom:4px; }
+.length-field label { display:flex; flex-direction:column; font-size:.78rem; margin:0; } .length-field input { width:4.5em; }
+.limb-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:baseline; }
+.phase-list .link[aria-current=step] { font-weight:700; }

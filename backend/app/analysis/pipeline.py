@@ -160,7 +160,7 @@ def render_report(run: dict[str, Any]) -> str:
         f"{coverage['pose_detected_samples']} ({_percent(coverage['pose_detected_fraction'])})",
         f"- Attempt scale: {scale['status']}, L = {scale['L_px']} px from {scale['reliable_samples']} samples",
         f"- Excluded intervals: {coverage.get('excluded_intervals', {})}",
-        f"- Inference: {run['runtime_s']['pose_extraction']:.2f} s, "
+        f"- Inference: {run['runtime_s']['pose_extraction']:.2f}s, "
         f"{run['runtime_s']['inference_samples_per_s']:.1f} samples/s on {run['pose_model']['options']['delegate']}",
         "",
         "| Detector | Status | Eligible ms | Attempt ms | Fraction | Longest segment ms | Gaps |",

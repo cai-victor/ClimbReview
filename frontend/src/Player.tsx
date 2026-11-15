@@ -12,9 +12,11 @@ export type Focus = "all" | "feet" | "hands";
 const inFocus = (focus: Focus, name: string) =>
   focus === "all" || (focus === "feet" ? /(knee|ankle|heel|foot_index)$/.test(name) : /(shoulder|elbow|wrist)$/.test(name));
 const FOOT_ANCHOR: [string, string][] = [["left_ankle", "L foot"], ["right_ankle", "R foot"]];
-export interface Trail { points: { t: number; x: number; y: number }[]; side: "left" | "right" }
-const COLOR = { left: "#f28c28", right: "#2ab7f5", center: "#ffffff" };
-const side = (name: string) => (name.startsWith("left") ? COLOR.left : name.startsWith("right") ? COLOR.right : COLOR.center);
+export interface Trail { points: { t: number; x: number; y: number }[]; side: "left" | "right"; part: "hand" | "foot" }
+// Arms are one color and legs another, because that is what a climber looks for. Left and right are tagged with letters.
+export const PART_COLOR = { hand: "#2ab7f5", foot: "#f28c28", center: "#ffffff" };
+const part = (name: string) => (/(elbow|wrist)$/.test(name) ? PART_COLOR.hand : /(knee|ankle|heel|foot_index)$/.test(name) ? PART_COLOR.foot : PART_COLOR.center);
+const SIDE_TAGS: [string, string][] = [["left_wrist", "L"], ["right_wrist", "R"], ["left_ankle", "L"], ["right_ankle", "R"]];
 // A 10 Hz track: use a sample only if it is the nearest one to this moment; never hold it longer.
 const MAX_SAMPLE_DISTANCE_MS = 60;
 
@@ -160,7 +162,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
         const shown = trail.points.filter((point) => point.t <= ms);
         const place = (point: { x: number; y: number }): [number, number] => [offsetX + point.x * contentW, offsetY + point.y * contentH];
         drawnTrail += shown.length;
-        context.strokeStyle = side(`${trail.side}_`);
+        context.strokeStyle = trail.part === "hand" ? PART_COLOR.hand : PART_COLOR.foot;
         context.lineWidth = 4;
         context.setLineDash([2, 6]);
         context.beginPath();
@@ -179,7 +181,7 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
         context.globalAlpha = strong.size && !heavy ? 0.35 : 1;
         if (heavy) { context.strokeStyle = "rgba(0,0,0,.8)"; context.lineWidth = 9; context.beginPath(); context.moveTo(p[0], p[1]); context.lineTo(q[0], q[1]); context.stroke(); }
         context.lineWidth = heavy ? 5 : 3;
-        context.strokeStyle = a.split("_")[0] === b.split("_")[0] ? side(a) : COLOR.center;
+        context.strokeStyle = a.split("_")[0] === b.split("_")[0] ? (part(b) === PART_COLOR.center ? part(a) : part(b)) : PART_COLOR.center;
         context.beginPath(); context.moveTo(p[0], p[1]); context.lineTo(q[0], q[1]); context.stroke();
       }
       context.lineWidth = 3;
@@ -187,17 +189,27 @@ export const Player = forwardRef<PlayerHandle, Props>(function Player({ src, sam
         if (!inFocus(focus, name)) continue;
         const p = at(name)!;
         context.globalAlpha = strong.size && !strong.has(name) ? 0.35 : 1;
-        context.fillStyle = side(name);
+        context.fillStyle = part(name);
         context.beginPath(); context.arc(p[0], p[1], strong.has(name) ? 7 : focus === "feet" ? 6 : 4, 0, Math.PI * 2); context.fill();
       }
       context.globalAlpha = 1;
+      if (focus !== "feet") {
+        // The tracker's own left and right, so a swapped side is visible.
+        context.font = "700 11px system-ui, sans-serif";
+        for (const [name, label] of SIDE_TAGS) {
+          const p = inFocus(focus, name) ? at(name) : null;
+          if (!p) continue;
+          context.lineWidth = 3; context.strokeStyle = "rgba(0,0,0,.8)"; context.strokeText(label, p[0] + 7, p[1] - 6);
+          context.fillStyle = "#fff"; context.fillText(label, p[0] + 7, p[1] - 6);
+        }
+      }
       if (focus === "feet") {
         context.font = "600 13px system-ui, sans-serif";
         for (const [name, label] of FOOT_ANCHOR) {
           const p = at(name);
           if (!p) continue;
           context.lineWidth = 3; context.strokeStyle = "rgba(0,0,0,.75)"; context.strokeText(label, p[0] + 10, p[1] - 8);
-          context.fillStyle = side(name); context.fillText(label, p[0] + 10, p[1] - 8);
+          context.fillStyle = part(name); context.fillText(label, p[0] + 10, p[1] - 8);
         }
       }
     };

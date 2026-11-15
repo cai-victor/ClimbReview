@@ -32,9 +32,9 @@ export function ClimbProfile({ story, bounds, time, onSeek }: { story: Ready; bo
       <h2>Your climb</h2>
       <p data-testid="story-headline">{story.headline}</p>
       <div className="stat-row">
-        <div className="stat"><span className="stat-value">{(stats.on_wall_ms / 1000).toFixed(0)} s</span><span className="stat-label">on the wall</span></div>
-        <div className="stat"><span className="stat-value">{(stats.moving_ms / 1000).toFixed(0)} s</span><span className="stat-label">moving</span></div>
-        <div className="stat"><span className="stat-value">{(stats.stopped_ms / 1000).toFixed(0)} s</span><span className="stat-label">staying put, in {stats.stops} place{stats.stops === 1 ? "" : "s"}</span></div>
+        <div className="stat"><span className="stat-value">{(stats.on_wall_ms / 1000).toFixed(0)}s</span><span className="stat-label">on the wall</span></div>
+        <div className="stat"><span className="stat-value">{(stats.moving_ms / 1000).toFixed(0)}s</span><span className="stat-label">moving</span></div>
+        <div className="stat"><span className="stat-value">{(stats.stopped_ms / 1000).toFixed(0)}s</span><span className="stat-label">staying put, in {stats.stops} place{stats.stops === 1 ? "" : "s"}</span></div>
         <div className="stat"><span className="stat-value">{stats.height_gained_L.toFixed(1)}</span><span className="stat-label">torso lengths gained, high point at <button className="link num" onClick={() => onSeek(stats.high_point_ms)}>{clock(stats.high_point_ms)}</button></span></div>
       </div>
       <div className="movement-chart">
@@ -53,14 +53,14 @@ export function ClimbProfile({ story, bounds, time, onSeek }: { story: Ready; bo
         <div className="chart-time"><span>{clock(bounds.start)}</span><span>{clock(bounds.end)}</span></div>
         {point && hover && <div className="chart-tip" style={{ left: hover.px, top: 40 }}>{clock(point.t)}: {point.h.toFixed(1)} torso lengths up</div>}
       </div>
-      <p className="legend"><span className="swatch event-swatch" style={{ marginLeft: 0 }} /> Stayed in one area for 3 s or more{off.length > 0 && <><span className="swatch hatch-swatch" /> Not counted as climbing</>}. Click the chart to jump there.</p>
+      <p className="legend"><span className="swatch event-swatch" style={{ marginLeft: 0 }} /> Stayed in one area for 3s or more{off.length > 0 && <><span className="swatch hatch-swatch" /> Not counted as climbing</>}. Click the chart to jump there.</p>
       {story.stops.length > 0 && (
         <details>
           <summary>Where you stayed put ({story.stops.length})</summary>
           <ul className="plain-list small-text">
             {story.stops.map((stop) => {
               const feet = stop.counts.left_foot + stop.counts.right_foot, hands = stop.counts.left_wrist + stop.counts.right_wrist;
-              return <li key={stop.start_ms}><button className="link num" onClick={() => onSeek(stop.start_ms)}>{clock(stop.start_ms)}</button> for {(stop.duration_ms / 1000).toFixed(0)} s, {stop.height_L.toFixed(1)} torso lengths up. Tracked movements: {feet} foot, {hands} hand.</li>;
+              return <li key={stop.start_ms}><button className="link num" onClick={() => onSeek(stop.start_ms)}>{clock(stop.start_ms)}</button> for {(stop.duration_ms / 1000).toFixed(0)}s, {stop.height_L.toFixed(1)} torso lengths up. Tracked movements: {feet} foot, {hands} hand.</li>;
             })}
           </ul>
         </details>

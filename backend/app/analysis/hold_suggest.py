@@ -29,6 +29,29 @@ class SuggestionError(ValueError):
     """The tap cannot be used; the message says what to do."""
 
 
+def fit_region(image_bgr: np.ndarray, x: float, y: float, tolerance: str = "normal") -> dict[str, Any]:
+    """The circle around the one region colored like the tapped point, for sizing a mark the climber already placed."""
+    height, width = image_bgr.shape[:2]
+    px, py = int(round(x * (width - 1))), int(round(y * (height - 1)))
+    lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+    patch = lab[max(0, py - SEED_HALF_PATCH_PX): py + SEED_HALF_PATCH_PX + 1, max(0, px - SEED_HALF_PATCH_PX): px + SEED_HALF_PATCH_PX + 1]
+    difference = lab - np.median(patch.reshape(-1, 3), axis=0)
+    difference[..., 0] *= LIGHTNESS_WEIGHT
+    mask = (np.linalg.norm(difference, axis=2) < TOLERANCES[tolerance]).astype(np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    _, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    tapped = labels[py, px]
+    if not tapped:
+        raise SuggestionError("No evenly colored region was found under this mark. Set its size by dragging the handle on its edge.")
+    if stats[tapped, cv2.CC_STAT_AREA] > MAX_AREA_FRACTION * width * height:
+        raise SuggestionError("The color under this mark covers a large part of the picture, so it looks like wall. Set the size by dragging the handle on its edge.")
+    (cx, cy), radius = cv2.minEnclosingCircle(cv2.findNonZero((labels == tapped).astype(np.uint8)))
+    return {"method": SUGGEST_VERSION, "x": round(float(cx / width), 5), "y": round(float(cy / height), 5),
+            "radius": round(float(np.clip(radius / width, *RADIUS_LIMITS)), 4),
+            "note": "Sized to the patch of matching color under the mark. This is color matching, not hold recognition, so check it."}
+
+
 def suggest(image_bgr: np.ndarray, x: float, y: float, tolerance: str = "normal",
             existing: Sequence[dict[str, Any]] = ()) -> dict[str, Any]:
     """Regions colored like the tapped point. Coordinates are normalized; radius is a fraction of width."""

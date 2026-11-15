@@ -11,7 +11,10 @@ rsync -a --exclude '__pycache__' --exclude 'forecast' backend/app "$STAGE/backen
 rsync -a frontend/dist "$STAGE/frontend/"
 rsync -a config "$STAGE/"
 cp scripts/_bootstrap.py scripts/run_app.py scripts/download_model.py scripts/import_folder.py "$STAGE/scripts/"
-cp environment.yml requirements.lock.txt install.sh start.command "$STAGE/"
+cp environment.yml install.sh start.command "$STAGE/"
+# Testers need only what the running app imports. Tests, the HTTP test client, and the forecast experiment's
+# packages (scikit-learn and SciPy, about 150 MB) are left out of their install.
+grep -viE '^(scikit-learn|scipy|joblib|threadpoolctl|pytest|pluggy|iniconfig|Pygments|httpx|httpcore)==' requirements.lock.txt > "$STAGE/requirements.lock.txt"
 cp TESTER_README.md "$STAGE/README.md"
 chmod +x "$STAGE/install.sh" "$STAGE/start.command"
 rm -f "dist/$NAME.zip"

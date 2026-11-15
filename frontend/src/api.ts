@@ -144,7 +144,7 @@ export const annotationApi = {
     request<AnnotationSet>(`/api/annotation-sets/${id}/intervals/${intervalId}`, { method: "DELETE" }),
 };
 
-export interface Hold { id: string; x: number; y: number; radius: number; route: string; hold_type: string; role: "" | "start" | "finish"; use: "" | "hand" | "foot" | "both" }
+export interface Hold { id: string; x: number; y: number; radius: number; route: string; hold_type: string; role: "" | "start" | "finish"; use: "" | "hand" | "foot" | "both"; pull?: "" | "down" | "left" | "right" | "up" }
 export interface HoldMap {
   id: string; attempt_id: string; name: string; reference_frame_ms: number; width: number; height: number;
   holds: Hold[]; scope_note: string; frame_url: string; scale: MapScale | null;
@@ -165,6 +165,7 @@ export const holdApi = {
   suggest: (mapId: string, body: { x: number; y: number; tolerance: string }) => request<SuggestionResult>(`/api/hold-maps/${mapId}/suggestions`, jsonInit("POST", body)),
   putScale: (mapId: string, body: MapScale) => request<MapScale>(`/api/hold-maps/${mapId}/scale`, jsonInit("PUT", body)),
   get: (mapId: string) => request<HoldMap>(`/api/hold-maps/${mapId}`),
+  fit: (mapId: string, body: { x: number; y: number; tolerance: string }) => request<{ x: number; y: number; radius: number; note: string }>(`/api/hold-maps/${mapId}/fit`, jsonInit("POST", body)),
   wallGeometry: (mapId: string) => request<WallGeometry>(`/api/hold-maps/${mapId}/wall-geometry`),
   wallInfo: (mapId: string) => request<WallInfo>(`/api/hold-maps/${mapId}/wall-info`),
   plan: (mapId: string, heightCm: number, wingspanCm: number, rectify = true) => request<PlanResult>(`/api/hold-maps/${mapId}/plan?height_cm=${heightCm}&wingspan_cm=${wingspanCm}&rectify=${rectify}`),
@@ -200,14 +201,16 @@ export interface Coaching {
   sources: Record<string, { title: string; url: string }>;
   top_card_ids: string[]; story?: Story; cards_after_leaving_wall?: number; glance: Glance; observed_route: ObservedRoute | null; perspective: Perspective | null;
 }
-export interface BetaStep { limb: string; from_hold: number; to_hold: number; distance_L: number; margin_L: number; tight: boolean }
-export interface BetaCandidate { id: string; profile: string; label: string; start: Record<string, number>; feet_start_off_wall: boolean; start_margin_L: number; steps: BetaStep[]; move_count: number; total_distance_L: number; largest_move_L: number; tightest_margin_L: number; tight_moves: number; feedback: Feedback }
+export interface BetaStep { limb: string; from_hold: number; to_hold: number; distance_L: number; margin_L: number; tight: boolean; match?: boolean; crossed?: boolean; high_foot?: boolean }
+/** Joint positions of the sketch figure for one placement, as fractions of the picture. */
+export type BetaPose = Record<string, [number, number]>;
+export interface BetaCandidate { id: string; profile: string; label: string; start: Record<string, number>; feet_start_off_wall: boolean; start_margin_L: number; steps: BetaStep[]; move_count: number; total_distance_L: number; largest_move_L: number; tightest_margin_L: number; tight_moves: number; high_foot_moves?: number; matches?: number; tops_out?: boolean; figures?: BetaPose[]; feedback: Feedback }
 export interface Perspective {
   applied: boolean; reason?: string; detail?: string; bolts_used?: number; scale_change?: number; holds_on_fitted_face?: number; holds?: number; assumption?: string;
   tilt?: { status: string; angle_to_camera_deg?: number; top_toward_camera_deg?: number; turned_sideways_deg?: number; note?: string; reason?: string };
 }
 export interface WallGeometry { status: string; reason: string | null; grid_points: [number, number][]; summary: Perspective }
-export interface BetaResult { perspective?: Perspective; status: "ready" | "setup_needed" | "no_candidate" | "no_map"; needs: string[]; candidates: BetaCandidate[]; hold_map: HoldMapSummary | null; assumptions?: string[]; note?: string }
+export interface BetaResult { perspective?: Perspective; status: "ready" | "setup_needed" | "no_candidate" | "no_map"; needs: string[]; candidates: BetaCandidate[]; hold_map: HoldMapSummary | null; assumptions?: string[]; note?: string; stuck?: { hands_reached: number[]; search_limit_reached: boolean } }
 export interface ComparisonResult {
   status: "needs_labels" | "no_match" | "ready"; meaning: string;
   attempts: { id: string; title: string; outcome: string; is_current: boolean; metrics: { attempt_ms: number; foot_coverage: (number | null)[]; coverage_ok: boolean; foot_moves_per_analyzable_minute: number | null; reaches_evaluated: number; reaches_with_foot_setup: number | null } | null }[];
@@ -236,5 +239,7 @@ export const clock = (ms: number | null | undefined): string => {
   const minutes = Math.floor(total / 60);
   return `${String(minutes).padStart(2, "0")}:${(total - minutes * 60).toFixed(1).padStart(4, "0")}`;
 };
+/** A duration in seconds, written tight against its unit: 52s, 4.5s. */
+export const secs = (ms: number, digits = 0): string => `${(ms / 1000).toFixed(digits)}s`;
 export const percent = (value: number | null | undefined): string =>
   value == null ? "unavailable" : `${(value * 100).toFixed(1)}%`;

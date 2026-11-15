@@ -1,12 +1,46 @@
 # ClimbReview status
 
-Last updated 2026-11-14 after the self-review and high-step rework. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
+Last updated 2026-11-15 after changes made in response to a climber's review. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
 
 ## Bottom line
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Installer and tester release (latest, 2026-11-14)
+## Changes after a climber's review (latest, 2026-11-15)
+
+A more experienced climber tested the release and sent 22 points. Decisions are D96 to D105 in `docs/DECISIONS.md`.
+
+**Done**
+- Planner: no crossed feet, splits, giant moves, or hanging below the feet; profiles are Balanced, Fewer moves, and Low feet, small steps; alternative start footholds; hand matches named; a blocked search says where it stopped; optional pull direction per hold; top out as a finish.
+- A wall-angle bug: plane coordinates could be rotated relative to the picture, which broke "below" and "left of" in every corrected plan. Fixed.
+- Route sketch: a stick figure that can be stepped or played, hands blue and feet orange. The video skeleton uses the same colors with L and R tags.
+- Hold editor: zoom to 600%, drag a hold to move it, drag its handle to resize, one-click role, use, and pull buttons with keys S, M, F, T, a scrub bar to choose the reference frame, "Fit to the hold's color", a prompt offering the highest hold as finish or top out, inches for the scale line, and marking tips (volumes, long holds, start holds reused later, unsure hand or foot).
+- Planner page: height and wingspan in centimeters or feet and inches; distances in real units.
+- Video: HLG phone clips are converted to a natural look for new imports.
+- "Delete attempt" during an import or analysis now stops the job and deletes, instead of being greyed out.
+- Seconds are written "52s".
+- Installer: smaller package list for testers and a parallel downloader.
+
+**Not done, and why**
+- Automatic recognition of start and finish holds: the app cannot read tape or tags, and an earlier rule based on tracked hands picked the wrong start on both routes tried. The finish is offered as the highest mark; the start stays a one-click choice.
+- Holds that are not circles: marks stay circles. The planner measures from each circle's center, and the tips say to put one mark at each place you would grab.
+- Telling a knee from a foot: the pose model reports ankles and knees as it sees them and the app cannot correct it. A knee on a hold is not recognized.
+
+**Verification actually run**
+- `.venv/bin/python -m pytest`: 327 passed.
+- `npx playwright test` in `frontend`: 12 passed, including zoom, drag, resize, roles, top out, pull direction, the sketch controls, and unit switching on a drawn wall.
+- Real routes: the marked IMG_7768 route (17 holds) went from one 14-move sequence with a 3.84 torso-length move to two sequences of 20 and 15 moves with a longest move of 2.42. IMG_7547 (10 holds) gives one 9-move sequence, longest move 2.02. `scripts/check_wall_geometry.py` results are in D104.
+- Video look: one frame of IMG_7850 compared by measurement and by an AI-assisted look with macOS's rendering.
+- Clean install from the release zip on this Mac (Apple Silicon, private micromamba): 21 seconds, of which 4 were Python packages. The package download cache was warm from a run minutes earlier, so a first install on another computer will take longer; that time was not measured.
+- The live database was backed up to `data/app/backups/climbreview_before_feedback_changes.sqlite` before the `pull` column was added. 16 attempts and 41 holds are unchanged.
+
+**Limits**
+- Every new planner limit is a stated assumption. No climber has rated the new sequences, and the reviewer has not seen these changes.
+- The auto-proposed 16-hold route on IMG_7238 in the browser test now returns no sequence; it includes holds from color matching that the climber never confirmed.
+- Existing attempts keep the old, brighter video until imported again.
+- The hold map on IMG_7768 carries a 6 cm scale line that makes an entered 170 cm climber about twice the size of the tracked one, so its measurement-based plan is not meaningful until the scale is reset.
+
+## Installer and tester release (2026-11-14)
 
 Added `install.sh`, `start.command`, `TESTER_README.md`, and `scripts/make_release.sh`.
 

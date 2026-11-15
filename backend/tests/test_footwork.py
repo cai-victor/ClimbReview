@@ -294,18 +294,18 @@ def test_truncated_neighbor_is_described_as_last_observed():
     hand = hand_event(2000, 3000)
     cut = foot_event("cut", 1000, 1500, truncated_end=True)
     x.describe_events([cut, hand], x_series(40))
-    assert "last observed moving 0.5 s before" in hand["feedback"]["context"]
+    assert "last observed moving 0.5s before" in hand["feedback"]["context"]
     whole = foot_event("whole", 1000, 1500, truncated_end=False)
     hand = hand_event(2000, 3000)
     x.describe_events([whole, hand], x_series(40))
-    assert "finished moving 0.5 s before" in hand["feedback"]["context"]
+    assert "finished moving 0.5s before" in hand["feedback"]["context"]
 
 
 def test_truncated_following_neighbor_is_described_as_first_observed():
     hand = hand_event(0, 500)
     late = foot_event("late", 900, 1400, truncated_start=True)
     x.describe_events([hand, late], x_series(40))
-    assert "first observed already moving 0.4 s after" in hand["feedback"]["context"]
+    assert "first observed already moving 0.4s after" in hand["feedback"]["context"]
 
 
 def test_digest_lists_repeats_as_observations_and_limits_as_unknown():

@@ -5,9 +5,9 @@ ClimbReview reviews a video of one bouldering attempt. It runs entirely on your 
 ## What you need
 
 - A Mac (tested on Apple Silicon). Intel Macs and Linux should work but have not been tested. On Windows, use WSL.
-- About 2 GB of free disk space and an internet connection for the install.
+- About 1.5 GB of free disk space and an internet connection for the install.
 
-## Install (once, about 5 to 10 minutes)
+## Install (once, a few minutes on a fast connection)
 
 1. Unzip the folder somewhere you can find it, for example your Desktop.
 2. Open the Terminal app, type `cd ` (with a space), drag the unzipped folder onto the Terminal window, and press Return.

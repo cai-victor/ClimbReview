@@ -150,7 +150,7 @@ def validate_source(p: VideoProbe, cfg: AnalysisConfig) -> None:
         raise SourceVideoError("Video duration could not be determined. Re-export the clip as MP4.")
     if p.duration_ms > cfg.max_duration_s * 1000:
         raise SourceVideoError(
-            f"Video lasts {p.duration_ms / 1000:.1f} s; the limit is {cfg.max_duration_s:g} s. Trim it first."
+            f"Video lasts {p.duration_ms / 1000:.1f}s; the limit is {cfg.max_duration_s:g}s. Trim it first."
         )
     if p.size_bytes > cfg.max_upload_mb * 1_000_000:
         raise SourceVideoError(
@@ -244,28 +244,34 @@ def compute_geometry(p: VideoProbe, longest_side_px: int) -> CanonicalGeometry:
     )
 
 
+HLG_GAIN = 1.2                # scene light is raised by this much before the highlight shoulder
+HLG_KNEE = 0.7                # linear level above which highlights are compressed
+HLG_SATURATION = 0.85         # 1 keeps the converted colors as they are
+BT709_LUMA = np.array([0.2126, 0.7152, 0.0722])
+
+
 def hlg_signal_to_sdr_signal(rgb: np.ndarray) -> np.ndarray:
     """Convert BT.2020 HLG signal values (0..1) to BT.709 SDR signal values (0..1).
 
-    Follows BT.2100: inverse OETF to scene light, then the 1000-nit OOTF (gamma 1.2).
-    Display light is scaled so HLG reference white (75% signal, about 203 nits) lands
-    near SDR white, highlights above a knee are compressed, primaries are converted
-    to BT.709, and the BT.1886 inverse (gamma 2.4) encodes the result. This is a
-    transparent approximation for pose analysis and review, not a mastering-grade grade.
+    Inverse HLG OETF (BT.2100) to scene light, primaries to BT.709, a modest gain, a
+    shoulder that compresses highlights above a knee while keeping hue, slightly reduced
+    saturation, then a 2.2 gamma. The gain, knee and saturation were set by comparing
+    static parts of one phone clip with macOS's own rendering of the same frame; an
+    earlier version that mapped HLG reference white to SDR white looked washed out and
+    over-saturated. This is a plain approximation for review and pose analysis, not a
+    mastering-grade conversion.
     """
     a, b, c = 0.17883277, 0.28466892, 0.55991073
     signal = np.clip(rgb, 0.0, 1.0)
     scene = np.where(signal <= 0.5, signal ** 2 / 3, (np.exp((signal - c) / a) + b) / 12)
-    luminance = np.sum(scene * np.array([0.2627, 0.6780, 0.0593]), axis=-1, keepdims=True)
-    display = np.power(np.maximum(luminance, 1e-9), 0.2) * scene   # relative to 1000-nit peak
-    relative = display * 1000 / 203
-    peak = np.max(relative, axis=-1, keepdims=True)
-    knee = 0.75
-    compressed = np.where(peak <= knee, peak, knee + (1 - knee) * (1 - np.exp(-(peak - knee) / (1 - knee))))
-    mapped = relative * compressed / np.maximum(peak, 1e-9)
     bt2020_to_bt709 = np.array([[1.6605, -0.5876, -0.0728], [-0.1246, 1.1329, -0.0083], [-0.0182, -0.1006, 1.1187]])
-    linear = np.clip(mapped @ bt2020_to_bt709.T, 0.0, 1.0)
-    return np.power(linear, 1 / 2.4)
+    linear = np.clip(scene @ bt2020_to_bt709.T, 0.0, None) * HLG_GAIN
+    luminance = np.sum(linear * BT709_LUMA, axis=-1, keepdims=True)
+    linear = np.clip(luminance + HLG_SATURATION * (linear - luminance), 0.0, None)
+    peak = np.max(linear, axis=-1, keepdims=True)
+    compressed = np.where(peak <= HLG_KNEE, peak, HLG_KNEE + (1 - HLG_KNEE) * (1 - np.exp(-(peak - HLG_KNEE) / (1 - HLG_KNEE))))
+    mapped = np.clip(linear * compressed / np.maximum(peak, 1e-9), 0.0, 1.0)
+    return np.power(mapped, 1 / 2.2)
 
 
 def write_hlg_cube(path: Path, size: int = 33) -> None:

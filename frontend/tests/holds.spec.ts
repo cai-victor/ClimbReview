@@ -18,6 +18,7 @@ for (const clip of CLIPS) {
     await page.getByTestId("create-map").click();
     await expect(page.getByTestId("hold-svg")).toBeVisible();
 
+    await expect.poll(() => page.getByTestId("hold-image").evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
     // Compute where the image content lies in the letterboxed stage, independently of the SVG.
     const geometry = await page.getByTestId("hold-image").evaluate((node) => {
       const img = node as HTMLImageElement, box = img.getBoundingClientRect();

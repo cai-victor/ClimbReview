@@ -169,7 +169,7 @@ def _sequence_card(event, step, setup, arm) -> dict[str, Any]:
     hand, foot = NAMES[limb_of(event)], NAMES[limb_of(step)]
     gap = (step["start_ms"] - event["end_ms"]) / 1000
     rise = step["evidence"]["net_up_L"]
-    timing = f"{gap:.1f} s after the hand finished" if gap >= 0 else "just as the hand finished"
+    timing = f"{gap:.1f}s after the hand finished" if gap >= 0 else "just as the hand finished"
     arm_row = (_measurement("Arm at end of reach", f"{arm['straightness']:.2f} straightness, {arm['extension']:.2f} of this arm's tracked length")
                if arm["status"] == "available" else _measurement("Arm at end of reach", "not measurable here"))
     return _base_card(
@@ -178,8 +178,8 @@ def _sequence_card(event, step, setup, arm) -> dict[str, Any]:
                f"Your {foot} then rose {rise:.2f} torso lengths, starting {timing}.",
         measurements=[
             _measurement("Hand rise", f"{event['evidence']['net_up_L']:.2f} L", f"at least {C['reach_min_rise_L']} L"),
-            _measurement("Foot rise after", f"{rise:.2f} L, {gap:+.1f} s from the end of the reach", f"at least {C['follow_foot_min_rise_L']} L within {C['follow_window_ms'] / 1000:g} s"),
-            _measurement("Feet in the 1.5 s before", _state_text(setup), "no foot step"), arm_row],
+            _measurement("Foot rise after", f"{rise:.2f} L, {gap:+.1f}s from the end of the reach", f"at least {C['follow_foot_min_rise_L']} L within {C['follow_window_ms'] / 1000:g}s"),
+            _measurement("Feet in the 1.5s before", _state_text(setup), "no foot step"), arm_row],
         why="Moving the feet first can let the legs raise the body, so the hand arrives with more room. On this move the step came after the reach, so the reach had to be made from the lower foot position.",
         try_this=f"Next attempt, step your {foot} up first, toward where it ended at {clock(step['end_ms'])}, then reach with your {hand}. Compare how controlled the hand feels when it arrives.",
         keep_if="The first hand may have been needed to make the step possible, or this may be a deliberate dynamic move. If so, your order may be the right one.",
@@ -195,12 +195,12 @@ def _extended_card(event, setup, arm, poses, series) -> dict[str, Any]:
     foot_text = f"Try raising your {NAMES[lower]} a little first, if there is something to stand on, then reach." if lower else "Try moving a foot up first, if there is something to stand on, then reach."
     return _base_card(
         "extended_reach", "Reach ended with the arm near full length", event, event["start_ms"], event["end_ms"], [limb_of(event), *([lower] if lower else [])],
-        moment=f"At {clock(event['end_ms'])} your {hand} finished a {event['evidence']['net_up_L']:.2f} torso-length rise with the arm close to its full tracked length, and neither foot stepped in the 1.5 s before.",
+        moment=f"At {clock(event['end_ms'])} your {hand} finished a {event['evidence']['net_up_L']:.2f} torso-length rise with the arm close to its full tracked length, and neither foot stepped in the 1.5s before.",
         measurements=[
             _measurement("Hand rise", f"{event['evidence']['net_up_L']:.2f} L", f"at least {C['reach_min_rise_L']} L"),
             _measurement("Arm straightness in the picture", f"{arm['straightness']:.2f}", f"at least {C['arm_straightness_min']}"),
             _measurement("Shoulder-to-wrist, of this arm's tracked length", f"{arm['extension']:.2f}", f"at least {C['arm_extension_min']}"),
-            _measurement("Feet in the 1.5 s before", _state_text(setup), "no foot step")],
+            _measurement("Feet in the 1.5s before", _state_text(setup), "no foot step")],
         why="Reaching near full arm length leaves little room to adjust at the end of the move. A higher foot can bring the hand to the hold with more room.",
         try_this=f"{foot_text} Compare whether you arrive with some bend left in the arm.",
         keep_if="A long straight arm is often good climbing, because it lets the skeleton hang the load. If you reached the hold under control, keep it.",
@@ -210,7 +210,7 @@ def _extended_card(event, setup, arm, poses, series) -> dict[str, Any]:
 
 def _together_card(event, foot_event, overlap, lead_ms, arm) -> dict[str, Any]:
     hand, foot = NAMES[limb_of(event)], NAMES[limb_of(foot_event)]
-    first = f"The {hand} started {-lead_ms / 1000:.1f} s earlier." if lead_ms < -100 else "They started at about the same time."
+    first = f"The {hand} started {-lead_ms / 1000:.1f}s earlier." if lead_ms < -100 else "They started at about the same time."
     arm_row = (_measurement("Arm at end of reach", f"{arm['straightness']:.2f} straightness, {arm['extension']:.2f} of this arm's tracked length")
                if arm["status"] == "available" else _measurement("Arm at end of reach", "not measurable here"))
     return _base_card(
@@ -219,7 +219,7 @@ def _together_card(event, foot_event, overlap, lead_ms, arm) -> dict[str, Any]:
         moment=f"At {clock(event['start_ms'])} your {hand} rose {event['evidence']['net_up_L']:.2f} torso lengths while your {foot} rose {foot_event['evidence']['net_up_L']:.2f}. {first}",
         measurements=[
             _measurement("Time both were moving", f"{overlap * 100:.0f}% of the shorter movement", f"at least {C['together_min_overlap'] * 100:.0f}%"),
-            _measurement("Foot start relative to hand", f"{lead_ms / 1000:+.1f} s (positive means the foot went first)", f"foot not more than {C['foot_led_ms'] / 1000:g} s ahead"),
+            _measurement("Foot start relative to hand", f"{lead_ms / 1000:+.1f}s (positive means the foot went first)", f"foot not more than {C['foot_led_ms'] / 1000:g}s ahead"),
             _measurement("Hand rise", f"{event['evidence']['net_up_L']:.2f} L", f"at least {C['reach_min_rise_L']} L"),
             _measurement("Foot rise", f"{foot_event['evidence']['net_up_L']:.2f} L", f"at least {C['together_min_foot_rise_L']} L"), arm_row],
         why="If a hand and a foot both leave at once, the body may be moving with two points of support during that time. Separating them gives a chance to settle the foot before committing the hand.",
@@ -280,7 +280,7 @@ def _large_step_cards(events, series, poses, bounds, hold_context, not_flagged, 
             cannot.append({"start_ms": event["start_ms"], "text": f"{label}: the hips were not tracked for long enough afterwards to see whether you stood up on it."})
             continue
         if after["rose_ms"] is not None and after["rose_ms"] <= C["stand_up_smooth_ms"]:
-            not_flagged.append({"start_ms": event["start_ms"], "text": f"{label} ({rise:.1f} torso lengths up): your hips rose over it within {after['rose_ms'] / 1000:.1f} s. That looked like a clean stand-up."})
+            not_flagged.append({"start_ms": event["start_ms"], "text": f"{label} ({rise:.1f} torso lengths up): your hips rose over it within {after['rose_ms'] / 1000:.1f}s. That looked like a clean stand-up."})
             continue
         if after["rose_ms"] is not None and after["rose_ms"] < C["stand_up_slow_ms"]:
             continue
@@ -288,8 +288,8 @@ def _large_step_cards(events, series, poses, bounds, hold_context, not_flagged, 
         beside = abs(offset) >= C["hips_off_foot_L"]
         side_word, toward = ("left", "right") if offset < 0 else ("right", "left")
         left_wall = wall_end is not None and after["rose_ms"] is None and wall_end - event["end_ms"] <= C["stand_up_watch_ms"]
-        waited = (f"They rose {C['stand_up_rise_L']:g} torso lengths only after {after['rose_ms'] / 1000:.1f} s." if after["rose_ms"] is not None
-                  else f"In the next {after['watched_ms'] / 1000:.1f} s they did not rise {C['stand_up_rise_L']:g} torso lengths" + (", and then you left the wall." if left_wall else "."))
+        waited = (f"They rose {C['stand_up_rise_L']:g} torso lengths only after {after['rose_ms'] / 1000:.1f}s." if after["rose_ms"] is not None
+                  else f"In the next {after['watched_ms'] / 1000:.1f}s they did not rise {C['stand_up_rise_L']:g} torso lengths" + (", and then you left the wall." if left_wall else "."))
         end_ms = int(min(until, event["end_ms"] + (after["rose_ms"] if after["rose_ms"] is not None else after["watched_ms"])))
         to_px = lambda point: {"x": float(point[0]) / poses.width, "y": float(point[1]) / poses.height}
         foot_at, hips_at = to_px(after["foot"]), to_px(after["hips"])
@@ -303,8 +303,8 @@ def _large_step_cards(events, series, poses, bounds, hold_context, not_flagged, 
                     + (f" and {abs(after['hips_above_foot_L']):.1f} below it. " if after["hips_above_foot_L"] < 0 else ". ") + waited),
             measurements=[_measurement("Foot rise", f"{rise:.2f} L", f"at least {C['large_step_min_rise_L']} L"),
                           _measurement("Hips sideways from the high foot when it landed", f"{abs(offset):.2f} L to the {side_word}", f"beside the foot at {C['hips_off_foot_L']} L or more"),
-                          _measurement("Time for the hips to rise", "did not rise while watched" if after["rose_ms"] is None else f"{after['rose_ms'] / 1000:.1f} s", f"slow at {C['stand_up_slow_ms'] / 1000:g} s or more"),
-                          _measurement("Hips tracked afterwards", f"{after['watched_ms'] / 1000:.1f} s")],
+                          _measurement("Time for the hips to rise", "did not rise while watched" if after["rose_ms"] is None else f"{after['rose_ms'] / 1000:.1f}s", f"slow at {C['stand_up_slow_ms'] / 1000:g}s or more"),
+                          _measurement("Hips tracked afterwards", f"{after['watched_ms'] / 1000:.1f}s")],
             why=("Standing up on a high foot is easiest once your weight is over it. With the hips still beside the foot, the leg has to lift you sideways as well as up, and the arms take the load meanwhile."
                  if beside else "A high foot only helps once you stand on it. A long gap between placing it and rising is time spent holding the position on your arms."),
             try_this=(f"Before you push, move your hips to the {toward} until they are over your {foot}, as if bringing your nose over your toes. Then stand up in one motion. Compare how long the stand-up takes."
@@ -348,9 +348,9 @@ def _pause_cards(events, series, bounds, cannot) -> list[dict[str, Any]]:
         hands = _state_text(tracked)
         cards.append(_base_card(
             "long_pause", "Long stop before the next move", after, latest, after["start_ms"], [*FOOTS, limb_of(after)],
-            moment=f"From {clock(latest)} to {clock(after['start_ms'])} ({seconds:.1f} s) no tracked limb made a movement episode. The next one detected was your {NAMES[limb_of(after)]}."
+            moment=f"From {clock(latest)} to {clock(after['start_ms'])} ({seconds:.1f}s) no tracked limb made a movement episode. The next one detected was your {NAMES[limb_of(after)]}."
                    + (" Hand tracking was incomplete here, so a hand may have moved unseen." if any(item["state"] == "unknown" for item in tracked.values()) else ""),
-            measurements=[_measurement("Time without a movement episode", f"{seconds:.1f} s", f"at least {C['pause_min_ms'] / 1000:g} s"),
+            measurements=[_measurement("Time without a movement episode", f"{seconds:.1f}s", f"at least {C['pause_min_ms'] / 1000:g}s"),
                           _measurement("Feet during it", _state_text(states), "tracked and not stepping"), _measurement("Hands during it", hands)],
             why="A long stop may be useful rest, or it may be working out the next move while holding on. Planning from the ground or from a better rest can save that time on the wall.",
             try_this="If you were working out the next move, plan it from the ground before your next attempt and decide your next two moves in advance. If you were resting, try hanging from a straighter arm so the rest costs less.",
@@ -394,7 +394,7 @@ def _repeat_cards(events, not_flagged) -> list[dict[str, Any]]:
                 "repeat_foot_adjust", "Repeated foot adjustment near a reach", group[0], start, end, [limb, limb_of(reach)],
                 moment=f"Between {clock(start)} and {clock(end)} your {NAMES[limb]} moved {len(group)} times but ended only {net:.2f} torso lengths from where it began. Your {NAMES[limb_of(reach)]} reached at {clock(reach['start_ms'])}.",
                 measurements=[
-                    _measurement("Foot moves", str(len(group)), f"at least 2, each within {C['repeat_gap_ms'] / 1000:g} s"),
+                    _measurement("Foot moves", str(len(group)), f"at least 2, each within {C['repeat_gap_ms'] / 1000:g}s"),
                     _measurement("Net travel over summed travel", f"{ratio:.2f}", f"at most {C['repeat_net_ratio_max']}"),
                     _measurement("Summed travel", f"{travel:.2f} L")],
                 why="Repeated resets can spend time and attention just before a move. Exploring is not always bad, though, and research links some exploratory movement to learning.",
@@ -460,7 +460,7 @@ def _evaluate_reaches(events, series, poses, references, bounds) -> tuple[list[d
         tally["reaches_evaluated"] += 1
         if any(item["state"] == "moved" for item in setup.values()):
             tally["with_foot_setup_before"] += 1
-            not_flagged.append({"start_ms": event["start_ms"], "text": f"{label}: a foot moved in the 1.5 s before, so the feet were being set up first."})
+            not_flagged.append({"start_ms": event["start_ms"], "text": f"{label}: a foot moved in the 1.5s before, so the feet were being set up first."})
             continue
         companions = [f for f in events if f["type"] == "foot_motion" and not is_uncertain(f) and f["start_ms"] <= event["end_ms"] and f["end_ms"] >= event["start_ms"]]
         if companions:
@@ -470,7 +470,7 @@ def _evaluate_reaches(events, series, poses, references, bounds) -> tuple[list[d
             overlap = shared / max(1, min(foot_event["end_ms"] - foot_event["start_ms"], event["end_ms"] - event["start_ms"]))
             lead = event["start_ms"] - foot_event["start_ms"]
             if lead >= C["foot_led_ms"]:
-                not_flagged.append({"start_ms": event["start_ms"], "text": f"{label}: the foot started {lead / 1000:.1f} s earlier, so the foot led this move."})
+                not_flagged.append({"start_ms": event["start_ms"], "text": f"{label}: the foot started {lead / 1000:.1f}s earlier, so the foot led this move."})
             elif foot_event["evidence"]["net_up_L"] < C["together_min_foot_rise_L"] or overlap < C["together_min_overlap"]:
                 not_flagged.append({"start_ms": event["start_ms"], "text": f"{label}: a foot moved during it, but too little or too briefly to count as moving together."})
             else:

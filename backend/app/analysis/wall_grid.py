@@ -15,7 +15,12 @@ from typing import Any, Sequence
 import cv2
 import numpy as np
 
-GRID_VERSION = "bolt-grid-v1"
+GRID_VERSION = "bolt-grid-v2"
+MIN_HOLE_CONTRAST = 14            # gray levels darker than the surrounding wall, for the relative settings below
+# How much darker than the wall around it a dot must be, as a share of that wall's brightness. None is the original
+# rule (an automatic threshold with an 18-level floor). Several settings are tried because the right one depends on
+# how much wall texture the picture shows, which changes with exposure and with the video conversion.
+DETECTION_SETTINGS: tuple[float | None, ...] = (None, 0.2, 0.25, 0.3)
 MIN_INLIERS = 30
 MAX_MEDIAN_RESIDUAL_PX = 2.0
 RANSAC_PX = 3.0
@@ -26,19 +31,41 @@ BASIS_BIN_PX = 2.0
 NEAR_FACE_STEPS = 3                # how far past the fitted area a point still counts as on the same face
 
 
-def detect_bolts(image_bgr: np.ndarray) -> np.ndarray:
-    """Centers of small dark round dots. Many are not bolt holes; the grid fit decides which belong."""
+def detect_bolts(image_bgr: np.ndarray, relative: float | None = None) -> np.ndarray:
+    """Centers of small dark round dots. Many are not bolt holes; the grid fit decides which belong.
+
+    With `relative`, a dot must be darker than the wall around it by at least that share of the wall's brightness.
+    """
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     height, width = gray.shape
     size = max(5, int(width * 0.012) | 1)
-    dark = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size)))
-    _, mask = cv2.threshold(dark, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    mask[dark < 18] = 0
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
+    dark = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kernel)
+    if relative is None:
+        _, mask = cv2.threshold(dark, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        mask[dark < 18] = 0
+    else:
+        around = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel).astype(np.float32)
+        mask = ((dark >= relative * np.maximum(around, 1.0)) & (dark >= MIN_HOLE_CONTRAST)).astype(np.uint8) * 255
     count, _, stats, centers = cv2.connectedComponentsWithStats(mask, connectivity=8)
     limit = (size * 0.9) ** 2
     keep = [i for i in range(1, count) if 2 <= stats[i, cv2.CC_STAT_AREA] <= limit
             and max(stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT]) <= 2.2 * min(stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT]) + 1]
     return centers[keep].astype(np.float64)
+
+
+def fit_image(image_bgr: np.ndarray, width: int, height: int, focus: Sequence[float] | None = None) -> dict[str, Any]:
+    """The bolt grid of a wall picture: the accepted fit with the most bolt holes over several detection settings.
+
+    Every setting must pass the same acceptance rules in `fit_grid`, so trying several cannot loosen them.
+    """
+    best: dict[str, Any] | None = None
+    for setting in DETECTION_SETTINGS:
+        fit = fit_grid(detect_bolts(image_bgr, setting), width, height, focus)
+        fit["detection"] = "automatic threshold" if setting is None else f"{setting:.2f} of the surrounding brightness"
+        if best is None or (fit["status"] == "ok" and (best["status"] != "ok" or fit["inliers"] > best["inliers"])):
+            best = fit
+    return best
 
 
 def _local_basis(points: np.ndarray, center: np.ndarray, radius: float) -> tuple[np.ndarray, np.ndarray] | None:
@@ -63,6 +90,8 @@ def _local_basis(points: np.ndarray, center: np.ndarray, radius: float) -> tuple
     threshold = max(4.0, 0.35 * float(support.max()))
     xs, ys = np.nonzero(support >= threshold)
     centers = np.column_stack([(xs + 0.5) * BASIS_BIN_PX, (ys + 0.5) * BASIS_BIN_PX - bins * BASIS_BIN_PX])
+    if not len(centers):
+        return None
     order = np.argsort(np.linalg.norm(centers, axis=1))
 
     def refine(v: np.ndarray) -> np.ndarray:
@@ -160,10 +189,26 @@ class WallPlane:
         self.hull = np.array(fit["hull"], np.float32)
         self.spacing = float(fit["spacing_px"])
         self.dots = np.array(fit.get("dots", []), np.float64).reshape(-1, 2)
+        # The fitted grid's own axes can point any way. Turn plane coordinates so that right and down in the picture are
+        # right and down on the plane, because the planner reads "below", "left of", and "upright" from them.
+        center = self.hull.reshape(-1, 2).mean(axis=0).astype(np.float64) if len(self.hull) else np.array([width / 2, height / 2])
+        a, b, c = self._lattice([center, center + [1, 0], center + [0, 1]])
+        u, _, vt = np.linalg.svd(np.column_stack([b - a, c - a]))
+        self.turn = (u @ vt).T                      # nearest pure rotation or mirror; distances are unchanged
 
-    def plane(self, points_px: Sequence[Sequence[float]]) -> np.ndarray:
+    def _lattice(self, points_px: Sequence[Sequence[float]]) -> np.ndarray:
+        """Positions in the fitted grid's own steps and axes."""
         points = np.asarray(points_px, np.float64).reshape(-1, 1, 2)
         return cv2.perspectiveTransform(points, self.to_plane).reshape(-1, 2)
+
+    def plane(self, points_px: Sequence[Sequence[float]]) -> np.ndarray:
+        """Positions on the wall plane in grid steps, turned to match the picture: x to the right, y downward."""
+        return self._lattice(points_px) @ self.turn.T
+
+    def image(self, points_plane: Sequence[Sequence[float]]) -> np.ndarray:
+        """Picture pixels for positions given by `plane`."""
+        points = (np.asarray(points_plane, np.float64).reshape(-1, 2) @ self.turn).reshape(-1, 1, 2)
+        return cv2.perspectiveTransform(points, self.to_image).reshape(-1, 2)
 
     def covers(self, point_px: Sequence[float]) -> bool:
         """Whether a picture point can be shown to lie on the wall face the grid was fitted to.
@@ -178,7 +223,7 @@ class WallPlane:
         near = self.dots[np.linalg.norm(self.dots - point, axis=1) <= 4 * self.spacing] if len(self.dots) else np.empty((0, 2))
         if len(near) < 8:
             return False
-        lattice = self.plane(near)
+        lattice = self._lattice(near)
         return float(np.mean(np.linalg.norm(lattice - np.round(lattice), axis=1) <= 0.2)) >= 0.6
 
     def local_scale(self, point_px: Sequence[float]) -> float:

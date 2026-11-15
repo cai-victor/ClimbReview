@@ -272,32 +272,32 @@ def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], sample
         pattern, try_this, keep_if = _stall_reading(longest["counts"])
         takeaways.append({
             "id": _id("stall", longest["start_ms"]), "kind": "longest_stop", "pattern": pattern, "start_ms": longest["start_ms"], "end_ms": longest["end_ms"],
-            "title": f"{seconds:.0f} s in one area, {share:.0%} of your time on the wall",
+            "title": f"{seconds:.0f}s in one area, {share:.0%} of your time on the wall",
             "observed": f"From {clock(longest['start_ms'])} to {clock(longest['end_ms'])} your hips stayed within {max(longest['spread_L'], 0.1):.1f} torso lengths of one place, about {longest['height_L']:.1f} torso lengths above your lowest point. {_limb_text(longest['counts'])}{_moves_text(longest['start_ms'], longest['end_ms'], events)}",
-            "highlight": {"at_ms": longest["start_ms"], "caption": f"Hips stayed inside this circle for {seconds:.0f} s",
+            "highlight": {"at_ms": longest["start_ms"], "caption": f"Hips stayed inside this circle for {seconds:.0f}s",
                           "shapes": [{"type": "area", "x": longest["x"] * length_px / width, "y": longest["y"] * length_px / height, "r": max(longest["spread_L"], C["stall_radius_L"]) * length_px / width, "label": "hips stayed here"}]},
             "why": "Time spent holding on in one place adds up over a boulder problem. It usually goes to a decision or to a rest, and the two call for different changes.",
             "limbs": [], "try_this": try_this, "keep_if": keep_if,
             "verify": "The video cannot tell a planned rest from hesitation, and a hidden hand or foot may have moved unseen.",
-            "measurements": [measure("Time in one area", f"{seconds:.1f} s"), measure("How far the hips strayed", f"{longest['spread_L']:.1f} torso lengths"), measure("Share of time on the wall", f"{share:.0%}"),
+            "measurements": [measure("Time in one area", f"{seconds:.1f}s"), measure("How far the hips strayed", f"{longest['spread_L']:.1f} torso lengths"), measure("Share of time on the wall", f"{share:.0%}"),
                              measure("Foot movements during it, left / right", f"{longest['counts']['left_foot']} / {longest['counts']['right_foot']}"),
                              measure("Hand movements during it, left / right", f"{longest['counts']['left_wrist']} / {longest['counts']['right_wrist']}"),
                              measure("Hips tracked during it", f"{longest['tracked_fraction']:.0%}")]})
     if drop:
         last = next((s for s in stalls if s["role"] == "before_leaving"), None)
         reached = (floor - float(y[np.flatnonzero(t == drop["start_ms"])[0]])) / max(stats["height_gained_L"], 1e-6)
-        waited = f" You had been in that spot for {last['duration_ms'] / 1000:.0f} s." if last else ""
+        waited = f" You had been in that spot for {last['duration_ms'] / 1000:.0f}s." if last else ""
         before = [e for e in events if limb_of(e) and not is_uncertain(e) and drop["start_ms"] - 4000 <= e["start_ms"] and e["end_ms"] <= drop["start_ms"] + 300]
         final = max(before, key=lambda e: e["end_ms"], default=None)
         final_text = (f" The last tracked movement before it was your {NAMES[limb_of(final)]} at {clock(final['start_ms'])}, {final['evidence'].get('max_displacement_L', 0):.1f} torso lengths."
-                      if final else " No hand or foot movement was tracked in the 4 s before it.")
+                      if final else " No hand or foot movement was tracked in the 4s before it.")
         at = lambda ms: int(np.flatnonzero(t == ms)[0])
         top_i, low_i = at(drop["start_ms"]), at(drop["end_ms"])
         norm = lambda i: (float(x[i]) * length_px / width, float(y[i]) * length_px / height)
         takeaways.append({
             "id": _id("drop", drop["start_ms"]), "kind": "left_wall", "start_ms": max(wall_start, drop["start_ms"] - 2000), "end_ms": drop["end_ms"],
             "title": f"You left the wall at {clock(drop['start_ms'])}",
-            "observed": f"At {clock(drop['start_ms'])} your hips dropped {drop['drop_L']:.1f} torso lengths in {(drop['end_ms'] - drop['start_ms']) / 1000:.1f} s, from {reached:.0%} of the highest point you reached.{waited}{final_text}",
+            "observed": f"At {clock(drop['start_ms'])} your hips dropped {drop['drop_L']:.1f} torso lengths in {(drop['end_ms'] - drop['start_ms']) / 1000:.1f}s, from {reached:.0%} of the highest point you reached.{waited}{final_text}",
             "highlight": {"at_ms": drop["start_ms"], "caption": f"Hips dropped {drop['drop_L']:.1f} torso lengths from here",
                           "shapes": [{"type": "dot", "x": norm(top_i)[0], "y": norm(top_i)[1], "label": "hips when it began"},
                                      {"type": "arrow", "x1": norm(top_i)[0], "y1": norm(top_i)[1], "x2": norm(low_i)[0], "y2": norm(low_i)[1], "label": ""}]},
@@ -309,7 +309,7 @@ def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], sample
             "keep_if": "If you had finished and jumped down on purpose, there is nothing to change here.",
             "verify": "The video cannot tell a fall from a jump down, or show why a hand or foot came off.",
             "measurements": [measure("Hip drop", f"{drop['drop_L']:.1f} torso lengths"), measure("Height when it began", f"{reached:.0%} of your high point"),
-                             *([measure("Time in that spot before it", f"{last['duration_ms'] / 1000:.1f} s")] if last else [])]})
+                             *([measure("Time in that spot before it", f"{last['duration_ms'] / 1000:.1f}s")] if last else [])]})
     feet = [e for e in events if e["type"] == "foot_motion" and not is_uncertain(e) and e["start_ms"] <= wall_end]
     small = [e for e in feet if e["evidence"].get("max_displacement_L", 9) < C["small_foot_L"]]
     if len(small) >= 3 and len(small) / len(feet) >= 0.4:
@@ -329,27 +329,27 @@ def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], sample
     if start and start["duration_ms"] >= 5000 and wall_end - start["end_ms"] >= 2000 and stats["height_gained_L"] + float(np.ptp(x[on])) >= 1.0:
         takeaways.append({
             "id": _id("start", start["end_ms"]), "kind": "slow_start", "start_ms": start["start_ms"], "end_ms": start["end_ms"],
-            "title": f"{start['duration_ms'] / 1000:.0f} s at the start before your hips moved away",
-            "observed": f"The first {start['duration_ms'] / 1000:.0f} s of the clip show your hips in one place. {_limb_text(start['counts'])}",
+            "title": f"{start['duration_ms'] / 1000:.0f}s at the start before your hips moved away",
+            "observed": f"The first {start['duration_ms'] / 1000:.0f}s of the clip show your hips in one place. {_limb_text(start['counts'])}",
             "try_this": "If you were already holding the start holds, read the first moves from the ground instead, then pull on and go. If you were still on the ground, trim the clip's start so this time is not counted.",
             "why": "Time on the start holds counts toward how long you hold on.", "limbs": [],
             "keep_if": "Settling into a sit start or a hard first position takes time. If that is what this was, keep it.",
             "verify": "The app cannot tell standing on the ground from hanging on the start holds here.",
-            "measurements": [measure("Time before the hips moved away", f"{start['duration_ms'] / 1000:.1f} s")]})
+            "measurements": [measure("Time before the hips moved away", f"{start['duration_ms'] / 1000:.1f}s")]})
 
     if not drop and wall_ms >= 8000 and stopped_ms / wall_ms < 0.15 and tracked >= 0.9:
         takeaways.append({
             "id": _id("steady", wall_start, wall_end), "kind": "steady", "start_ms": wall_start, "end_ms": min(wall_end, wall_start + 5000),
-            "title": f"You kept moving: {('no stop' if not stalls else 'almost no time stopped')} in {wall_ms / 1000:.0f} s on the wall",
-            "observed": f"From {clock(wall_start)} to {clock(wall_end)} your hips never stayed in one area for more than {max((s2['duration_ms'] for s2 in stalls), default=C['stall_min_ms']) / 1000:.0f} s"
-                        + (", and no stop of 3 s or more was found." if not stalls else f"; {stopped_ms / 1000:.0f} s in total was spent stopped."),
+            "title": f"You kept moving: {('no stop' if not stalls else 'almost no time stopped')} in {wall_ms / 1000:.0f}s on the wall",
+            "observed": f"From {clock(wall_start)} to {clock(wall_end)} your hips never stayed in one area for more than {max((s2['duration_ms'] for s2 in stalls), default=C['stall_min_ms']) / 1000:.0f}s"
+                        + (", and no stop of 3s or more was found." if not stalls else f"; {stopped_ms / 1000:.0f}s in total was spent stopped."),
             "why": "An attempt without long stops is a useful reference: it shows the pace you can hold when you know the moves.", "limbs": [],
             "try_this": "Nothing to change from the timing. Keep this attempt as your reference and compare harder attempts against it, using the same problem and climber name in the Compare tab.",
             "keep_if": "Moving steadily is not always the goal. On a harder problem a rest in the right place can be the better choice.",
             "verify": "Steady hips do not show whether each hold felt secure.",
-            "measurements": [measure("Time on the wall", f"{wall_ms / 1000:.1f} s"), measure("Time stopped", f"{stopped_ms / 1000:.1f} s"), measure("Hips tracked", f"{tracked:.0%}")]})
+            "measurements": [measure("Time on the wall", f"{wall_ms / 1000:.1f}s"), measure("Time stopped", f"{stopped_ms / 1000:.1f}s"), measure("Hips tracked", f"{tracked:.0%}")]})
     places = len(stalls)
-    headline = (f"On the wall for {wall_ms / 1000:.0f} s: moving for {(wall_ms - stopped_ms) / 1000:.0f} s and staying put for {stopped_ms / 1000:.0f} s"
+    headline = (f"On the wall for {wall_ms / 1000:.0f}s: moving for {(wall_ms - stopped_ms) / 1000:.0f}s and staying put for {stopped_ms / 1000:.0f}s"
                 + (f" in {places} place{'s' if places != 1 else ''}." if places else ".")
                 + (f" You left the wall at {clock(wall_end)}." if drop else "")
                 + ({"left_the_ground": f" Counted from {clock(wall_start)}, when your feet left the lowest level seen in the clip (the ground or your first foothold).",

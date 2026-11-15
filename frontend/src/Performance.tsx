@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Perspective } from "./api";
 import { Glance, holdApi, ObservedRoute, ProposedHold, RoleProposal, RouteProposal, RouteWall } from "./api";
-import { Attempt, BetaCandidate, BetaResult, Coaching, CoachingCard, clock, ComparisonResult, Feedback, performanceApi, Placement, PlacementReview, api, HoldMapSummary } from "./api";
+import { Attempt, BetaResult, Coaching, CoachingCard, clock, ComparisonResult, Feedback, performanceApi, Placement, PlacementReview, api } from "./api";
 
 export const LIMB_WORD: Record<string, string> = { left_foot: "Left foot", right_foot: "Right foot", left_hand: "Left hand", right_hand: "Right hand", left_wrist: "Left hand", right_wrist: "Right hand" };
+import { BetaFigure, CandidateDetail } from "./BetaView";
+export { BetaFigure };
 export const holdName = (index: number) => `H${index + 1}`;
 
 const LIMB_SHORT: Record<string, string> = { left_foot: "L foot", right_foot: "R foot", left_hand: "L hand", right_hand: "R hand", left_wrist: "L hand", right_wrist: "R hand" };
@@ -59,7 +61,7 @@ export function CoachingCardView({ card, selected, onSelect, onWatch, onFeedback
         <div className="cue-body" id={`cue-body-${card.id}`}>
           <div className="row tight" style={{ margin: 0 }}>
             <button className="button primary small" data-testid="cue-watch" onClick={onWatch}>▶ Watch this moment</button>
-            <span className="muted small-text num">{clock(card.start_ms)} to {clock(card.end_ms)}, with 1 s of lead-in</span>
+            <span className="muted small-text num">{clock(card.start_ms)} to {clock(card.end_ms)}, with 1s of lead-in</span>
           </div>
           {(card.highlight || card.limbs.length > 0) && <p className="muted small-text" data-testid="cue-on-video">On the video: {card.limbs.length > 0 ? `your ${card.limbs.map((limb) => LIMB_WORD[limb]?.toLowerCase()).join(" and ")} ${card.limbs.length > 1 ? "are" : "is"} drawn heavier` : ""}{card.limbs.length > 0 && card.highlight ? ", and " : ""}{card.highlight ? "yellow marks show what was measured" : ""}.</p>}
           <div className="cue-section">
@@ -176,30 +178,6 @@ export function FootPlacements({ coaching, onSeek, onSave, attemptId }: { coachi
   );
 }
 
-export function BetaFigure({ map, candidate, stepIndex, width, height }: { map: HoldMapSummary; candidate: BetaCandidate | null; stepIndex: number; width: number; height: number }) {
-  const point = (index: number) => [map.holds[index].x * width, map.holds[index].y * height] as const;
-  const stroke = Math.max(2, width / 300);
-  return (
-    <div className="beta-stage" style={{ aspectRatio: `${width} / ${height}` }} data-testid="beta-figure">
-      <img src={map.frame_url} alt={`Reference frame at ${clock(map.reference_frame_ms)} with marked holds`} />
-      <svg viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-        {candidate?.steps.map((step, index) => {
-          if (step.from_hold < 0) return null;
-          const [x1, y1] = point(step.from_hold), [x2, y2] = point(step.to_hold);
-          const foot = step.limb.endsWith("foot"), left = step.limb.startsWith("left");
-          return <line key={index} x1={x1} y1={y1} x2={x2} y2={y2} stroke={left ? "#f28c28" : "#2ab7f5"} strokeWidth={index === stepIndex ? stroke * 2 : stroke} strokeDasharray={foot ? `${stroke * 3} ${stroke * 2}` : undefined} opacity={index === stepIndex ? 1 : 0.55} />;
-        })}
-        {map.holds.map((hold, index) => (
-          <g key={hold.id}>
-            <circle cx={hold.x * width} cy={hold.y * height} r={hold.radius * width} fill="none" stroke={hold.role === "start" ? "#2fbf71" : hold.role === "finish" ? "#e0245e" : "#ffc800"} strokeWidth={stroke} />
-            <text x={hold.x * width} y={hold.y * height} textAnchor="middle" dominantBaseline="middle" fontSize={width / 22} fontWeight="700" fill="#fff" stroke="#000" strokeWidth={stroke / 2} paintOrder="stroke">{index + 1}</text>
-          </g>
-        ))}
-      </svg>
-    </div>
-  );
-}
-
 export function BetaPanel({ attempt, runId, reloadKey, onFeedback }: { attempt: Attempt; runId: string; reloadKey: number; onFeedback: () => void }) {
   const [result, setResult] = useState<BetaResult | null>(null);
   const [active, setActive] = useState(0);
@@ -214,7 +192,7 @@ export function BetaPanel({ attempt, runId, reloadKey, onFeedback }: { attempt: 
   return (
     <section className="card" data-testid="beta-panel" aria-label="Alternative beta">
       <h2>Other sequences to test</h2>
-      <p className="muted small-text">Built from the holds marked on this route and your tracked reach. Each is an option to try on the wall, not a ranking.</p>
+      <p className="muted small-text">Built from the holds marked on this route and your tracked reach, with rules against impossible positions such as crossed feet or a foot above both hands. Each is an option to try on the wall, not a ranking. Press Play to watch a sketch climb it.</p>
       {result.status === "no_map" && <RouteSetup runId={runId} attemptId={attempt.id} onDone={() => { void load(); onFeedback(); }} />}
       {result.hold_map && result.status === "setup_needed" && <FillRoles runId={runId} mapId={result.hold_map.id} onDone={() => { void load(); onFeedback(); }} />}
       {result.status !== "ready" && (
@@ -223,19 +201,13 @@ export function BetaPanel({ attempt, runId, reloadKey, onFeedback }: { attempt: 
           <a className={result.hold_map ? "button primary" : "button"} data-testid="beta-setup" href={`#/holds/${attempt.id}`}>{result.hold_map ? "Finish marking this route" : "Mark route holds by hand instead"}</a>
         </>
       )}
-      {result.hold_map && <BetaFigure map={result.hold_map} candidate={candidate} stepIndex={step} width={attempt.width ?? 1} height={attempt.height ?? 1} />}
+      {result.hold_map && <BetaFigure map={result.hold_map} candidate={candidate} position={step} width={attempt.width ?? 1} height={attempt.height ?? 1} />}
       {candidate && (
         <>
           <div className="row tight" role="group" aria-label="Sequence shown">
             {result.candidates.map((item, index) => <button key={item.id} aria-pressed={index === active} className="button small" data-testid="beta-candidate" onClick={() => { setActive(index); setStep(0); }}>{item.label}</button>)}
           </div>
-          <p className="small-text">{candidate.move_count} moves, {candidate.total_distance_L.toFixed(1)} L of limb travel, largest single move {candidate.largest_move_L.toFixed(2)} L. Tightest 2D reach margin {candidate.tightest_margin_L.toFixed(2)} L{candidate.tight_moves ? `, with ${candidate.tight_moves} tight move${candidate.tight_moves > 1 ? "s" : ""}` : ""}.</p>
-          <p className="small-text"><strong>Start:</strong> {Object.entries(candidate.start).map(([limb, hold]) => `${LIMB_WORD[limb]} ${hold < 0 ? "from the ground" : holdName(hold)}`).join(", ")}</p>
-          <ol className="phase-list" data-testid="beta-steps">
-            {candidate.steps.map((item, index) => (
-              <li key={index}><button className={`link ${index === step ? "strong" : ""}`} onClick={() => setStep(index)}>{LIMB_WORD[item.limb]} to {holdName(item.to_hold)}</button> <span className="muted small-text">{item.from_hold < 0 ? "first placement" : `${item.distance_L.toFixed(2)} L move`}, {item.margin_L.toFixed(2)} L margin{item.tight ? ", tight" : ""}</span></li>
-            ))}
-          </ol>
+          <CandidateDetail candidate={candidate} position={Math.min(step, candidate.steps.length)} onPosition={setStep} length={(value) => `${value.toFixed(2)} torso lengths`} testid="beta" />
           <DecisionBar key={candidate.id} feedback={candidate.feedback} onChange={save} testid="beta" />
         </>
       )}
@@ -442,7 +414,7 @@ export function GlancePanel({ glance, onSeek }: { glance: Glance; onSeek: (ms: n
         <div className="stat"><span className="stat-value">{clock(glance.attempt_ms)}</span><span className="stat-label">analyzed</span></div>
         <div className="stat"><span className="stat-value">{glance.hand_moves}</span><span className="stat-label">hand moves tracked</span></div>
         <div className="stat"><span className="stat-value">{glance.foot_moves}</span><span className="stat-label">foot moves tracked</span></div>
-        <div className="stat"><span className="stat-value">{glance.longest_gap_ms === null ? "n/a" : `${(glance.longest_gap_ms / 1000).toFixed(1)} s`}</span>
+        <div className="stat"><span className="stat-value">{glance.longest_gap_ms === null ? "n/a" : `${(glance.longest_gap_ms / 1000).toFixed(1)}s`}</span>
           <span className="stat-label">longest time with no tracked move{glance.longest_gap_at_ms !== null && <> at <button className="link" onClick={() => onSeek(glance.longest_gap_at_ms!)}>{clock(glance.longest_gap_at_ms)}</button></>}</span></div>
       </div>
       <p className="muted small-text">Time each limb could be tracked, left / right: hands {share(glance.hand_tracked)}, feet {share(glance.foot_tracked)}. {glance.notes.join(" ")} These are counts, not a score.</p>

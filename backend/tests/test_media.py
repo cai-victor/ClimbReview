@@ -216,9 +216,13 @@ def _hlg_clip(tmp_path, signals):
 def test_hlg_math_matches_known_operating_points():
     gray = lambda s: v.hlg_signal_to_sdr_signal(np.array([[s, s, s]], dtype=float))[0, 1] * 255
     assert gray(0.0) == pytest.approx(0, abs=1)
-    assert gray(0.5) == pytest.approx(143, abs=3)   # about 51 nits scaled to 25% SDR, gamma 2.4
-    assert gray(0.75) == pytest.approx(245, abs=4)  # HLG reference white lands near SDR white
-    assert gray(1.0) <= 255
+    assert gray(0.5) == pytest.approx(90, abs=3)    # scene light 1/12, raised 1.2 times, gamma 2.2
+    assert gray(0.75) == pytest.approx(152, abs=4)  # HLG reference white stays a light gray, as a phone shows it, not paper white
+    assert 240 <= gray(1.0) <= 255                  # the shoulder keeps the brightest highlights just under clipping
+    levels = [gray(s) for s in np.linspace(0, 1, 41)]
+    assert all(later > earlier for earlier, later in zip(levels, levels[1:]))
+    red = v.hlg_signal_to_sdr_signal(np.array([[0.8, 0.3, 0.3]]))[0]
+    assert red[0] > red[2] > red[1] * 0.99 and red.max() <= 1.0      # hue survives the gamut change and the shoulder
 
 
 def test_hlg_source_is_converted_not_relabeled(tmp_path, config):
@@ -234,4 +238,4 @@ def test_hlg_source_is_converted_not_relabeled(tmp_path, config):
     expected = v.hlg_signal_to_sdr_signal(np.array([[s, s, s] for s in signals], dtype=float))[:, 1] * 255
     measured = [float(frame[180, 60 + 120 * i, 1]) for i in range(len(signals))]
     assert measured == pytest.approx(list(expected), abs=10)
-    assert measured[3] > 225  # relabeling HLG as SDR would leave reference white near 191
+    assert measured[3] < 175  # relabeling HLG as SDR would leave reference white near 191

@@ -26,7 +26,7 @@ def main() -> int:
         width, height = attempt["width"], attempt["height"]
         image, _ = build_wall_image(settings, attempt, row["reference_frame_ms"], None, run["id"])
         focus = (float(np.mean([h["x"] for h in holds])) * width, float(np.mean([h["y"] for h in holds])) * height)
-        fit = wall_grid.fit_grid(wall_grid.detect_bolts(image), width, height, focus)
+        fit = wall_grid.fit_image(image, width, height, focus)
         plane, summary = wall_grid.correction_for(fit, holds, width, height)
         entry = {"clip": row["title"], "holds": len(holds), "fit": fit["status"], "bolts": fit.get("inliers"), "applied": summary["applied"],
                  "on_fitted_face": summary.get("holds_on_fitted_face"), "tilt": summary.get("tilt"), "reason": summary.get("reason")}

@@ -219,3 +219,27 @@ Format: decision, then reason. All numeric settings are provisional engineering 
 
 **D95. A foot planted on the lowest foothold for more than half the clip is not a ground phase**, and a pause card is dropped when half or more of it lies inside a stay that is not the starting position.
 
+## Changes after a climber's review (2026-11-15)
+
+A more experienced climber tried the tester build and sent 22 written points. These decisions answer them.
+
+**D96. The planner refuses positions a person cannot get into** (`candidate-beta-v2`). Added to the reach circles: the left foot may be at most 0.35 torso lengths right of the right foot and the reverse; hands may cross by at most 1.0; feet may be at most 1.5 leg lengths apart; one foot move is at most 1.1 leg lengths and one hand move at most 2 arm lengths; the hips may sit at most 0.2 torso lengths below the lowest foot. Reason: the review reported impossible leg crossovers, and on the marked IMG_7768 route the old planner proposed single moves of 3.84 torso lengths. These limits are stated assumptions, not measured human limits.
+
+**D97. Profiles are Balanced, Fewer moves, and Low feet, small steps.** "More reach margin" and "Shorter individual moves" are gone. A placement counts as a high foot when no in-reach position keeps every foot 0.8 torso lengths below the hips; each profile charges a different cost for it, and Low feet charges the most. A hand move made while one foot is off the marked holds also costs extra. Reason: the review said the planner "really likes high feet" and asked for something "humanly achievable" instead of the old two extremes.
+
+**D98. Tracked arm reach runs to the palm, and sequences may be up to 40 moves.** Tracked arm length adds 0.35 of the forearm, the same share already used to place a resting hand. Placements within 0.2 torso lengths of the limit are solved on the fine grid. Reason: with D96 in place, the 17-hold IMG_7768 route that the climber actually climbed came back as impossible; the reach stopped at the wrist and the 14-move cap was too short once giant moves were excluded. After the change it returns sequences of 20 and 15 moves with a longest move of 2.42 torso lengths.
+
+**D99. Wall-plane coordinates are turned to match the picture.** The fitted bolt grid's axes can point any way, but the planner reads "below", "left of", and "upright" from coordinates. The plane is now rotated or mirrored (distances unchanged) so right and down in the picture are right and down on the plane. Reason: a test wall came out rotated a quarter turn, which made "a foot below the hands" a sideways comparison whenever the wall-angle correction was applied. This was a bug in every corrected plan.
+
+**D100. Alternative start footholds are tried one at a time, and a blocked search says where it stopped.** Footholds marked Start are options: every pair is tried, and each alone with the other foot off the marks. When no sequence is found, the note names the highest holds the hands reached and lists what to check. Reason: the review reported "No sequence stayed within this 2D reach model" for a problem with two possible starting foot positions.
+
+**D101. A hold can carry a pull direction, and a top out is a kind of finish.** Pull direction (down, left, right, up) is optional and set by the climber; it limits where the shoulders may be while a hand is on that hold. Holds without one are unrestricted. A top-out point is stored as a finish with the label `top-out`, so nothing else in the app changes. The app does not detect either.
+
+**D102. The route sketch is a stick figure with hands blue and feet orange, and the video skeleton uses the same colors.** The figure shows one in-reach position per placement, chosen to hang on nearly straight arms; it is a sketch, not a required position. On the video, arms are blue and legs orange, and the tracker's left and right are shown as L and R letters at the wrists and ankles so a swapped side stays visible. Reason: the reviewer read orange and blue as feet and hands, not left and right.
+
+**D103. HLG phone video is converted to look like the phone shows it.** The old conversion mapped HLG reference white to SDR white, which blew out bright walls and over-saturated colors. The new one uses scene light with a 1.2 gain, a highlight shoulder above 0.7, saturation 0.85, and a 2.2 gamma; the three numbers were set by matching static parts of one frame of IMG_7850 to macOS's own rendering of the same file (median gray 0.60 against 0.57). It applies to new imports only: existing attempts keep their converted video, so their saved analyses still match what is shown. Effect on pose tracking has not been measured.
+
+**D104. The bolt grid is fitted under several detection settings** (`bolt-grid-v2`). The dot detector is run with its original automatic threshold and with three relative-darkness thresholds, and the accepted fit with the most bolt holes is kept. Acceptance rules are unchanged. Reason: the natural-looking conversion in D103 shows wall texture that the old conversion had washed out, and the original threshold then found too many stray dots to fit IMG_7238. On the four marked walls the result is 559, 517, and 231 bolt holes and one wall still not fitted, against 509, 514, 220, and not fitted before.
+
+**D105. Seconds are written without a space ("52s"), and tester installs skip unused packages.** The release zip's package list leaves out the test tools and the forecast experiment's scikit-learn and SciPy, and the installer downloads with uv, falling back to pip.
+

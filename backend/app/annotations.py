@@ -74,7 +74,7 @@ def _validate_interval(body: Interval, duration_ms: int) -> None:
             raise HTTPException(422, "Only unscorable time uses applies_to.")
         minimum = MIN_DURATION_MS[body.event_type]
         if body.end_ms - body.start_ms < minimum:
-            raise HTTPException(422, f"This event class must last at least {minimum / 1000:g} s (see the annotation guide).")
+            raise HTTPException(422, f"This event class must last at least {minimum / 1000:g}s (see the annotation guide).")
 
 
 def register_annotations(app: FastAPI, get_settings) -> None:

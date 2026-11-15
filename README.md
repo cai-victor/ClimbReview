@@ -19,7 +19,7 @@ The suggestions are things to test on the wall, not verdicts. See [What it can a
 You need:
 
 - A Mac. It has been tested on Apple Silicon Macs only. Intel Macs and Linux should work but have not been tested. On Windows, use WSL.
-- About 2 GB of free disk space, and an internet connection for the install.
+- About 1.5 GB of free disk space, and an internet connection for the install.
 
 ### 1. Get the folder
 
@@ -35,7 +35,7 @@ git clone https://github.com/cai-victor/ClimbReview.git
 
 Open the Terminal app, type `cd ` (with a space after it), drag the ClimbReview folder onto the Terminal window, and press Return.
 
-### 3. Run the installer (once, about 5 to 10 minutes)
+### 3. Run the installer (once, a few minutes on a fast connection)
 
 ```bash
 bash install.sh

@@ -142,12 +142,12 @@ def _context_sentences(event: dict[str, Any], context: dict[str, Any]) -> str:
             }[item["unknown_reason"]])
     if context["previous"]:
         before = context["previous"]
-        parts.append(f"The {NAMES[before['limb']]} was last observed moving {before['gap_ms'] / 1000:.1f} s before this began, when its tracking was cut off."
-                     if before["truncated"] else f"Just before, the {NAMES[before['limb']]} finished moving {before['gap_ms'] / 1000:.1f} s before this began.")
+        parts.append(f"The {NAMES[before['limb']]} was last observed moving {before['gap_ms'] / 1000:.1f}s before this began, when its tracking was cut off."
+                     if before["truncated"] else f"Just before, the {NAMES[before['limb']]} finished moving {before['gap_ms'] / 1000:.1f}s before this began.")
     if context["next"]:
         after = context["next"]
-        parts.append(f"The {NAMES[after['limb']]} was first observed already moving {after['gap_ms'] / 1000:.1f} s after this ended, when its tracking began."
-                     if after["truncated"] else f"Next, the {NAMES[after['limb']]} started moving {after['gap_ms'] / 1000:.1f} s after this ended.")
+        parts.append(f"The {NAMES[after['limb']]} was first observed already moving {after['gap_ms'] / 1000:.1f}s after this ended, when its tracking began."
+                     if after["truncated"] else f"Next, the {NAMES[after['limb']]} started moving {after['gap_ms'] / 1000:.1f}s after this ended.")
     return " ".join(parts)
 
 
@@ -155,7 +155,7 @@ def _movement_sentence(event: dict[str, Any]) -> str:
     evidence = event["evidence"]
     limb = NAMES[limb_of(event)]
     tracked = "wrist" if event["type"] == "wrist_motion" else "ankle"
-    span = f"from {clock(event['start_ms'])} to {clock(event['end_ms'])} ({evidence['duration_ms'] / 1000:.1f} s)"
+    span = f"from {clock(event['start_ms'])} to {clock(event['end_ms'])} ({evidence['duration_ms'] / 1000:.1f}s)"
     if evidence["direction"] == "no_clear_net_direction":
         moved = (f"The {limb} ({tracked} point) moved out and came back near where it started {span}, "
                  f"reaching about {evidence['max_displacement_L']:.2f} torso lengths away at most.")
@@ -209,11 +209,11 @@ def describe_event(event: dict[str, Any], events: Sequence[dict[str, Any]], seri
         context = {"method": CONTEXT_VERSION, "limbs": {}, "previous": None, "next": _neighbors(event, events)[1]}
         event["context"] = context
         following = (f" The first movement observed afterward was the {NAMES[context['next']['limb']]}, "
-                     f"{context['next']['gap_ms'] / 1000:.1f} s later." if context["next"] else "")
+                     f"{context['next']['gap_ms'] / 1000:.1f}s later." if context["next"] else "")
         return {
             "template_version": "low-movement-v2",
             "observation": f"The tracked wrists, ankles, and hips moved little from {clock(event['start_ms'])} to {clock(event['end_ms'])} "
-                           f"({evidence['duration_ms'] / 1000:.1f} s). The fastest required joint stayed at or below "
+                           f"({evidence['duration_ms'] / 1000:.1f}s). The fastest required joint stayed at or below "
                            f"{evidence['max_required_joint_speed_L_per_s']:.2f} torso lengths per second.{following}",
             "context": "All required joints were tracked for this whole interval. Low movement does not show which holds or feet carried weight.",
             "interpretation": "This could be a planned rest, a moment of route planning, or something else. The video alone cannot say which.",

@@ -110,7 +110,7 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
     const pathOf = (limb: Limb, start: number, end: number): Trail => {
       const data = movement.limbs[limb];
       const points = movement.t.flatMap((t, i) => (t >= start && t <= end && data.x[i] !== null ? [{ t, x: data.x[i]!, y: data.y[i]! }] : []));
-      return { points, side: limb.startsWith("left") ? "left" : "right" };
+      return { points, side: limb.startsWith("left") ? "left" : "right", part: limb.endsWith("foot") ? "foot" : "hand" };
     };
     const limb = selectedEvent && limbOf(selectedEvent);
     if (selectedEvent && limb) return [pathOf(limb, selectedEvent.start_ms, selectedEvent.end_ms)];
@@ -227,7 +227,7 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
       <select id="overlay-focus" data-testid="overlay-focus" value={focus} disabled={!skeleton} onChange={(e) => setFocus(e.target.value as Focus)}>
         <option value="all">Whole body</option><option value="feet">Legs and feet</option><option value="hands">Arms and hands</option>
       </select>
-      <label className="check" title="Repeat the selected moment with 1 s before and after (L)"><input type="checkbox" checked={looping && hasSelection} disabled={!hasSelection} onChange={(e) => setLooping(e.target.checked)} /> Loop this moment</label>
+      <label className="check" title="Repeat the selected moment with 1s before and after (L)"><input type="checkbox" checked={looping && hasSelection} disabled={!hasSelection} onChange={(e) => setLooping(e.target.checked)} /> Loop this moment</label>
     </>
   );
 
@@ -238,7 +238,7 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
           <Player ref={player} src={attempt.video_url!} samples={samples} showSkeleton={skeleton} onTime={setTime} loop={loopRange} focus={focus} trails={trails} marks={marks} toolbar={toolbar} emphasis={selectedCue?.limbs ?? []} highlight={selectedCue?.highlight ?? null}
             onLoopExit={() => setLooping(false)} holds={coaching?.available && coaching.hold_map?.usable ? coaching.hold_map.holds : []} />
         </div>
-        <p className="keys">Left side is drawn orange, right side blue. Keys: <span className="kbd">O</span> overlay <span className="kbd">L</span> loop <span className="kbd">N</span> <span className="kbd">P</span> next and previous opportunity</p>
+        <p className="keys">Arms are drawn blue and legs orange. L and R mark the tracker's left and right. Keys: <span className="kbd">O</span> overlay <span className="kbd">L</span> loop <span className="kbd">N</span> <span className="kbd">P</span> next and previous opportunity</p>
 
         <section className="card timeline-card" aria-label="Timeline">
           <div className="timeline-head">
