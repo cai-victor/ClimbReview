@@ -292,3 +292,8 @@ progress { height:8px; border-radius:99px; overflow:hidden; } progress::-webkit-
 .spinner { display:inline-block; width:12px; height:12px; border:2px solid var(--line-strong); border-top-color:var(--accent); border-radius:50%; vertical-align:-1px; margin-right:6px; animation:spin .8s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .hold-canvas img.wall-layer { transition:none; } .spinner { animation:none; } }
+/* No outline on the marks: a browser's focus rectangle around an SVG circle is not cleaned up as the circle moves, and leaves a trail behind a dragged hold. Focus shows as a white stroke instead. */
+.hold-mark, .hold-mark:focus, .hold-mark:focus-visible, .hold-handle, .hold-canvas svg circle[role=button] { outline:none; }
+.hold-canvas svg circle[role=button]:focus-visible { stroke:#fff; }
+details.tips { padding-left:0; }
+.suggest-panel { border-left:3px solid #d63384; padding-left:var(--s2); margin:var(--s2) 0; }

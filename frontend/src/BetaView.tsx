@@ -107,6 +107,9 @@ function stepTags(step: BetaStep): string[] {
   if (step.crossed) tags.push("hands cross");
   if (step.high_foot) tags.push("high foot");
   if (step.tight) tags.push("near full reach");
+  if (step.strenuous) tags.push("strenuous position");
+  if (step.big_shift) tags.push("big body shift");
+  if (step.on_volume) tags.push("on the volume");
   return tags;
 }
 
@@ -125,10 +128,11 @@ export function CandidateDetail({ candidate, position, onPosition, length, testi
   useEffect(() => { setPlaying(false); }, [candidate.id]);
   const starts = Object.entries(candidate.start);
   const never = starts.filter(([limb, hold]) => hold < 0 && !candidate.steps.some((step) => step.limb === limb)).map(([limb]) => limb);
-  const highFeet = candidate.high_foot_moves ?? 0;
+  const highFeet = candidate.high_foot_moves ?? 0, hard = candidate.strenuous_moves ?? 0, shifts = candidate.big_shifts ?? 0;
+  const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
   return (
     <div data-testid={`${testid}-detail`}>
-      <p className="small-text">{candidate.move_count} moves. Longest single move {length(candidate.largest_move_L)}. {highFeet === 0 ? "No high feet." : `${highFeet} high foot placement${highFeet > 1 ? "s" : ""}.`} {candidate.tight_moves ? `${candidate.tight_moves} move${candidate.tight_moves > 1 ? "s" : ""} near full reach.` : "No move near full reach."}{candidate.tops_out ? " Ends at the top-out point: climb over from there." : ""}</p>
+      <p className="small-text">{candidate.move_count} moves. Longest single move {length(candidate.largest_move_L)}. {highFeet === 0 ? "No high feet." : `${highFeet} high foot placement${highFeet > 1 ? "s" : ""}.`} {candidate.tight_moves ? `${candidate.tight_moves} move${candidate.tight_moves > 1 ? "s" : ""} near full reach.` : "No move near full reach."} {hard || shifts ? `${[hard ? plural(hard, "strenuous position") : "", shifts ? plural(shifts, "big body shift") : ""].filter(Boolean).join(" and ")}, judged from the sketch.` : "No position the sketch rates as strenuous."} Ends with both hands on the finish.{candidate.tops_out ? " Ends at the top-out point: climb over from there." : ""}</p>
       <p className="legend small-text" data-testid={`${testid}-legend`}><span className="swatch" style={{ background: PART_COLOR.hand, marginLeft: 0 }} /> Hands (LH, RH) <span className="swatch" style={{ background: PART_COLOR.foot }} /> Feet (LF, RF) <span className="swatch" style={{ background: "#ffe14a" }} /> The move being shown</p>
       <div className="row tight" role="group" aria-label="Step through the sequence">
         <button className="button small" data-testid={`${testid}-prev`} disabled={position === 0} onClick={() => { setPlaying(false); onPosition(position - 1); }}>← Back</button>

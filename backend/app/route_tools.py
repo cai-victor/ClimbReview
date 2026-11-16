@@ -190,7 +190,7 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
                 "SELECT id FROM jobs WHERE attempt_id=? AND kind='analysis' AND status='complete' ORDER BY created_at DESC LIMIT 1", (attempt["id"],)).fetchone())
         public = {"id": row["id"], "name": row["name"], "hold_count": len(holds), "reference_frame_ms": row["reference_frame_ms"], "usable": False,
                   "message": "", "alignment": None, "frame_url": f"/api/hold-maps/{map_id}/wall-image",
-                  "holds": [{k: h[k] for k in ("id", "x", "y", "radius", "route", "hold_type", "role", "use", "pull")} for h in holds],
+                  "holds": [{k: h[k] for k in ("id", "x", "y", "radius", "route", "hold_type", "role", "use", "pull", "start_limb")} for h in holds],
                   "width": row["width"], "height": row["height"]}
         scale = json.loads(row["scale"]) if row["scale"] else None
         measured = beta.body_from_measurements(height_cm, wingspan_cm)
@@ -209,7 +209,7 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
             return {"status": "setup_needed", "needs": needs, "candidates": [], "hold_map": public, "body": measured.public(), "method": beta.BETA_VERSION}
         length = beta.torso_px(scale, row["width"], row["height"], measured.torso_cm) if scale else float(tracked_px)
         plane, perspective = planning_geometry(settings, row, attempt, latest, holds, rectify)
-        points, to_image = None, None
+        points, to_image, radii = None, None, None
         if plane is not None:
             width, height = row["width"], row["height"]
             if scale:        # the marked line is measured on the wall plane too
@@ -220,7 +220,8 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
                 torso_units = float(tracked_px) * plane.local_scale(centroid)
             points = plane.plane([[h["x"] * width, h["y"] * height] for h in holds]) / torso_units
             to_image = beta.plane_to_image(plane, torso_units, width, height)
-        output = beta.candidate_sequences(holds, row["width"], row["height"], length, measured.body, points, to_image)
+            radii = beta.plane_radii(plane, holds, width, height, torso_units)
+        output = beta.candidate_sequences(holds, row["width"], row["height"], length, measured.body, points, to_image, radii)
         output["perspective"] = perspective
         for candidate in output["candidates"]:
             signature = json.dumps([candidate["start"], candidate["steps"]], sort_keys=True)

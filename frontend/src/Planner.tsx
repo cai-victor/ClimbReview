@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, Attempt, holdApi, HoldMap, PlanResult } from "./api";
 import { BetaFigure, CandidateDetail } from "./BetaView";
 import { PerspectiveNote } from "./Performance";
@@ -44,6 +44,7 @@ export function Planner({ attemptId }: { attemptId: string }) {
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
   const [rectify, setRectify] = useState(true);
+  const request = useRef(0);
 
   useEffect(() => {
     Promise.all([api.getAttempt(attemptId), holdApi.list(attemptId)])
@@ -57,7 +58,10 @@ export function Planner({ attemptId }: { attemptId: string }) {
     setError("");
     try {
       window.localStorage.setItem(STORE, JSON.stringify(body));     // stays in this browser only
-      setResult(await holdApi.plan(mapId, height, wingspan, rectify)); setActive(0); setStep(0);
+      const asked = ++request.current;
+      const answer = await holdApi.plan(mapId, height, wingspan, rectify);
+      if (asked !== request.current) return;            // a newer request was made while this one was running
+      setResult(answer); setActive(0); setStep(0);
     } catch (e) { setError((e as Error).message); }
   }, [mapId, height, wingspan, body, rectify]);
 

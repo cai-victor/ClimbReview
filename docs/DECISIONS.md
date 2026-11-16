@@ -243,3 +243,21 @@ A more experienced climber tried the tester build and sent 22 written points. Th
 
 **D105. Seconds are written without a space ("52s"), and tester installs skip unused packages.** The release zip's package list leaves out the test tools and the forecast experiment's scikit-learn and SciPy, and the installer downloads with uv, falling back to pip.
 
+## Second round of the climber's review (2026-11-15)
+
+Twelve more points from the same climber, after using the new hold editor and planner.
+
+**D106. Color suggestions are deliberately cautious** (`color-suggest-v2`). Lab tolerances drop from 14, 20, 28 to 12, 17, 23. The color part of the difference alone must be within 0.75 of the tolerance, so a hue shift (orange to red) is not excused by similar lightness. A region is suggested only if its average color is within 0.7 of the tolerance, it fills at least 0.15 of its enclosing circle, it does not touch the picture's edge, and its area is between 1/30 and 12 times the tapped region's. At most 30 are returned, closest colors first, and none inside another suggestion or an existing mark. Reason: the reviewer reported that close colors highlighted "everything" and that nested outlines could not be removed. The cost is more missed holds, which the climber adds by hand.
+
+**D107. Finding holds by color is one click, not a mode.** After the click the editor returns to adding by hand, outlines persist until accepted or discarded, and another color adds to them. Reason: the reviewer could not add a hold by hand without triggering another color search, and a new search discarded the outlines not yet accepted.
+
+**D108. Every editing change can be undone, and saves are serialized.** Undo covers add (a batch counts once), delete, and edits, and restores only the fields the undone change touched. A restored hold gets a new id and goes to the end of the numbering. Saves are sent one at a time, each built from the newest saved map, and the screen shows a change at once. Reason: a resize right after a move could write back the old position.
+
+**D109. A start hold may be given to a limb.** `start_limb` is one of left hand, right hand, both hands, left foot, right foot, or unset. The planner starts those limbs there; unset start holds keep the old behaviour (leftmost hold to the left hand, alternatives tried for feet). A start hold given to a foot is not a hand start. When any foot is fixed, the feet-off-the-wall start is not tried.
+
+**D110. A mark can be a volume.** A hold whose type is `volume` is planned as three spots on its circle: (0, -0.6 r), (-0.6 r, -0.2 r), (0.6 r, -0.2 r), usable by hands and feet unless a use is set. Steps report the volume as one hold. Reason: one circle center cannot stand for a large feature. This is a guess at usable spots, not a model of the volume.
+
+**D111. Hips do not sit on the feet, and effort counts** (`candidate-beta-v3`). A position is ruled out when a hip is closer than 0.35 of leg length to a foot it stands on. Each placement gets a strain score from its most relaxed in-reach position: arms shortened beyond 15% (weight 1.0), hands below the shoulders (2.0), legs shortened beyond 40% (1.5), hips less than half a leg above the lowest foot (1.5), and torso lean (0.6 per radian). A move's cost adds strain and the square of how far that relaxed position travels, with weights per profile (Balanced 3.0 and 1.5, Fewer moves 1.0 and 0.5, Low feet 6.0 and 3.0). The sketch now shows that most relaxed position. Steps at strain 0.45 or more are tagged strenuous, and body travel of 1.0 torso lengths or more a big body shift. Reason: the reviewer saw the hips drawn over the feet and sequences that "take so much effort". All numbers are assumptions, not measured effort.
+
+**D112. A sequence ends with both hands on the finish.** One hand reaching the finish hold no longer ends the search. With two finish holds, one hand on each also ends it. Reason: a boulder problem is finished by matching the finish hold.
+

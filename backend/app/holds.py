@@ -41,6 +41,7 @@ class Hold(BaseModel):
     role: Literal["", "start", "finish"] = ""
     use: Literal["", "hand", "foot", "both"] = ""
     pull: Literal["", "down", "left", "right", "up"] = Field(default="", description="Direction the hand pulls on the hold, as marked by the climber")
+    start_limb: Literal["", "left_hand", "right_hand", "both_hands", "left_foot", "right_foot"] = Field(default="", description="For a start hold: the limb the climber starts with on it")
 
 
 def _extract_frame(canonical: Path, output: Path, seconds: float) -> None:
@@ -132,8 +133,8 @@ def register_holds(app: FastAPI, get_settings) -> None:
     def add_hold(map_id: str, body: Hold, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
         with db.session(settings.database) as connection:
             row = get_map(connection, map_id)
-            connection.execute("""INSERT INTO holds(id, map_id, x, y, radius, route, hold_type, role, "use", pull, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                               (uuid.uuid4().hex, map_id, body.x, body.y, body.radius, body.route, body.hold_type, body.role, body.use, body.pull, db.now()))
+            connection.execute("""INSERT INTO holds(id, map_id, x, y, radius, route, hold_type, role, "use", pull, start_limb, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                               (uuid.uuid4().hex, map_id, body.x, body.y, body.radius, body.route, body.hold_type, body.role, body.use, body.pull, body.start_limb if body.role == "start" else "", db.now()))
             connection.execute("UPDATE hold_maps SET updated_at=? WHERE id=?", (db.now(), map_id))
             return public_map(connection, row)
 
@@ -141,8 +142,8 @@ def register_holds(app: FastAPI, get_settings) -> None:
     def edit_hold(map_id: str, hold_id: str, body: Hold, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
         with db.session(settings.database) as connection:
             row = get_map(connection, map_id)
-            updated = connection.execute("""UPDATE holds SET x=?, y=?, radius=?, route=?, hold_type=?, role=?, "use"=?, pull=? WHERE id=? AND map_id=?""",
-                                         (body.x, body.y, body.radius, body.route, body.hold_type, body.role, body.use, body.pull, require_id(hold_id), map_id))
+            updated = connection.execute("""UPDATE holds SET x=?, y=?, radius=?, route=?, hold_type=?, role=?, "use"=?, pull=?, start_limb=? WHERE id=? AND map_id=?""",
+                                         (body.x, body.y, body.radius, body.route, body.hold_type, body.role, body.use, body.pull, body.start_limb if body.role == "start" else "", require_id(hold_id), map_id))
             if updated.rowcount == 0:
                 raise HTTPException(404, "Hold not found.")
             return public_map(connection, row)

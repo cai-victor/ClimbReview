@@ -144,7 +144,8 @@ export const annotationApi = {
     request<AnnotationSet>(`/api/annotation-sets/${id}/intervals/${intervalId}`, { method: "DELETE" }),
 };
 
-export interface Hold { id: string; x: number; y: number; radius: number; route: string; hold_type: string; role: "" | "start" | "finish"; use: "" | "hand" | "foot" | "both"; pull?: "" | "down" | "left" | "right" | "up" }
+export interface Hold { id: string; x: number; y: number; radius: number; route: string; hold_type: string; role: "" | "start" | "finish"; use: "" | "hand" | "foot" | "both"; pull?: "" | "down" | "left" | "right" | "up"; start_limb?: StartLimb }
+export type StartLimb = "" | "left_hand" | "right_hand" | "both_hands" | "left_foot" | "right_foot";
 export interface HoldMap {
   id: string; attempt_id: string; name: string; reference_frame_ms: number; width: number; height: number;
   holds: Hold[]; scope_note: string; frame_url: string; scale: MapScale | null;
@@ -201,10 +202,10 @@ export interface Coaching {
   sources: Record<string, { title: string; url: string }>;
   top_card_ids: string[]; story?: Story; cards_after_leaving_wall?: number; glance: Glance; observed_route: ObservedRoute | null; perspective: Perspective | null;
 }
-export interface BetaStep { limb: string; from_hold: number; to_hold: number; distance_L: number; margin_L: number; tight: boolean; match?: boolean; crossed?: boolean; high_foot?: boolean }
+export interface BetaStep { limb: string; from_hold: number; to_hold: number; distance_L: number; margin_L: number; tight: boolean; match?: boolean; crossed?: boolean; high_foot?: boolean; strenuous?: boolean; big_shift?: boolean; on_volume?: boolean; to_point?: [number, number] | null }
 /** Joint positions of the sketch figure for one placement, as fractions of the picture. */
 export type BetaPose = Record<string, [number, number]>;
-export interface BetaCandidate { id: string; profile: string; label: string; start: Record<string, number>; feet_start_off_wall: boolean; start_margin_L: number; steps: BetaStep[]; move_count: number; total_distance_L: number; largest_move_L: number; tightest_margin_L: number; tight_moves: number; high_foot_moves?: number; matches?: number; tops_out?: boolean; figures?: BetaPose[]; feedback: Feedback }
+export interface BetaCandidate { id: string; profile: string; label: string; start: Record<string, number>; feet_start_off_wall: boolean; start_margin_L: number; steps: BetaStep[]; move_count: number; total_distance_L: number; largest_move_L: number; tightest_margin_L: number; tight_moves: number; high_foot_moves?: number; strenuous_moves?: number; big_shifts?: number; matches?: number; tops_out?: boolean; figures?: BetaPose[]; feedback: Feedback }
 export interface Perspective {
   applied: boolean; reason?: string; detail?: string; bolts_used?: number; scale_change?: number; holds_on_fitted_face?: number; holds?: number; assumption?: string;
   tilt?: { status: string; angle_to_camera_deg?: number; top_toward_camera_deg?: number; turned_sideways_deg?: number; note?: string; reason?: string };

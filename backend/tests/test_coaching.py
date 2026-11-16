@@ -466,7 +466,7 @@ def placements(candidate):
 def test_no_candidate_crosses_the_feet_or_takes_a_step_longer_than_a_leg():
     holds = ladder()
     result = beta.candidate_sequences(holds, W, H, L, BODY)
-    assert result["status"] == "ready" and result["method"] == "candidate-beta-v2"
+    assert result["status"] == "ready" and result["method"] == "candidate-beta-v3"
     points = beta.hold_points(holds, W, H, L)
     for candidate in result["candidates"]:
         for state in placements(candidate):
@@ -546,3 +546,69 @@ def test_the_body_never_hangs_below_its_feet():
     assert core[1] + 0.5 * np.cos(lean) <= 0.3 + beta.HIPS_BELOW_FEET_L + 1e-6   # hips are not below the feet
     core, lean = beta.natural_pose(hands, feet, BODY)
     assert core[1] + 0.5 * np.cos(lean) <= 0.3 + beta.HIPS_BELOW_FEET_L + 1e-6
+
+
+def test_a_sequence_ends_with_both_hands_on_the_finish():
+    result = beta.candidate_sequences(ladder(), W, H, L, BODY)
+    assert result["status"] == "ready"
+    for candidate in result["candidates"]:
+        hands = dict(left_hand=candidate["start"]["left_hand"], right_hand=candidate["start"]["right_hand"])
+        for step in candidate["steps"]:
+            if step["limb"] in hands:
+                hands[step["limb"]] = step["to_hold"]
+        assert hands == {"left_hand": 7, "right_hand": 7} and candidate["steps"][-1]["match"]
+    assert any("both hands on the finish" in text for text in result["assumptions"])
+
+
+def test_start_limbs_the_climber_marked_are_used():
+    crossed = ladder(h0={"start_limb": "right_hand"}, h1={"start_limb": "left_hand"}, h3={"role": "start", "start_limb": "left_foot"})
+    result = beta.candidate_sequences(crossed, W, H, L, BODY)
+    assert result["status"] == "ready"
+    for candidate in result["candidates"]:
+        assert candidate["start"]["right_hand"] == 0 and candidate["start"]["left_hand"] == 1 and candidate["start"]["left_foot"] == 3
+    matched = beta.candidate_sequences(ladder(h0={"start_limb": "both_hands"}, h1={"role": ""}), W, H, L, BODY)
+    assert all(c["start"]["left_hand"] == 0 and c["start"]["right_hand"] == 0 for c in matched["candidates"]) and matched["candidates"]
+    # A start hold given to a foot is not a hand start.
+    only_feet = [dict(h, start_limb="left_foot") if h["role"] == "start" else h for h in ladder()]
+    assert any("start hold for the hands" in need for need in beta.candidate_sequences(only_feet, W, H, L, BODY)["needs"])
+
+
+def test_the_hips_never_sit_on_a_foot():
+    body, hands, feet = BODY, np.array([[0.0, 0.0], [0.4, 0.0]]), np.array([[0.0, 1.9], [0.4, 1.9]])
+    for cores in (beta._grid(np.array([0.2, 1.0]), 2.5, 0.25),):
+        for angle in beta.TORSO_ANGLES:
+            up = np.array([np.sin(angle), -np.cos(angle)]) * 0.5
+            slack = beta._slack(cores + up, cores - up, hands, feet, body, ())
+            legs = np.linalg.norm((cores - up)[:, None] - feet[None], axis=2).min(axis=1)
+            assert (legs[np.isfinite(slack) & (slack > -np.inf)] >= beta.MIN_LEG_FOLD_OF_LEG * body.leg_L - 1e-9).all()
+    result = beta.candidate_sequences(ladder(), W, H, L, BODY)
+    scale = L / W, L / H
+    for candidate in result["candidates"]:
+        for figure in candidate["figures"]:
+            pelvis = np.array([figure["pelvis"][0] / scale[0], figure["pelvis"][1] / scale[1]])
+            for foot in ("left_foot", "right_foot"):
+                point = np.array([figure[foot][0] / scale[0], figure[foot][1] / scale[1]])
+                assert np.linalg.norm(point - pelvis) > 0.3 * BODY.leg_L
+
+
+def test_strain_prefers_hanging_tall_over_a_crouch_or_a_press():
+    hands, feet = np.array([[0.0, 0.0], [0.4, 0.0]]), np.array([[0.0, 3.3], [0.4, 3.3]])
+    strain = lambda center: float(beta._strain(np.array([center]) + [0, -0.5], np.array([center]) + [0, 0.5], hands, feet, BODY, 0.0)[0])
+    tall, crouched, pressing = strain([0.2, 1.3]), strain([0.2, 2.0]), strain([0.2, -0.4])
+    assert tall < 0.05 and crouched > tall + 0.15 and pressing > tall + 0.2
+
+
+def test_a_volume_offers_several_spots_and_is_reported_as_one_hold():
+    holds = ladder(h6={"hold_type": "Volume", "use": "", "radius": 0.06})
+    spots, points, source = beta.expand_volumes(holds, beta.hold_points(holds, W, H, L), np.array([h["radius"] * W / L for h in holds]))
+    assert len(spots) == len(holds) + 2 and source.count(6) == 3
+    assert len({tuple(points[i].round(3)) for i, s in enumerate(source) if s == 6}) == 3
+    result = beta.candidate_sequences(holds, W, H, L, BODY)
+    assert result["status"] == "ready" and any("volume" in text.lower() for text in result["assumptions"])
+    for candidate in result["candidates"]:
+        assert all(-1 <= step["to_hold"] < len(holds) for step in candidate["steps"])
+
+
+def test_steps_carry_the_effort_notes():
+    step = beta.candidate_sequences(ladder(), W, H, L, BODY)["candidates"][0]["steps"][0]
+    assert {"strain", "strenuous", "body_shift_L", "big_shift", "on_volume", "to_point"} <= set(step)

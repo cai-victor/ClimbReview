@@ -6,7 +6,40 @@ Last updated 2026-11-15 after changes made in response to a climber's review. St
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Changes after a climber's review (latest, 2026-11-15)
+## Second round of the climber's review (latest, 2026-11-15)
+
+The same climber sent 12 more points after using the new hold editor and planner. Decisions are D106 to D112 in `docs/DECISIONS.md`.
+
+**Done**
+- Color suggestions are more cautious (`color-suggest-v2`): tighter color limits, a separate limit on hue so orange does not spread into red, no regions that are streaky, run off the picture, or are far larger or smaller than the tapped hold, and nothing suggested inside another suggestion or an existing mark.
+- "Find holds by color" is one click, not a mode. After the click the picture goes back to adding holds by hand, the pink outlines stay until accepted or discarded, and a second color adds to them.
+- Marks are drawn largest first, so a small mark inside a large one can be clicked.
+- Undo: Cmd+Z or Ctrl+Z and the Undo button take back adding (a whole "Add all" batch at once), deleting, moving, resizing, and role, use, pull, and kind changes, newest first.
+- "New holds are for" is removed; who uses a hold is set on the hold. The route-name field moved under "Marking more than one route on this picture".
+- The editor says that marking order does not matter.
+- Start holds can be given to the left hand, right hand, both hands, left foot, or right foot. The mark shows it (for example "3 S LH").
+- Volumes: a mark can be a Volume. The planner then tries three spots on its circle (top, left, right) for hands and feet.
+- Planner (`candidate-beta-v3`): the hips can no longer sit on a foot (a hip stays at least 0.35 of a leg length from each foot it stands on); each move is charged for a strained position and for moving the body far in one move; a sequence ends with both hands on the finish; steps are tagged "strenuous position", "big body shift", and "on the volume".
+- Dragging: the browser focus rectangle around a mark is gone, which is the likely source of the trail behind a dragged hold (see Limits). A moved or resized hold now stays where it was dropped instead of jumping back until the save returns.
+- Two bugs found on the way: a resize straight after a move could save the hold's old position, because both saves were built from the same stale copy (saves are now sent one at a time, each built from the newest saved map); and on the planner page a slow earlier answer could replace a newer one (only the latest request's answer is shown).
+
+**Not done, and why**
+- Volumes are only partly answered. The three spots are a guess at where a volume is usable; its real surface and angle are unknown, and color matching still does not find volumes.
+
+**Verification actually run**
+- `.venv/bin/python -m pytest`: 336 passed (9 new: finish match, start limbs, leg-fold limit, strain ordering, volumes, step notes, close colors, nested suggestions, streaks and edge regions).
+- `npx playwright test` in `frontend`: 12 passed, including one-click color search followed by a hand-added hold, batch undo, Ctrl+Z for add, delete, role, start limb, and volume, and the removed "New holds are for" field. The two editor tests were run two more times without a failure.
+- Real route, IMG_7768 (17 holds, tracked body): before, most positions of the 20-move Balanced sequence had the pelvis on the feet. After, the Balanced sequence has 24 moves, stands with the legs extended, and ends on a match; 8 of its positions are still tagged strenuous and 4 moves are big body shifts. Compared by drawing both sequences over the wall picture; this was an AI-assisted look, not a climber's rating.
+- Color suggestions on two real wall pictures (IMG_7768 orange, IMG_7238 blue), two taps each at all three settings: the large circles over the red panel, the floor, and the mat are gone and no suggestion is nested. They also find fewer real holds than before: about half of the marked holds at the Normal setting.
+- The live database was backed up to `data/app/backups/climbreview_before_start_limb.sqlite` before the `start_limb` column was added. 16 attempts and 44 holds are unchanged.
+
+**Limits**
+- The drag trail was not reproduced here, so the fix is a likely cause removed, not a confirmed one. If it still shows, the browser and zoom level are needed.
+- The effort score comes from the stick-figure sketch. It is not a measurement of force, and no climber has rated the new sequences.
+- A seed hold in shadow or with a color close to a wall panel still pulls in a few patches of that panel.
+- The saved maps on IMG_7768 and IMG_7547 carry 6 cm scale lines that make an entered climber far too large, so their measurement-based plans are not meaningful until the scale is reset.
+
+## Changes after a climber's review (2026-11-15)
 
 A more experienced climber tested the release and sent 22 points. Decisions are D96 to D105 in `docs/DECISIONS.md`.
 

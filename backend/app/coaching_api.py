@@ -94,7 +94,7 @@ def register_coaching(app: FastAPI, get_settings) -> None:
         context = {"usable": usable, "holds": chosen["holds"], "message": ALIGNMENT_MESSAGES.get(status, ""), "map": chosen}
         public = {"id": chosen["id"], "name": chosen["name"], "hold_count": len(chosen["holds"]), "reference_frame_ms": chosen["reference_frame_ms"],
                   "alignment": check, "usable": usable, "message": context["message"], "frame_url": f"/api/attempts/{attempt_id}/frame?ms={chosen['reference_frame_ms']}",
-                  "holds": [{k: h[k] for k in ("id", "x", "y", "radius", "route", "hold_type", "role", "use", "pull")} for h in chosen["holds"]]}
+                  "holds": [{k: h[k] for k in ("id", "x", "y", "radius", "route", "hold_type", "role", "use", "pull", "start_limb")} for h in chosen["holds"]]}
         return context, public
 
     def compute(connection, job, attempt, directory, map_id: str | None) -> dict[str, Any]:
@@ -213,7 +213,7 @@ def register_coaching(app: FastAPI, get_settings) -> None:
             length = files["movement"]["L_px"]
             samples, width, height = files["overlay"]["samples"], attempt["width"], attempt["height"]
             body = None if not length else beta.body_model(samples, width, height, length)
-            to_image = None
+            to_image, radii = None, None
             points, perspective = None, {"applied": False, "reason": "Marks could not be checked against the video, so distances are as they appear in the picture."}
             if length and public["usable"]:
                 row = db.row(connection.execute("SELECT * FROM hold_maps WHERE id=?", (public["id"],)).fetchone())
@@ -225,9 +225,10 @@ def register_coaching(app: FastAPI, get_settings) -> None:
                     body = beta.Body(plane_body.arm_L * length / torso, plane_body.leg_L * length / torso, plane_body.arm_samples, plane_body.leg_samples)
                     points = plane.plane([[h["x"] * width, h["y"] * height] for h in public["holds"]]) / torso
                     to_image = beta.plane_to_image(plane, torso, width, height)
+                    radii = beta.plane_radii(plane, public["holds"], width, height, torso)
                 elif plane is not None:
                     perspective = {**perspective, "applied": False, "reason": "The body was tracked too rarely to measure it on the wall plane."}
-            output = beta.candidate_sequences(public["holds"], width, height, length or 1.0, body, points, to_image)
+            output = beta.candidate_sequences(public["holds"], width, height, length or 1.0, body, points, to_image, radii)
             output["perspective"] = perspective
             for candidate in output["candidates"]:
                 candidate["id"] = _candidate_id(public["id"], candidate)

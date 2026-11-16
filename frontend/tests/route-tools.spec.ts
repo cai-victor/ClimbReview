@@ -51,11 +51,20 @@ test("photo: suggest holds by color, confirm, set scale, and plan with height an
   await expect(page.getByTestId("hold-suggestion")).toHaveCount(4);
   await expect(page.getByTestId("hold-circle")).toHaveCount(0);
   await expect(page.getByTestId("suggest-note")).toContainText("not confirmed holds");
+  // Looking for a color is one click. The next click adds a hold by hand and the outlines stay, and Ctrl+Z takes the hold back.
+  await expect(page.getByTestId("mode-add")).toHaveAttribute("aria-pressed", "true");
+  await clickAt(40, 40);
+  await expect(page.getByTestId("hold-circle")).toHaveCount(1);
+  await expect(page.getByTestId("hold-suggestion")).toHaveCount(4);
+  await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("hold-circle")).toHaveCount(0);
+  await expect(page.getByTestId("hold-suggestion")).toHaveCount(4);
   await page.getByTestId("hold-suggestion").first().click();              // confirm one
   await expect(page.getByTestId("hold-circle")).toHaveCount(1);
   await page.getByTestId("accept-all").click();
   await expect(page.getByTestId("hold-circle")).toHaveCount(4);
   await expect(page.getByTestId("hold-suggestion")).toHaveCount(0);
+  await expect(page.getByTestId("undo-hold")).toHaveText("Undo adding 3 holds");      // a batch is one undo
 
   // A foothold added by hand, and roles set in the editor.
   await page.getByTestId("mode-add").click();

@@ -26,6 +26,7 @@ for (const clip of CLIPS) {
       const w = img.naturalWidth * scale, h = img.naturalHeight * scale;
       return { left: box.left + (box.width - w) / 2, top: box.top + (box.height - h) / 2, w, h, natural: [img.naturalWidth, img.naturalHeight] };
     });
+    await page.getByText("Marking more than one route on this picture").click();
     await page.getByTestId("route-input").fill("blue");
     const target = { x: 0.25, y: 0.75 };
     await page.mouse.click(geometry.left + geometry.w * target.x, geometry.top + geometry.h * target.y);
@@ -45,7 +46,9 @@ for (const clip of CLIPS) {
     await page.getByTestId("undo-hold").click();
     await expect(page.getByTestId("hold-circle")).toHaveCount(1);
     await expect(page.getByTestId("save-state")).toHaveText("All changes saved");
-    await expect(page.getByTestId("mode-hint")).toContainText("Adding holds");
+    await expect(page.getByTestId("mode-hint")).toContainText("Adding holds by hand");
+    await expect(page.getByTestId("mode-hint")).toContainText("order you mark holds in does not matter");
+    await expect(page.getByTestId("new-use")).toHaveCount(0);            // one place to say who uses a hold: the hold itself
     await page.evaluate(() => window.scrollTo(0, 0));     // the measured picture position below is for the unscrolled page
 
     const maps = await (await request.get(`/api/attempts/${id}/hold-maps`)).json();
@@ -66,8 +69,32 @@ for (const clip of CLIPS) {
     await page.reload();
     await page.getByRole("button", { name: `Open map Route 1` }).click();
     await expect(page.getByTestId("hold-circle")).toHaveCount(1);
+    // A start hold can be given to one limb, and a mark can be a volume. Each change is undone with Ctrl+Z, newest first.
+    await page.getByTestId("hold-circle").focus();
+    await page.keyboard.press("s");
+    await page.getByTestId("hold-start-left_foot").click();
+    const saved = async () => (await (await request.get(`/api/hold-maps/${maps[0].id}`)).json()).holds;
+    await expect.poll(async () => (await saved())[0]?.start_limb).toBe("left_foot");
+    expect((await saved())[0].use).toBe("foot");
+    await page.getByTestId("hold-kind-volume").click();
+    await expect.poll(async () => (await saved())[0]?.hold_type).toBe("volume");
+    await page.locator("h1").click();                                     // focus leaves the buttons
+    await page.keyboard.press("Control+z");
+    await expect.poll(async () => (await saved())[0]?.hold_type).toBe("");
+    await page.keyboard.press("Control+z");
+    await expect.poll(async () => (await saved())[0]?.start_limb).toBe("");
+    await page.keyboard.press("Control+z");
+    await expect.poll(async () => (await saved())[0]?.role).toBe("");
+
+    // Deleting is undone too, with the hold back where it was.
     await page.getByTestId("hold-circle").focus();
     await page.keyboard.press("Delete");
+    await expect(page.getByTestId("hold-circle")).toHaveCount(0);
+    await expect(page.getByTestId("undo-hold")).toHaveText("Undo deleting a hold");
+    await page.keyboard.press("Control+z");
+    await expect(page.getByTestId("hold-circle")).toHaveCount(1);
+    expect((await saved())[0].x).toBeCloseTo(maps[0].holds[0].x + 0.005, 6);
+    await page.getByTestId("delete-hold").click();
     await expect(page.getByTestId("hold-circle")).toHaveCount(0);
 
     expect((await request.delete(`/api/attempts/${id}`)).status()).toBe(204);

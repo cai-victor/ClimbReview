@@ -51,10 +51,39 @@ def test_tapping_the_wall_is_refused_instead_of_marking_everything():
 def test_specks_are_ignored_and_tolerance_widens_the_match():
     image = wall()
     cv2.circle(image, (60, 60), 1, BLUE, -1)                                   # a speck
-    cv2.circle(image, (200, 500), 9, (175, 128, 58), -1)                        # a duller blue
+    cv2.circle(image, (200, 500), 9, (188, 124, 44), -1)                        # a slightly duller blue
     strict = hs.suggest(image, *tap(image, SPOTS[0]), tolerance="strict")["suggestions"]
     loose = hs.suggest(image, *tap(image, SPOTS[0]), tolerance="loose")["suggestions"]
     assert len(strict) == 4 and len(loose) == 5
+
+
+def test_a_close_color_is_not_swept_in():
+    """Orange holds on a wall with red ones: tapping orange must not outline the red."""
+    orange, red = (40, 120, 235), (45, 60, 215)
+    image = wall(color=orange)
+    cv2.circle(image, (200, 300), 9, red, -1)
+    cv2.circle(image, (60, 120), 9, red, -1)
+    found = hs.suggest(image, *tap(image, SPOTS[0]))["suggestions"]
+    assert sorted((round(s["x"] * 240), round(s["y"] * 600)) for s in found) == sorted(SPOTS)
+
+
+def test_nothing_is_suggested_inside_another_suggestion():
+    image = wall()
+    cv2.circle(image, (100, 500), 26, BLUE, -1)                      # a large hold ...
+    cv2.circle(image, (100, 500), 12, WALL, -1)                      # ... with a pale ring ...
+    cv2.circle(image, (100, 500), 6, BLUE, -1)                       # ... and a same-colored bolt cover in its middle
+    found = hs.suggest(image, 100 / 240, (500 - 19) / 600)["suggestions"]
+    near = [s for s in found if abs(s["x"] * 240 - 100) < 30 and abs(s["y"] * 600 - 500) < 30]
+    assert len(near) == 1 and near[0]["radius"] * 240 > 20
+
+
+def test_streaks_edge_regions_and_far_larger_regions_are_not_suggested():
+    image = wall()
+    cv2.rectangle(image, (0, 560), (60, 600), BLUE, -1)             # a mat running off the picture
+    cv2.line(image, (20, 30), (220, 60), BLUE, 3)                   # tape
+    cv2.circle(image, (180, 200), 40, BLUE, -1)                     # far larger than the tapped hold
+    found = hs.suggest(image, *tap(image, SPOTS[0]))["suggestions"]
+    assert sorted((round(s["x"] * 240), round(s["y"] * 600)) for s in found) == sorted(SPOTS)
 
 
 def test_result_says_it_is_not_confirmation():

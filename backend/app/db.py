@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS candidate_ids (
 """
 ADDED_COLUMNS = {
     "hold_maps": {"scale": "TEXT"},
-    "holds": {"role": "TEXT NOT NULL DEFAULT ''", "use": "TEXT NOT NULL DEFAULT ''", "pull": "TEXT NOT NULL DEFAULT ''"},
+    "holds": {"role": "TEXT NOT NULL DEFAULT ''", "use": "TEXT NOT NULL DEFAULT ''", "pull": "TEXT NOT NULL DEFAULT ''", "start_limb": "TEXT NOT NULL DEFAULT ''"},
     "attempts": {"auto_analyze": "INTEGER NOT NULL DEFAULT 0", "problem_label": "TEXT NOT NULL DEFAULT ''", "climber_label": "TEXT NOT NULL DEFAULT ''"},
 }
 ACTIVE = ("queued", "running")

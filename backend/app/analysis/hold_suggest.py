@@ -13,14 +13,18 @@ import numpy as np
 
 from . import camera_compensation as cc
 
-SUGGEST_VERSION = "color-suggest-v1"
-TOLERANCES = {"strict": 14.0, "normal": 20.0, "loose": 28.0}   # Lab color distance; lightness counts half
+SUGGEST_VERSION = "color-suggest-v2"
+TOLERANCES = {"strict": 12.0, "normal": 17.0, "loose": 23.0}   # Lab color distance; lightness counts half
+HUE_SHARE = 0.75                     # the color part alone (without lightness) must be within this share of the tolerance, so orange does not spread into red
+MEAN_SHARE = 0.7                     # a region's average color must be this close to the tapped color
+MIN_FILL = 0.15                      # a hold fills its enclosing circle; streaks and wall texture do not
+SIZE_RANGE = (1 / 30, 12.0)          # other regions are kept only within this range of the tapped region's area
 LIGHTNESS_WEIGHT = 0.5
 SEED_HALF_PATCH_PX = 3
 MIN_RADIUS_FRACTION = 0.006          # of image width; smaller specks are ignored
 MAX_AREA_FRACTION = 0.04             # a larger same-colored region is wall or a panel, not a hold
 RADIUS_LIMITS = (0.012, 0.15)        # of image width
-MAX_SUGGESTIONS = 60
+MAX_SUGGESTIONS = 30
 CLEAN_MIN_FRAMES = 5
 CLEAN_MAX_CORNER_MOTION_PX = 8.0
 
@@ -29,18 +33,26 @@ class SuggestionError(ValueError):
     """The tap cannot be used; the message says what to do."""
 
 
+def _color_regions(image_bgr: np.ndarray, px: int, py: int, tolerance: str):
+    """Connected regions colored like the pixel at (px, py): (labels, stats, Lab image, tapped color)."""
+    lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+    patch = lab[max(0, py - SEED_HALF_PATCH_PX): py + SEED_HALF_PATCH_PX + 1, max(0, px - SEED_HALF_PATCH_PX): px + SEED_HALF_PATCH_PX + 1]
+    seed = np.median(patch.reshape(-1, 3), axis=0)
+    difference = lab - seed
+    difference[..., 0] *= LIGHTNESS_WEIGHT
+    limit = TOLERANCES[tolerance]
+    mask = ((np.linalg.norm(difference, axis=2) < limit) & (np.linalg.norm(difference[..., 1:], axis=2) < HUE_SHARE * limit)).astype(np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    _, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    return labels, stats, lab, seed
+
+
 def fit_region(image_bgr: np.ndarray, x: float, y: float, tolerance: str = "normal") -> dict[str, Any]:
     """The circle around the one region colored like the tapped point, for sizing a mark the climber already placed."""
     height, width = image_bgr.shape[:2]
     px, py = int(round(x * (width - 1))), int(round(y * (height - 1)))
-    lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
-    patch = lab[max(0, py - SEED_HALF_PATCH_PX): py + SEED_HALF_PATCH_PX + 1, max(0, px - SEED_HALF_PATCH_PX): px + SEED_HALF_PATCH_PX + 1]
-    difference = lab - np.median(patch.reshape(-1, 3), axis=0)
-    difference[..., 0] *= LIGHTNESS_WEIGHT
-    mask = (np.linalg.norm(difference, axis=2) < TOLERANCES[tolerance]).astype(np.uint8)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
-    _, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    labels, stats, _, _ = _color_regions(image_bgr, px, py, tolerance)
     tapped = labels[py, px]
     if not tapped:
         raise SuggestionError("No evenly colored region was found under this mark. Set its size by dragging the handle on its edge.")
@@ -54,39 +66,54 @@ def fit_region(image_bgr: np.ndarray, x: float, y: float, tolerance: str = "norm
 
 def suggest(image_bgr: np.ndarray, x: float, y: float, tolerance: str = "normal",
             existing: Sequence[dict[str, Any]] = ()) -> dict[str, Any]:
-    """Regions colored like the tapped point. Coordinates are normalized; radius is a fraction of width."""
+    """Regions colored like the tapped point. Coordinates are normalized; radius is a fraction of width.
+
+    Deliberately cautious: a region is suggested only when its color is close to the tapped one, it is compact like a
+    hold, it does not touch the edge of the picture, and it is not far larger or smaller than the tapped region.
+    Nothing is suggested inside another suggestion or an existing mark.
+    """
     height, width = image_bgr.shape[:2]
     px, py = int(round(x * (width - 1))), int(round(y * (height - 1)))
-    lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
-    patch = lab[max(0, py - SEED_HALF_PATCH_PX): py + SEED_HALF_PATCH_PX + 1, max(0, px - SEED_HALF_PATCH_PX): px + SEED_HALF_PATCH_PX + 1]
-    seed = np.median(patch.reshape(-1, 3), axis=0)
-    difference = lab - seed
-    difference[..., 0] *= LIGHTNESS_WEIGHT
-    mask = (np.linalg.norm(difference, axis=2) < TOLERANCES[tolerance]).astype(np.uint8)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
-    count, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    labels, stats, lab, seed = _color_regions(image_bgr, px, py, tolerance)
     max_area = MAX_AREA_FRACTION * width * height
     tapped = labels[py, px]
     if tapped and stats[tapped, cv2.CC_STAT_AREA] > max_area:
         raise SuggestionError("That color covers a large part of the picture, so it looks like wall. Tap directly on a hold, or try the strict setting.")
     min_area = np.pi * (MIN_RADIUS_FRACTION * width) ** 2
+    low, high = min_area, max_area
+    if tapped and stats[tapped, cv2.CC_STAT_AREA] >= min_area:
+        reference = float(stats[tapped, cv2.CC_STAT_AREA])
+        low, high = max(low, SIZE_RANGE[0] * reference), min(high, SIZE_RANGE[1] * reference)
     found = []
-    for label in range(1, count):
-        area = int(stats[label, cv2.CC_STAT_AREA])
-        if not min_area <= area <= max_area:
+    for label in range(1, len(stats)):
+        left, top, box_w, box_h, area = (int(v) for v in stats[label])
+        if not low <= area <= high:
             continue
-        points = cv2.findNonZero((labels == label).astype(np.uint8))
-        (cx, cy), radius = cv2.minEnclosingCircle(points)
-        nx, ny = cx / width, cy / height
-        if any(np.hypot((nx - h["x"]) * width, (ny - h["y"]) * height) <= h["radius"] * width for h in existing):
-            continue          # already marked
-        found.append({"x": round(float(nx), 5), "y": round(float(ny), 5), "radius": round(float(np.clip(radius / width, *RADIUS_LIMITS)), 4), "area_px": area})
-    found = sorted(found, key=lambda item: -item["area_px"])[:MAX_SUGGESTIONS]
-    found.sort(key=lambda item: -item["y"])
+        if label != tapped and (left == 0 or top == 0 or left + box_w >= width or top + box_h >= height):
+            continue          # runs off the picture, so it is more likely floor, wall, or a mat than a hold
+        region = labels[top: top + box_h, left: left + box_w] == label
+        (cx, cy), radius = cv2.minEnclosingCircle(cv2.findNonZero(region.astype(np.uint8)))
+        cx, cy = cx + left, cy + top
+        if label != tapped and area < MIN_FILL * np.pi * max(radius, 1.0) ** 2:
+            continue          # a streak or scattered texture
+        mean = lab[top: top + box_h, left: left + box_w][region].mean(axis=0) - seed
+        mean[0] *= LIGHTNESS_WEIGHT
+        distance = float(np.linalg.norm(mean))
+        if label != tapped and distance > MEAN_SHARE * TOLERANCES[tolerance]:
+            continue
+        found.append({"x": round(float(cx / width), 5), "y": round(float(cy / height), 5), "radius": round(float(np.clip(radius / width, *RADIUS_LIMITS)), 4),
+                      "area_px": area, "color_distance": round(distance, 2)})
+    inside = lambda item, other: np.hypot((item["x"] - other["x"]) * width, (item["y"] - other["y"]) * height) <= other["radius"] * width
+    kept: list[dict[str, Any]] = []
+    for item in sorted(found, key=lambda item: -item["area_px"]):      # larger regions first, so a speck inside a hold is dropped
+        if any(inside(item, hold) for hold in existing) or any(inside(item, other) or inside(other, item) for other in kept):
+            continue
+        kept.append(item)
+    kept = sorted(kept, key=lambda item: item["color_distance"])[:MAX_SUGGESTIONS]
+    kept.sort(key=lambda item: -item["y"])
     b, g, r = (int(v) for v in np.median(image_bgr[max(0, py - 3): py + 4, max(0, px - 3): px + 4].reshape(-1, 3), axis=0))
-    return {"method": SUGGEST_VERSION, "tolerance": tolerance, "seed_color": f"#{r:02x}{g:02x}{b:02x}", "suggestions": found,
-            "note": "Suggestions share the tapped color. They are not confirmed holds, may include other objects, and can miss holds in shadow or of mixed color."}
+    return {"method": SUGGEST_VERSION, "tolerance": tolerance, "seed_color": f"#{r:02x}{g:02x}{b:02x}", "suggestions": kept,
+            "note": "Suggestions share the tapped color and are roughly hold-shaped. They are not confirmed holds, may include other objects, and can miss holds in shadow, of mixed color, or much larger or smaller than the one you tapped."}
 
 
 CLIMBER_MARGIN = cc.TransformLimits(climber_margin_fraction=0.2)
