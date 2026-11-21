@@ -31,7 +31,7 @@ function Meta({ attempt }: { attempt: Attempt }) {
   const label = attempt.problem_label || attempt.route_name;
   return (
     <span className="attempt-meta">
-      <span className={`chip ${state.tone}`} data-testid="attempt-status">{state.text}</span>
+      {state.text !== "Ready to review" && <span className={`chip ${state.tone}`} data-testid="attempt-status">{state.text}</span>}
       {older && <span className="chip outline" title="Analyzed before foot tracking was added. Reanalyze from the attempt to add it.">Hands only</span>}
       <span className="num">{[dateText(attempt.created_at), attempt.duration_ms && attempt.kind !== "photo" ? clock(attempt.duration_ms).slice(0, 5) : "",
         label ? `${label}${attempt.grade ? ` (${attempt.grade})` : ""}` : "", attempt.outcome].filter(Boolean).join(" · ")}</span>
@@ -46,6 +46,7 @@ export function Library() {
   const [uploading, setUploading] = useState<number | null>(null);
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
   const [auto, setAuto] = useState(() => window.localStorage.getItem("climbreview.autoAnalyze") !== "off");
 
   const load = useCallback(() => api.listAttempts().then((list) => { setAttempts(list); return list; }).catch((e) => { setError(e.message); return null; }), []);
@@ -73,6 +74,11 @@ export function Library() {
     }
   };
 
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = (attempts ?? []).filter((a) => {
+    const text = [a.title, a.route_name, a.problem_label, a.grade, a.outcome, a.climber_label, dateText(a.created_at)].join(" ").toLowerCase();
+    return words.every((word) => text.includes(word));
+  });
   const lastId = window.localStorage.getItem(LAST);
   const resume = attempts?.find((a) => a.id === lastId && a.status === "ready" && a.analyses[0]?.status === "complete") ?? null;
 
@@ -120,18 +126,24 @@ export function Library() {
         </section>
 
         <section aria-labelledby="list-heading">
-          <h2 id="list-heading">Your attempts{attempts?.length ? <span className="muted small-text num"> {attempts.length}</span> : null}</h2>
+          <div className="list-head">
+            <h2 id="list-heading">Your attempts{attempts?.length ? <span className="muted small-text num"> {attempts.length}</span> : null}</h2>
+            {(attempts?.length ?? 0) > 6 && (
+              <input type="search" className="search" value={query} placeholder="Search by name, problem, grade or outcome" aria-label="Search attempts" data-testid="attempt-search" onChange={(e) => setQuery(e.target.value)} />
+            )}
+          </div>
           {attempts === null && !error && <p className="muted">Loading…</p>}
           {attempts?.length === 0 && (
             <div className="card empty" data-testid="library-empty"><strong>No attempts yet</strong>Choose a video to get your first review. Analysis takes a minute or two for a short clip.</div>
           )}
+          {shown.length === 0 && (attempts?.length ?? 0) > 0 && <p className="muted" data-testid="search-empty">No attempt matches "{query}". <button className="link" onClick={() => setQuery("")}>Show all</button></p>}
           <ul className="attempt-list">
-            {attempts?.map((a) => (
+            {shown.map((a) => (
               <li key={a.id}>
                 <a className="card attempt-row" href={`#/attempt/${a.id}`} data-testid="attempt-row">
                   <Thumb attempt={a} />
                   <span><span className="attempt-title">{a.title}</span><Meta attempt={a} /></span>
-                  <span className="attempt-go" aria-hidden="true">{attemptState(a).action} →</span>
+                  {attemptState(a).action !== "Review" && <span className="attempt-go" aria-hidden="true">{attemptState(a).action} →</span>}
                 </a>
               </li>
             ))}

@@ -180,3 +180,30 @@ def test_a_foot_that_never_leaves_the_lowest_foothold_is_not_a_ground_phase():
     samples = [standing(k * 100, 900 - k * 2, 1100, 1000 - k * 3) for k in range(150)]       # one straight leg planted for the whole 15s
     assert find_lift_off(samples, H, L, 0, 15_000) is None
     assert build_story(result(14_900), [], samples, W, H, L)["on_wall"]["started_by"] == "start_of_clip"
+
+
+def test_the_recorded_outcome_decides_whether_coming_down_is_a_fall():
+    from app.analysis.story import recorded_ending
+    assert [recorded_ending(t) for t in ("Finished", "completed", "Sent it", "fall", "Fell at the top", "", "project", "did not finish")] == \
+        ["finished", "finished", "finished", "fell", "fell", "", "", ""]
+    fall = climb([(5, 3, 1), (4, 0, 1), (1, -2.5, 1), (3, 0, 1)])
+    samples, _ = track_of(fall)
+    unknown = build_story(result(fall[-1][0]), [], samples, W, H, L)
+    finished = build_story(result(fall[-1][0]), [], samples, W, H, L, outcome="Finished")
+    fell = build_story(result(fall[-1][0]), [], samples, W, H, L, outcome="fall")
+    # Finishing and dropping off the top is how a climb ends, not something to learn from.
+    assert "left_wall" not in [item["kind"] for item in finished["takeaways"]] and "after finishing" in finished["headline"]
+    assert finished["on_wall"]["ended_by"] == "fast_descent" and finished["on_wall"]["recorded_ending"] == "finished"
+    card = next(item for item in fell["takeaways"] if item["kind"] == "left_wall")
+    assert card["title"].startswith("You fell at") and "If this was a fall" not in card["try_this"]
+    asked = next(item for item in unknown["takeaways"] if item["kind"] == "left_wall")
+    assert asked["title"].startswith("You left the wall") and "If this was a fall" in asked["try_this"]
+
+
+def test_a_movement_that_ends_as_a_stop_begins_is_not_counted_during_it():
+    from app.analysis.story import _activity
+    arriving = {"type": "foot_motion", "hand": "left", "start_ms": 1000, "end_ms": 5300, "uncertain": False, "evidence": {}}
+    inside = {"type": "foot_motion", "hand": "right", "start_ms": 6000, "end_ms": 7000, "uncertain": False, "evidence": {}}
+    mostly_inside = {"type": "wrist_motion", "hand": "left", "start_ms": 4800, "end_ms": 6800, "uncertain": False, "evidence": {}}
+    counts = _activity(5000, 12000, [arriving, inside, mostly_inside])
+    assert counts["left_foot"] == 0 and counts["right_foot"] == 1 and counts["left_wrist"] == 1

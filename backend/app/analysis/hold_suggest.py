@@ -78,7 +78,7 @@ def suggest(image_bgr: np.ndarray, x: float, y: float, tolerance: str = "normal"
     max_area = MAX_AREA_FRACTION * width * height
     tapped = labels[py, px]
     if tapped and stats[tapped, cv2.CC_STAT_AREA] > max_area:
-        raise SuggestionError("That color covers a large part of the picture, so it looks like wall. Tap directly on a hold, or try the strict setting.")
+        raise SuggestionError("That color covers a large part of the picture, so it looks like wall. A hold or volume the same color as the wall behind it cannot be found by color: add it by hand, or try the strict setting.")
     min_area = np.pi * (MIN_RADIUS_FRACTION * width) ** 2
     low, high = min_area, max_area
     if tapped and stats[tapped, cv2.CC_STAT_AREA] >= min_area:

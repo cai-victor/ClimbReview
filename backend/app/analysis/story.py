@@ -13,7 +13,7 @@ import numpy as np
 
 from .explain import NAMES, clock, is_uncertain, limb_of
 
-STORY_VERSION = "climb-story-v1"
+STORY_VERSION = "climb-story-v2"
 C = {
     "gap_ms": 350,              # hips missing for longer than this break the track; nothing is bridged across it
     "smooth_ms": 500,           # rolling median inside one continuous run
@@ -35,6 +35,22 @@ C = {
     "long_stall_ms": 8000,
     "stalled_share": 0.35,
 }
+
+
+FINISHED_WORDS = ("finish", "complete", "sent", "send", "topped", "top out", "flash", "done")
+FELL_WORDS = ("fall", "fell", "slip", "came off", "dropped")
+
+
+def recorded_ending(outcome: str | None) -> str:
+    """'finished', 'fell', or '' from the climber's own outcome text. Only the climber's words decide this."""
+    text = (outcome or "").strip().lower()
+    if not text or text.startswith(("not ", "didn", "did not", "no ")):
+        return ""
+    if any(word in text for word in FELL_WORDS):
+        return "fell"
+    if any(word in text for word in FINISHED_WORDS):
+        return "finished"
+    return ""
 
 
 def _id(*parts: Any) -> str:
@@ -161,11 +177,20 @@ def find_stalls(track: dict[str, np.ndarray], until: float, since: float = -np.i
     return merged
 
 
+def _within(event: dict[str, Any], start: int, end: int) -> bool:
+    """A movement belongs to a window if it starts inside it, or if most of it happens inside it.
+    A movement that ends just after a stop begins is how the climber arrived there, not something done during it."""
+    if start <= event["start_ms"] < end:
+        return True
+    overlap = min(event["end_ms"], end) - max(event["start_ms"], start)
+    return overlap > 0 and overlap >= 0.5 * max(event["end_ms"] - event["start_ms"], 1)
+
+
 def _activity(start: int, end: int, events: Sequence[dict[str, Any]]) -> dict[str, int]:
     counts = {"left_foot": 0, "right_foot": 0, "left_wrist": 0, "right_wrist": 0, "uncertain": 0}
     for event in events:
         limb = limb_of(event)
-        if limb and event["start_ms"] < end and event["end_ms"] > start:
+        if limb and _within(event, start, end):
             if is_uncertain(event):
                 counts["uncertain"] += 1
             else:
@@ -175,7 +200,7 @@ def _activity(start: int, end: int, events: Sequence[dict[str, Any]]) -> dict[st
 
 def _moves_text(start: int, end: int, events: Sequence[dict[str, Any]]) -> str:
     """Each tracked movement inside a window, by limb and time, so the climber can jump to it."""
-    inside = sorted((e for e in events if limb_of(e) and not is_uncertain(e) and e["start_ms"] < end and e["end_ms"] > start), key=lambda e: e["start_ms"])
+    inside = sorted((e for e in events if limb_of(e) and not is_uncertain(e) and _within(e, start, end)), key=lambda e: e["start_ms"])
     if not inside:
         return ""
     return " In order: " + ", ".join(f"{NAMES[limb_of(e)]} at {clock(e['start_ms'])} ({e['evidence'].get('max_displacement_L', 0):.1f})" for e in inside[:6]) + (", and more." if len(inside) > 6 else ". The number is how far it moved, in torso lengths.")
@@ -205,8 +230,12 @@ def _stall_reading(counts: dict[str, int]) -> tuple[str, str, str]:
             "A planned rest or a careful setup for a hard move is not a mistake.")
 
 
-def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], samples: Sequence[dict[str, Any]], width: int, height: int, length_px: float | None) -> dict[str, Any]:
-    """Phases, a height profile, and a few takeaways. Pure: the same inputs give the same output."""
+def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], samples: Sequence[dict[str, Any]], width: int, height: int, length_px: float | None,
+                outcome: str | None = None) -> dict[str, Any]:
+    """Phases, a height profile, and a few takeaways. Pure: the same inputs give the same output.
+
+    `outcome` is the climber's own outcome text. When it says the problem was finished, coming down at the end is not
+    treated as a fall to learn from; when it says they fell, the card says so instead of asking."""
     base = {"version": STORY_VERSION, "criteria": C,
             "note": "Read from the middle of the hips in the picture. One camera cannot see depth, effort, grip, or contact, and these thresholds are unvalidated."}
     bounds = result["attempt_bounds_ms"]
@@ -283,7 +312,8 @@ def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], sample
                              measure("Foot movements during it, left / right", f"{longest['counts']['left_foot']} / {longest['counts']['right_foot']}"),
                              measure("Hand movements during it, left / right", f"{longest['counts']['left_wrist']} / {longest['counts']['right_wrist']}"),
                              measure("Hips tracked during it", f"{longest['tracked_fraction']:.0%}")]})
-    if drop:
+    ending = recorded_ending(outcome)
+    if drop and ending != "finished":
         last = next((s for s in stalls if s["role"] == "before_leaving"), None)
         reached = (floor - float(y[np.flatnonzero(t == drop["start_ms"])[0]])) / max(stats["height_gained_L"], 1e-6)
         waited = f" You had been in that spot for {last['duration_ms'] / 1000:.0f}s." if last else ""
@@ -296,18 +326,20 @@ def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], sample
         norm = lambda i: (float(x[i]) * length_px / width, float(y[i]) * length_px / height)
         takeaways.append({
             "id": _id("drop", drop["start_ms"]), "kind": "left_wall", "start_ms": max(wall_start, drop["start_ms"] - 2000), "end_ms": drop["end_ms"],
-            "title": f"You left the wall at {clock(drop['start_ms'])}",
+            "title": f"You fell at {clock(drop['start_ms'])}" if ending == "fell" else f"You left the wall at {clock(drop['start_ms'])}",
             "observed": f"At {clock(drop['start_ms'])} your hips dropped {drop['drop_L']:.1f} torso lengths in {(drop['end_ms'] - drop['start_ms']) / 1000:.1f}s, from {reached:.0%} of the highest point you reached.{waited}{final_text}",
             "highlight": {"at_ms": drop["start_ms"], "caption": f"Hips dropped {drop['drop_L']:.1f} torso lengths from here",
                           "shapes": [{"type": "dot", "x": norm(top_i)[0], "y": norm(top_i)[1], "label": "hips when it began"},
                                      {"type": "arrow", "x1": norm(top_i)[0], "y1": norm(top_i)[1], "x2": norm(low_i)[0], "y2": norm(low_i)[1], "label": ""}]},
             "last_limb": limb_of(final) if final else None,
-            "try_this": ((f"If this was a fall, watch your {NAMES[limb_of(final)]} from {clock(final['start_ms'])}: that was the last thing to move. On the next attempt, settle that limb before you put weight on it, and compare. "
-                          if final else "If this was a fall, watch the two seconds before it and look for what gave way. ")
+            "try_this": (((f"Watch your {NAMES[limb_of(final)]} from {clock(final['start_ms'])}: that was the last thing to move. " if ending == "fell" else
+                           f"If this was a fall, watch your {NAMES[limb_of(final)]} from {clock(final['start_ms'])}: that was the last thing to move. ")
+                          + "On the next attempt, settle that limb before you put weight on it, and compare. "
+                          if final else ("Watch the two seconds before it and look for what gave way. " if ending == "fell" else "If this was a fall, watch the two seconds before it and look for what gave way. "))
                          + ("You had waited in that position first, so also try the move sooner after you arrive there." if last else "")).strip(),
             "why": "The last seconds before leaving the wall show what the final move depended on, which is the most specific thing to practice.", "limbs": [limb_of(final)] if final else [],
-            "keep_if": "If you had finished and jumped down on purpose, there is nothing to change here.",
-            "verify": "The video cannot tell a fall from a jump down, or show why a hand or foot came off.",
+            "keep_if": "You recorded this attempt as a fall." if ending == "fell" else "If you had finished and jumped down on purpose, there is nothing to change here.",
+            "verify": "The video cannot show why a hand or foot came off." if ending == "fell" else "The video cannot tell a fall from a jump down, or show why a hand or foot came off. Set the attempt's outcome to say which it was.",
             "measurements": [measure("Hip drop", f"{drop['drop_L']:.1f} torso lengths"), measure("Height when it began", f"{reached:.0%} of your high point"),
                              *([measure("Time in that spot before it", f"{last['duration_ms'] / 1000:.1f}s")] if last else [])]})
     feet = [e for e in events if e["type"] == "foot_motion" and not is_uncertain(e) and e["start_ms"] <= wall_end]
@@ -351,9 +383,11 @@ def build_story(result: dict[str, Any], events: Sequence[dict[str, Any]], sample
     places = len(stalls)
     headline = (f"On the wall for {wall_ms / 1000:.0f}s: moving for {(wall_ms - stopped_ms) / 1000:.0f}s and staying put for {stopped_ms / 1000:.0f}s"
                 + (f" in {places} place{'s' if places != 1 else ''}." if places else ".")
-                + (f" You left the wall at {clock(wall_end)}." if drop else "")
+                + ((f" You came down at {clock(wall_end)}, after finishing." if ending == "finished" else f" You fell at {clock(wall_end)}." if ending == "fell"
+                    else f" You left the wall at {clock(wall_end)}.") if drop else "")
                 + ({"left_the_ground": f" Counted from {clock(wall_start)}, when your feet left the lowest level seen in the clip (the ground or your first foothold).",
                     "lowered_into_start": f" Counted from {clock(wall_start)}, after you lowered into the start position."}.get(started_by, "")))
-    return {**base, "available": True, "headline": headline, "on_wall": {"start_ms": wall_start, "end_ms": wall_end, "started_by": started_by, "ended_by": "fast_descent" if drop else "end_of_clip"},
+    return {**base, "available": True, "headline": headline, "on_wall": {"start_ms": wall_start, "end_ms": wall_end, "started_by": started_by, "ended_by": "fast_descent" if drop else "end_of_clip",
+                                                          "recorded_ending": ending or None},
             "drop": drop, "stats": stats, "phases": phases, "stops": [{k: v for k, v in s.items() if k not in {"x", "y"}} for s in stalls],
             "profile": profile, "takeaways": takeaways}

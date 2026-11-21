@@ -1,12 +1,71 @@
 # ClimbReview status
 
-Last updated 2026-11-15 after changes made in response to a climber's review. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
+Last updated 2026-11-21 after a second pass: attempt details, search, and a scale check. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
 
 ## Bottom line
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Second round of the climber's review (latest, 2026-11-15)
+## Second whole-app pass: details, search, scale check (latest, 2026-11-21)
+
+A fresh upload was taken through import, setup, analysis and review on a separate scratch copy of the app (public clip, scratch data folder, nothing added to the live data). The live app's pages were opened again at desktop and phone widths.
+
+**Added:**
+
+- **Attempt details from the review.** A line under the title shows the problem, grade, outcome and climber, with "Edit details" opening a dialog for the name, problem, grade, outcome and climber. Outcome has one-tap choices (Finished, Fell, Not finished) plus free text, here and on the setup and Compare forms. Saving re-reads the review, so marking a climb Finished changes "You left the wall" to "You came down ..., after finishing" (D115). Problem is one name for the list and for Compare (D118).
+- **Search on the attempts page** (shown with more than six attempts): matches name, problem, grade, outcome, climber and date.
+- **Scale check** (D117): a scale line that makes the climber's torso implausible is flagged in the hold editor and the planner. It flags IMG_7547 (17 cm) and the 6 cm line on IMG_7768 (22 cm); the 15 cm line on IMG_7768 (57 cm) passes.
+- **Portrait videos** get a narrower video column and a wider reading column.
+
+**Checked and left as they were:** the setup, progress and empty-library screens, the opened opportunity card, and the hold editor with a hold selected. No console errors on any page.
+
+**Noticed, not changed:** the live data has a second copy of IMG_7852, added on 2026-11-18 at 19:42 UTC, not by my scripts. It was left alone.
+
+**Current verification:** `pytest` 340 passed. Playwright, 12 specs, passed; the smoke spec now also saves details from the dialog and checks them after a reload. Search was checked by hand on the live list, not by a spec.
+
+## Whole-app pass: interface and accuracy (2026-11-18)
+
+Every page was opened at desktop and phone widths, and the review cards of all 17 clips were read against the video. Judgments about what the videos show are mine from drawn skeletons and frames (AI-assisted), not human labels.
+
+**Accuracy, checked and fixed:**
+
+- IMG_7547 is recorded as Finished, but its review offered "You left the wall at 00:35.9 ... If this was a fall". The ending now follows the recorded outcome (D115): a finished climb says "You came down at 00:35.9, after finishing" and gets no card; "fall" gives "You fell at ...".
+- A stop listed the movement that brought the climber into it as something done during it (IMG_7859, IMG_7547, IMG_7238, IMG_4301, IMG_7549). Only movements that start inside a stop, or mostly happen inside it, are counted now (D116).
+- High-step cards on IMG_7865 (00:11.3) and IMG_7852 (00:05.3) were compared with frames and match the video: the hips stay beside the high foot until a late rock-over.
+- The high step on IMG_7547 at 00:24.1 lands with the foot above the hips on a steep wall. The card's advice may not fit a hook or rock-over there; it was left unchanged because frames alone do not show which it was.
+
+**Interface:**
+
+- Attempts are shown as picture tiles; "Ready to review" is no longer printed on every attempt, only states that need action are.
+- The Evidence tab shows each detected movement as one paragraph; the interpretation, chart and rating form open with "More, and rate this detection", or by themselves for the selected movement or one already rated. The page for IMG_7547 went from about 8,100 to 4,800 pixels tall.
+- On a phone the review tabs wrap onto two rows instead of being cut off.
+- Opportunity filters show only when there are both foot and hand cards, and never as a disabled "Hands 0".
+- The route planner shows the marked route picture before you plan, not an empty box.
+- Checked and left as they were: the video stays in view while the right column scrolls, and the page background covers long pages (it looked cut off only in full-page screenshots).
+
+**Current verification:** `pytest` 339 passed. Playwright, 12 specs, passed.
+
+## A new clip through the whole app (2026-11-16)
+
+IMG_7859.MOV (35 s, 4K HLG, portrait) was downloaded from the shared Drive folder into `data/new_vids/new vids 1/` (ignored by git), imported, analyzed, reviewed, and given a hold map. It had not been used before and is now a development clip. Every judgment below comes from comparing the app's output with frames and drawn skeletons by eye (AI-assisted); no human labelled the clip.
+
+**What the app got right:** the camera was reported still (it is); the climb was counted from 00:03.8, when the low foot leaves the floor; both stops match the video; the combined wall picture removed the climber cleanly; after the map-against-video check, every foot placement fell on the hold or volume the foot is on in the video, and both hands were matched to the finish at 00:33.5.
+
+**Mistakes found and fixed:**
+
+- A card said "Hips stayed left of your left foot after a high step" and advised standing up on that foot. The foot had been stepped sideways under an already straight leg, so there was nothing to stand up on. Such steps are now not flagged (D113). The same rule removed one card each on IMG_4301 and IMG_7238, both a trailing foot joining the other; high-step cards across the 17 clips went from 11 to 8.
+- Tapping the cream finish hold (on a cream wall) or a volume with "Find holds by color" answered "Tap directly on a hold". The message now says a hold the same color as the wall cannot be found by color and should be added by hand.
+- The planner found no sequence for this route. The climber crossed the volumes with one hand flat on the wall, which the planner cannot represent. The explanation now names this case.
+
+**Not fixed:** the planner still cannot plan a slab section where a hand is on the bare wall, so this route has no planned sequence. Color search cannot find the finish hold or the volumes on this wall.
+
+**A wrong fix that was removed:** I first read the tracker's crossed legs at 00:13.9 to 00:22.2 as a left/right mix-up and wrote a correction. Zoomed frames showed a real cross-step with the hips turned side-on, so the correction was deleted before any commit (D114). The two analysis runs it produced for this clip were deleted, after a backup to `data/app/backups/climbreview_before_run_cleanup_1116.sqlite`.
+
+**Left in the live app:** the attempt "IMG_7859" with one analysis run and a hold map "Route 1" with six marks that I placed (start hand hold, start foothold, one hand hold, two volumes, finish). They are my marks, not a climber's.
+
+**Current verification:** `pytest` 337 passed. Playwright, 12 specs, passed.
+
+## Second round of the climber's review (2026-11-15)
 
 The same climber sent 12 more points after using the new hold editor and planner. Decisions are D106 to D112 in `docs/DECISIONS.md`.
 

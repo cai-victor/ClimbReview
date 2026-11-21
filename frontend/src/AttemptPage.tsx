@@ -3,6 +3,7 @@ import { api, Attempt, Job } from "./api";
 import { Progress } from "./Progress";
 import { Review } from "./Review";
 import { Setup } from "./Setup";
+import { DetailsDialog, DetailsLine } from "./Details";
 import { Menu } from "./ui";
 
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -14,6 +15,7 @@ export function AttemptPage({ id }: { id: string }) {
   const [showSetup, setShowSetup] = useState(false);
   const [chosenRun, setChosenRun] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     try { setAttempt(await api.getAttempt(id)); setError(""); }
@@ -119,6 +121,7 @@ export function AttemptPage({ id }: { id: string }) {
       <div className="attempt-head">
         <div className="titles">
           <h1>{attempt.title}</h1>
+          {attempt.status === "ready" && <DetailsLine attempt={attempt} onEdit={() => setEditing(true)} />}
           {reviewing && (
             <div className="run-line">
               {completed.length > 1 ? (
@@ -142,6 +145,7 @@ export function AttemptPage({ id }: { id: string }) {
         <div className="actions">
           {ready && attempt.kind !== "photo" && <a className="button" href={`#/holds/${attempt.id}`}>Mark route holds</a>}
           <Menu label="More" testid="attempt-menu">
+            {ready && <button onClick={() => setEditing(true)}>Edit name, problem and outcome</button>}
             {ready && <a href={`#/plan/${attempt.id}`}>Plan a route from marked holds</a>}
             {reviewing && <button onClick={() => { setChosenRun(null); setShowSetup(true); }}>Change start and end, reanalyze</button>}
             {reviewing && <>
@@ -158,6 +162,7 @@ export function AttemptPage({ id }: { id: string }) {
       </div>
       {error && <div className="banner" role="alert"><span>{error}</span><button className="button small" onClick={() => setError("")}>Dismiss</button></div>}
       {body}
+      <DetailsDialog attempt={attempt} open={editing} onClose={() => setEditing(false)} onSaved={() => void load()} />
     </div>
   );
 }

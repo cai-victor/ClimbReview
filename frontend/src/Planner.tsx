@@ -66,6 +66,7 @@ export function Planner({ attemptId }: { attemptId: string }) {
   }, [mapId, height, wingspan, body, rectify]);
 
   if (!attempt) return <div className="page">{error ? <p className="error" role="alert">{error}</p> : <p className="muted">Loading…</p>}</div>;
+  const current = maps.find((m) => m.id === mapId) ?? null;
   const candidate = result?.candidates[Math.min(active, result.candidates.length - 1)] ?? null;
   const torso = result?.body?.torso_cm ?? 0;
 
@@ -82,7 +83,10 @@ export function Planner({ attemptId }: { attemptId: string }) {
           <section className="card">
             {result?.hold_map
               ? <BetaFigure map={result.hold_map} candidate={candidate} position={candidate ? Math.min(step, candidate.steps.length) : 0} width={result.hold_map.width} height={result.hold_map.height} />
-              : <p className="muted">Enter your measurements and choose Plan.</p>}
+              : current
+                ? <><BetaFigure map={{ ...current, hold_count: current.holds.length, usable: true, message: "", alignment: null }} candidate={null} position={0} width={current.width} height={current.height} />
+                    <p className="muted small-text">{current.name}: {current.holds.length} marked hold{current.holds.length === 1 ? "" : "s"}. Enter your measurements and choose Plan.</p></>
+                : <p className="muted">Enter your measurements and choose Plan.</p>}
           </section>
           <section className="card">
             <div className="panel-head"><h2>Your measurements</h2>
@@ -108,6 +112,8 @@ export function Planner({ attemptId }: { attemptId: string }) {
                 <a className="button" href={`#/holds/${attemptId}`}>Open the hold editor</a>
               </div>
             )}
+            {result?.scale_check && !result.scale_check.plausible && <p className="notice-text small-text" role="alert" data-testid="plan-scale-warning">{result.scale_check.message} <a href={`#/holds/${attemptId}`}>Open the hold editor</a></p>}
+            {!result && current?.scale_check && !current.scale_check.plausible && <p className="notice-text small-text" role="alert">{current.scale_check.message}</p>}
             {result?.body && <p className="small-text" data-testid="plan-body">Estimated reach lengths: arm {showLength(result.body.arm_cm, body.unit)}, leg {showLength(result.body.leg_cm, body.unit)}, torso {showLength(result.body.torso_cm, body.unit)}.</p>}
             {candidate && result && (
               <>

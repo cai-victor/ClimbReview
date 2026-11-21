@@ -73,7 +73,7 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
       setCoaching(await performanceApi.coaching(run.id));
       setBetaKey((key) => key + 1);
     } else setCoaching(data);
-  }, [run.id]);
+  }, [run.id, attempt.outcome]);       // the outcome decides how the end of the climb is read
   useEffect(() => { loadCoaching().catch((e) => setNotice(e.message)); }, [loadCoaching]);
 
   useEffect(() => {
@@ -232,7 +232,7 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
   );
 
   return (
-    <div className="review">
+    <div className={`review${(attempt.height ?? 0) > (attempt.width ?? 0) ? " portrait" : ""}`}>
       <div className="review-main">
         <div ref={stage}>
           <Player ref={player} src={attempt.video_url!} samples={samples} showSkeleton={skeleton} onTime={setTime} loop={loopRange} focus={focus} trails={trails} marks={marks} toolbar={toolbar} emphasis={selectedCue?.limbs ?? []} highlight={selectedCue?.highlight ?? null}
@@ -323,11 +323,11 @@ export function Review({ attempt, run, onReanalyze, onAttemptChanged }: { attemp
                 {coaching.story && !coaching.story.available && <p className="muted small-text" data-testid="story-unavailable">No climb profile: {coaching.story.reason}</p>}
                 <div className="panel-head">
                   <h2>Opportunities ({cards.length})</h2>
-                  {cards.length > 0 && (
+                  {feetCount > 0 && handCount > 0 && (
                     <div className="seg" role="group" aria-label="Show opportunities for">
                       <button className="button small" aria-pressed={cueFilter === "all"} data-testid="cue-filter-all" onClick={() => setCueFilter("all")}>All</button>
-                      <button className="button small" aria-pressed={cueFilter === "feet"} data-testid="cue-filter-feet" disabled={feetCount === 0} onClick={() => { setCueFilter("feet"); setFocus("feet"); }}>Feet {feetCount}</button>
-                      <button className="button small" aria-pressed={cueFilter === "hands"} data-testid="cue-filter-hands" disabled={handCount === 0} onClick={() => { setCueFilter("hands"); setFocus("hands"); }}>Hands {handCount}</button>
+                      {feetCount > 0 && <button className="button small" aria-pressed={cueFilter === "feet"} data-testid="cue-filter-feet" onClick={() => { setCueFilter("feet"); setFocus("feet"); }}>Feet {feetCount}</button>}
+                      {handCount > 0 && <button className="button small" aria-pressed={cueFilter === "hands"} data-testid="cue-filter-hands" onClick={() => { setCueFilter("hands"); setFocus("hands"); }}>Hands {handCount}</button>}
                     </div>
                   )}
                 </div>

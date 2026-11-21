@@ -297,3 +297,35 @@ progress { height:8px; border-radius:99px; overflow:hidden; } progress::-webkit-
 .hold-canvas svg circle[role=button]:focus-visible { stroke:#fff; }
 details.tips { padding-left:0; }
 .suggest-panel { border-left:3px solid #d63384; padding-left:var(--s2); margin:var(--s2) 0; }
+
+/* Attempts as tiles: the picture is what tells two climbs apart. */
+.attempt-list { grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:var(--s3); }
+.attempt-row { display:flex; flex-direction:column; align-items:stretch; gap:var(--s2); padding:var(--s2); height:100%; }
+.attempt-row .thumb { width:100%; height:auto; aspect-ratio:4 / 5; }
+.attempt-row .attempt-meta { font-size:.8rem; }
+.attempt-row .attempt-go { margin-top:auto; }
+/* Detected movements stay one paragraph long until opened. */
+.event-more > summary { font-weight:600; color:var(--accent); }
+.event-more[open] { display:flex; flex-direction:column; gap:6px; }
+@media (max-width:600px) {
+  .attempt-list { grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--s2); }
+  .tabs { flex-wrap:wrap; } .tab { flex:1 1 auto; text-align:center; }
+}
+
+/* Attempt details: one line under the title, edited in a sheet. */
+.details-line { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; font-size:.88rem; color:var(--ink-2); margin-top:4px; }
+.details-line .link { font-size:.86rem; }
+dialog.sheet { border:1px solid var(--line); border-radius:20px; padding:var(--s5); width:min(520px, calc(100vw - 32px)); max-height:calc(100vh - 48px); color:var(--ink); background:var(--panel); box-shadow:var(--shadow-pop); }
+dialog.sheet::backdrop { background:rgba(34,28,51,.35); backdrop-filter:blur(2px); }
+dialog.sheet form { display:flex; flex-direction:column; gap:var(--s3); }
+dialog.sheet h2 { font-size:1.15rem; margin:0; }
+.sheet-actions { display:flex; justify-content:flex-end; gap:var(--s2); margin-top:var(--s2); }
+.outcome-field { display:flex; flex-direction:column; gap:6px; margin:0; }
+.outcome-field input { margin-top:0; }
+/* Attempts list: heading and search on one line. */
+.list-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--s2) var(--s3); margin-bottom:var(--s3); }
+.list-head h2 { margin:0; }
+.search { max-width:340px; }
+@media (max-width:600px) { .search { max-width:none; } dialog.sheet { padding:var(--s4); } }
+/* A portrait video needs less width than the reading column does. */
+@media (min-width:1001px) { .review.portrait { grid-template-columns:minmax(0,.8fr) minmax(440px,1.2fr); } }

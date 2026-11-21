@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import db
+from .analysis import beta
 from .analysis.pose import sha256_file
 from .analysis.video import tool_path
 from .settings import Settings, require_id
@@ -83,9 +84,20 @@ def register_holds(app: FastAPI, get_settings) -> None:
             raise HTTPException(404, "Hold map not found.")
         return row
 
-    def public_map(connection, row: dict[str, Any]) -> dict[str, Any]:
+    def tracked_torso_px(settings, connection, attempt_id: str) -> float | None:
+        """The climber's median shoulder-to-hip length in the newest finished analysis, in picture pixels."""
+        run = db.row(connection.execute(
+            "SELECT id FROM jobs WHERE attempt_id=? AND kind='analysis' AND status='complete' ORDER BY created_at DESC LIMIT 1", (attempt_id,)).fetchone())
+        movement = None if run is None else settings.run_dir(attempt_id, run["id"]) / "movement.json"
+        if movement is None or not movement.exists():
+            return None
+        return json.loads(movement.read_text()).get("L_px")
+
+    def public_map(settings, connection, row: dict[str, Any]) -> dict[str, Any]:
         holds = [dict(h) for h in connection.execute("SELECT * FROM holds WHERE map_id=? ORDER BY created_at, id", (row["id"],))]
-        return {**row, "scale": json.loads(row["scale"]) if row.get("scale") else None, "holds": holds, "coordinate_system": "normalized canonical frame; radius is a fraction of width",
+        scale = json.loads(row["scale"]) if row.get("scale") else None
+        check = beta.scale_check(scale, row["width"], row["height"], tracked_torso_px(settings, connection, row["attempt_id"])) if scale else None
+        return {**row, "scale": scale, "scale_check": check, "holds": holds, "coordinate_system": "normalized canonical frame; radius is a fraction of width",
                 "scope_note": SCOPE_NOTE, "frame_url": f"/api/attempts/{row['attempt_id']}/frame?ms={row['reference_frame_ms']}"}
 
     @router.get("/api/attempts/{attempt_id}/frame")
@@ -109,19 +121,19 @@ def register_holds(app: FastAPI, get_settings) -> None:
                 """INSERT INTO hold_maps(id, attempt_id, name, reference_frame_ms, frame_index, canonical_sha256, width, height, created_at, updated_at)
                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (map_id, attempt_id, body.name, round(index * 1000 / target["fps"]), index, digest, target["width"], target["height"], db.now(), db.now()))
-            return public_map(connection, get_map(connection, map_id))
+            return public_map(settings, connection, get_map(connection, map_id))
 
     @router.get("/api/attempts/{attempt_id}/hold-maps")
     def list_maps(attempt_id: str, settings: Settings = Depends(get_settings)) -> list[dict[str, Any]]:
         with db.session(settings.database) as connection:
             attempt(connection, attempt_id)
             rows = [dict(r) for r in connection.execute("SELECT * FROM hold_maps WHERE attempt_id=? ORDER BY created_at", (attempt_id,))]
-            return [public_map(connection, r) for r in rows]
+            return [public_map(settings, connection, r) for r in rows]
 
     @router.get("/api/hold-maps/{map_id}")
     def read_map(map_id: str, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
         with db.session(settings.database) as connection:
-            return public_map(connection, get_map(connection, map_id))
+            return public_map(settings, connection, get_map(connection, map_id))
 
     @router.delete("/api/hold-maps/{map_id}", status_code=204)
     def delete_map(map_id: str, settings: Settings = Depends(get_settings)) -> None:
@@ -136,7 +148,7 @@ def register_holds(app: FastAPI, get_settings) -> None:
             connection.execute("""INSERT INTO holds(id, map_id, x, y, radius, route, hold_type, role, "use", pull, start_limb, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                                (uuid.uuid4().hex, map_id, body.x, body.y, body.radius, body.route, body.hold_type, body.role, body.use, body.pull, body.start_limb if body.role == "start" else "", db.now()))
             connection.execute("UPDATE hold_maps SET updated_at=? WHERE id=?", (db.now(), map_id))
-            return public_map(connection, row)
+            return public_map(settings, connection, row)
 
     @router.put("/api/hold-maps/{map_id}/holds/{hold_id}")
     def edit_hold(map_id: str, hold_id: str, body: Hold, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
@@ -146,7 +158,7 @@ def register_holds(app: FastAPI, get_settings) -> None:
                                          (body.x, body.y, body.radius, body.route, body.hold_type, body.role, body.use, body.pull, body.start_limb if body.role == "start" else "", require_id(hold_id), map_id))
             if updated.rowcount == 0:
                 raise HTTPException(404, "Hold not found.")
-            return public_map(connection, row)
+            return public_map(settings, connection, row)
 
     @router.delete("/api/hold-maps/{map_id}/holds/{hold_id}")
     def delete_hold(map_id: str, hold_id: str, settings: Settings = Depends(get_settings)) -> dict[str, Any]:
@@ -155,12 +167,12 @@ def register_holds(app: FastAPI, get_settings) -> None:
             removed = connection.execute("DELETE FROM holds WHERE id=? AND map_id=?", (require_id(hold_id), map_id))
             if removed.rowcount == 0:
                 raise HTTPException(404, "Hold not found.")
-            return public_map(connection, row)
+            return public_map(settings, connection, row)
 
     @router.get("/api/hold-maps/{map_id}/export")
     def export_map(map_id: str, settings: Settings = Depends(get_settings)) -> JSONResponse:
         with db.session(settings.database) as connection:
-            item = public_map(connection, get_map(connection, map_id))
+            item = public_map(settings, connection, get_map(connection, map_id))
         return JSONResponse(item, headers={"Content-Disposition": f'attachment; filename="hold_map_{map_id[:8]}.json"'})
 
     app.include_router(router)

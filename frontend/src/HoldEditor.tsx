@@ -502,6 +502,7 @@ export function HoldEditor({ attemptId }: { attemptId: string }) {
                 </div>
               )}
               <p className="small-text" data-testid="scale-status">{active.scale ? `Scale set: the white line is ${active.scale.cm} cm (${(active.scale.cm / CM_PER_INCH).toFixed(1)} in).` : "No scale set. A scale is needed to plan with your height and wingspan."}</p>
+              {active.scale_check && !active.scale_check.plausible && <p className="notice-text small-text" role="alert" data-testid="scale-warning">{active.scale_check.message}</p>}
               {highest && (
                 <p className="notice-text small-text" data-testid="finish-proposal">No finish yet. Hold {numberOf(highest)} is the highest mark.{" "}
                   <button className="link" data-testid="propose-finish" onClick={() => setRole(highest, "finish")}>Set it as the finish</button> or <button className="link" data-testid="propose-top" onClick={() => setRole(highest, "top")}>the route tops out there</button>.</p>

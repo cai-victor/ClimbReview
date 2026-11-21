@@ -511,7 +511,8 @@ def _stuck_note(reached: dict[str, Any]) -> str:
     return ((f"The search got the hands as far as {where} and found no way on. " if where else "No sequence was found. ") +
             "From there, no marked hold is within reach without a foot above both hands, crossed feet, or a body position that does not fit a marked pull direction. "
             "Check that every hold you would use is marked, footholds included, that hand and foot uses are right, and that the picture's scale is right. "
-            "This does not mean the problem is impossible: dynamic moves, smears, heel hooks, and unmarked holds are not modeled.")
+            "This does not mean the problem is impossible: dynamic moves, smears, heel hooks, and unmarked holds are not modeled, "
+            "and neither is balancing with a hand flat on the wall, as on a slab or across a volume. Every planned position keeps both hands on marked holds.")
 
 
 def candidate_sequences(holds: Sequence[dict[str, Any]], width: int, height: int, length_px: float, body: Body | None,
@@ -598,3 +599,26 @@ def torso_px(scale: dict[str, float], width: int, height: int, torso_cm: float) 
     """Pixels per torso length from a user-marked line of known real length. Uses pixel distance, so aspect ratio is kept."""
     line_px = float(np.hypot((scale["x2"] - scale["x1"]) * width, (scale["y2"] - scale["y1"]) * height))
     return line_px / scale["cm"] * torso_cm
+
+
+SCALE_TORSO_CM = (30.0, 80.0)    # a shoulder-to-hip length outside this, in the picture, means the scale line is probably wrong
+
+
+def scale_check(scale: dict[str, float] | None, width: int, height: int, tracked_torso_px: float | None) -> dict[str, Any] | None:
+    """What a marked scale line says about the climber's tracked torso, and whether that is believable.
+
+    An adult's shoulder-to-hip length is roughly 40 to 60 cm; a camera angle can shorten it in the picture, so the
+    accepted range is wider. This is a sanity check on the line, not a measurement of the climber. None when either
+    the line or a tracked torso is missing."""
+    if not scale or not tracked_torso_px:
+        return None
+    line_px = float(np.hypot((scale["x2"] - scale["x1"]) * width, (scale["y2"] - scale["y1"]) * height))
+    if line_px <= 0 or scale["cm"] <= 0:
+        return None
+    torso_cm = float(tracked_torso_px) / (line_px / scale["cm"])
+    low, high = SCALE_TORSO_CM
+    plausible = low <= torso_cm <= high
+    message = None if plausible else (
+        f"By this scale line the climber's shoulder-to-hip length in the picture is about {torso_cm:.0f} cm. An adult's is usually 40 to 60 cm, "
+        f"so the line or the distance entered for it is probably wrong. Plans from your height and wingspan use this scale, so check it or remove it.")
+    return {"torso_cm": round(torso_cm, 1), "plausible": plausible, "range_cm": list(SCALE_TORSO_CM), "message": message}

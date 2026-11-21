@@ -57,6 +57,7 @@ CRITERIA = {
     "stand_up_smooth_ms": 2000,      # ...within this time is a smooth stand-up, and is reported as such
     "stand_up_slow_ms": 2500,        # ...not within this time is a slow one
     "stand_up_watch_ms": 6000,
+    "landed_leg_straight": 0.93,     # hip-to-ankle distance over thigh plus shin; at or above this the leg landed already extended, with no stand-up left
     "hips_off_foot_L": 0.6,          # hips this far sideways from the high foot have not moved over it
     "ground_leave_ms": 1500,                 # steps this early are treated as leaving the ground
     "intermediate_min_step_L": 0.3,
@@ -245,6 +246,9 @@ def _stand_up(event: dict[str, Any], poses: Poses, until: float) -> dict[str, An
     hips = _hip_mid(poses, event["end_ms"])
     if foot is None or hips is None:
         return None
+    hip, knee = poses.point(landed, f"{side}_hip"), poses.point(landed, f"{side}_knee")
+    segments = None if hip is None or knee is None else float(np.linalg.norm(hip - knee) + np.linalg.norm(knee - foot))
+    extension = None if not segments else float(np.linalg.norm(hip - foot)) / segments
     limit = min(event["end_ms"] + C["stand_up_watch_ms"], until)
     rose_ms, seen, last = None, 0, event["end_ms"]
     for sample in poses.between(event["end_ms"], limit):
@@ -256,7 +260,7 @@ def _stand_up(event: dict[str, Any], poses: Poses, until: float) -> dict[str, An
             rose_ms = int(sample["t"] - event["end_ms"])
             break
     return {"side": side, "foot": foot, "hips": hips, "offset_L": float(hips[0] - foot[0]) / poses.length, "hips_above_foot_L": float(foot[1] - hips[1]) / poses.length,
-            "rose_ms": rose_ms, "watched_ms": int(last - event["end_ms"]), "samples": seen}
+            "rose_ms": rose_ms, "watched_ms": int(last - event["end_ms"]), "samples": seen, "leg_extension": extension}
 
 
 def _large_step_cards(events, series, poses, bounds, hold_context, not_flagged, cannot=None, wall_end: int | None = None) -> list[dict[str, Any]]:
@@ -283,6 +287,10 @@ def _large_step_cards(events, series, poses, bounds, hold_context, not_flagged, 
             not_flagged.append({"start_ms": event["start_ms"], "text": f"{label} ({rise:.1f} torso lengths up): your hips rose over it within {after['rose_ms'] / 1000:.1f}s. That looked like a clean stand-up."})
             continue
         if after["rose_ms"] is not None and after["rose_ms"] < C["stand_up_slow_ms"]:
+            continue
+        if after["leg_extension"] is not None and after["leg_extension"] >= C["landed_leg_straight"]:
+            # A foot that lands under an already straight leg was reached out to, not stepped up onto: there is no stand-up to wait for.
+            not_flagged.append({"start_ms": event["start_ms"], "text": f"{label} ({rise:.1f} torso lengths up): the leg was already nearly straight when the foot landed, so there was no stand-up on it to judge."})
             continue
         offset = after["offset_L"]
         beside = abs(offset) >= C["hips_off_foot_L"]
@@ -689,7 +697,7 @@ def _story_cards(story: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def build_coaching(result: dict[str, Any], events: list[dict[str, Any]], series: dict[str, Any], samples: Sequence[dict[str, Any]],
-                   width: int, height: int, hold_context: dict[str, Any] | None = None, plane=None) -> dict[str, Any]:
+                   width: int, height: int, hold_context: dict[str, Any] | None = None, plane=None, outcome: str | None = None) -> dict[str, Any]:
     """Cards, placements, counterexamples, and unknowns for one analysis. Pure: the same inputs give the same output."""
     length = series["L_px"]
     base = {"version": COACHING_VERSION, "criteria": CRITERIA, "sources": SOURCES,
@@ -702,7 +710,7 @@ def build_coaching(result: dict[str, Any], events: list[dict[str, Any]], series:
     pairs, not_flagged, cannot, tally = _evaluate_reaches(events, series, poses, references, bounds)
     body = beta.body_model(samples, width, height, length)
     _attach_alternatives(pairs, series, poses, body, hold_context)
-    story = story_module.build_story(result, events, samples, width, height, length)
+    story = story_module.build_story(result, events, samples, width, height, length, outcome)
     wall_end = story["on_wall"]["end_ms"] if story.get("available") and story["drop"] else None
     cards = ([card for _, card in pairs] + _repeat_cards(events, not_flagged) + _shift_cards(events, poses, not_flagged, cannot)
              + _large_step_cards(events, series, poses, bounds, hold_context, not_flagged, cannot, wall_end) + _pause_cards(events, series, bounds, cannot))

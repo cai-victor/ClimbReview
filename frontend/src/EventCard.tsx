@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, ClimbEvent, clock, Movement, Review } from "./api";
 import { EventChart, isUncertain } from "./MovementChart";
 
@@ -22,6 +22,10 @@ export function EventCard({ event, runId, selected, onSelect, onSaved, movement,
   const [review, setReview] = useState(event.review);
   const [status, setStatus] = useState("");
   const noteTimer = useRef<number | undefined>(undefined);
+  const rated = event.review.detection_judgment !== "unreviewed" || event.review.usefulness !== "unrated" || event.review.context_tags.length > 0 || event.review.note !== "";
+  // The full reading and the rating form open for the selected card, or one already rated; the rest stay one line long.
+  const [open, setOpen] = useState(selected || rated);
+  useEffect(() => { if (selected) setOpen(true); }, [selected]);
 
   const save = async (next: Review) => {
     window.clearTimeout(noteTimer.current);
@@ -44,6 +48,8 @@ export function EventCard({ event, runId, selected, onSelect, onSaved, movement,
       </button>
       {isUncertain(event) && <p className="uncertain-tag" data-testid="uncertain-tag">Uncertain tracking: check this in the video</p>}
       <p><span className="label">Observed</span> {event.feedback.observation}</p>
+      <details className="event-more" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary data-testid="event-more">{open ? "Less" : rated ? "More, and your rating" : "More, and rate this detection"}</summary>
       {event.feedback.context && <p><span className="label">Meanwhile</span> {event.feedback.context}</p>}
       {selected && movement.available && <figure className="event-figure"><EventChart movement={movement} event={event} time={time} onSeek={onSeek} /><figcaption className="muted small-text">Distance of the tracked point from where this movement began, in torso lengths. Click to jump.</figcaption></figure>}
       <p><span className="label">Could be</span> {event.feedback.interpretation}</p>
@@ -81,6 +87,7 @@ export function EventCard({ event, runId, selected, onSelect, onSaved, movement,
         window.clearTimeout(noteTimer.current);
         noteTimer.current = window.setTimeout(() => void save(next), 500);
       }} onBlur={() => void save(review)} /></label>
+      </details>
       {status && <span className="muted small-text" role="status">{status}</span>}
     </article>
   );

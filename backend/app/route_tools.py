@@ -196,13 +196,13 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
         measured = beta.body_from_measurements(height_cm, wingspan_cm)
         needs = beta.setup_needed(holds)
         tracked_px = None
-        if scale is None:
-            with db.session(settings.database) as connection:
-                run = db.row(connection.execute(
-                    "SELECT id FROM jobs WHERE attempt_id=? AND kind='analysis' AND status='complete' ORDER BY created_at DESC LIMIT 1", (attempt["id"],)).fetchone())
-            movement = None if run is None else settings.run_dir(attempt["id"], run["id"]) / "movement.json"
-            if movement is not None and movement.exists():
-                tracked_px = json.loads(movement.read_text()).get("L_px")
+        with db.session(settings.database) as connection:
+            run = db.row(connection.execute(
+                "SELECT id FROM jobs WHERE attempt_id=? AND kind='analysis' AND status='complete' ORDER BY created_at DESC LIMIT 1", (attempt["id"],)).fetchone())
+        movement = None if run is None else settings.run_dir(attempt["id"], run["id"]) / "movement.json"
+        if movement is not None and movement.exists():
+            tracked_px = json.loads(movement.read_text()).get("L_px")
+        check = beta.scale_check(scale, row["width"], row["height"], tracked_px)
         if scale is None and not tracked_px:
             needs.append("Set the picture's scale: mark two points on the wall and enter the real distance between them.")
         if needs:
@@ -229,7 +229,9 @@ def register_route_tools(app: FastAPI, get_settings) -> None:
         output["assumptions"] = [a for a in output.get("assumptions", []) if "tracked limb lengths" not in a] + beta.MEASURED_ASSUMPTIONS
         if scale is None:
             output["assumptions"].append("No scale line was set, so the picture's scale comes from the climber's tracked torso in the video. It assumes the climber in the video is the person whose measurements you entered.")
-        return {**output, "hold_map": public, "body": measured.public(), "scale_source": "marked_line" if scale else "tracked_torso",
+        if check and not check["plausible"]:
+            output["assumptions"].insert(0, check["message"])
+        return {**output, "hold_map": public, "body": measured.public(), "scale_source": "marked_line" if scale else "tracked_torso", "scale_check": check,
                 "scale": {**(scale or {}), "px_per_cm": round(length / measured.torso_cm, 3)}}
 
     app.include_router(router)

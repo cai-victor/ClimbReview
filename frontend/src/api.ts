@@ -148,13 +148,14 @@ export interface Hold { id: string; x: number; y: number; radius: number; route:
 export type StartLimb = "" | "left_hand" | "right_hand" | "both_hands" | "left_foot" | "right_foot";
 export interface HoldMap {
   id: string; attempt_id: string; name: string; reference_frame_ms: number; width: number; height: number;
-  holds: Hold[]; scope_note: string; frame_url: string; scale: MapScale | null;
+  holds: Hold[]; scope_note: string; frame_url: string; scale: MapScale | null; scale_check?: ScaleCheck | null;
 }
+export interface ScaleCheck { torso_cm: number; plausible: boolean; range_cm: [number, number]; message: string | null }
 export interface WallInfo { basis: string; frames_used: number; never_clear_fraction: number | null; detail: string; image_url: string; combined: boolean }
 export interface MapScale { x1: number; y1: number; x2: number; y2: number; cm: number }
 export interface HoldSuggestion { x: number; y: number; radius: number }
 export interface SuggestionResult { suggestions: HoldSuggestion[]; seed_color: string; note: string; image: { basis: string; detail: string } }
-export interface PlanResult extends BetaResult { body?: { torso_cm: number; arm_cm: number; leg_cm: number }; hold_map: (HoldMapSummary & { width: number; height: number }) | null }
+export interface PlanResult extends BetaResult { body?: { torso_cm: number; arm_cm: number; leg_cm: number }; scale_check?: ScaleCheck | null; hold_map: (HoldMapSummary & { width: number; height: number }) | null }
 export type HoldBody = Omit<Hold, "id">;
 export const holdApi = {
   list: (attemptId: string) => request<HoldMap[]>(`/api/attempts/${attemptId}/hold-maps`),

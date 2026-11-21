@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { api, Attempt, clock } from "./api";
+import { OutcomeField } from "./Details";
 
 export function Setup({ attempt, onChanged, onStarted }: { attempt: Attempt; onChanged: () => void; onStarted: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
@@ -44,9 +45,9 @@ export function Setup({ attempt, onChanged, onStarted }: { attempt: Attempt; onC
         <div className="grid2">
           <label>Route<input value={form.route_name} onChange={(e) => setForm({ ...form, route_name: e.target.value })} /></label>
           <label>Grade<input value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} /></label>
-          <label>Outcome<input value={form.outcome} onChange={(e) => setForm({ ...form, outcome: e.target.value })} /></label>
           <label>Your focus<input value={form.focus} onChange={(e) => setForm({ ...form, focus: e.target.value })} /></label>
         </div>
+        <OutcomeField value={form.outcome} onChange={(outcome) => setForm({ ...form, outcome })} testid="setup-outcome" />
         <h2>About the recording</h2>
         <label className="check"><input type="checkbox" checked={single} onChange={(e) => setSingle(e.target.checked)} /> Only one climber is in the picture</label>
         <label className="check"><input type="checkbox" checked={fixed} onChange={(e) => setFixed(e.target.checked)} /> The camera stays still</label>

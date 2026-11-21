@@ -132,6 +132,18 @@ test("import, analyze, review, annotate, refresh, export, delete", async ({ page
   }
   expect(page.url()).toBe(url);
 
+  // Details: problem, grade and outcome from the header, kept after a reload.
+  await page.getByTestId("edit-details").click();
+  await page.getByTestId("details-problem").fill("Smoke problem");
+  await page.getByTestId("details-grade").fill("V1");
+  await page.getByTestId("details-outcome-finished").click();
+  await expect(page.getByTestId("details-outcome-text")).toHaveValue("Finished");
+  await page.getByTestId("details-save").click();
+  await expect(page.getByTestId("details-dialog")).not.toBeVisible();
+  await expect(page.getByTestId("details-summary")).toHaveText("Smoke problem · V1 · Finished");
+  await page.reload();
+  await expect(page.getByTestId("details-summary")).toHaveText("Smoke problem · V1 · Finished");
+
   for (const format of ["json", "csv", "html"]) {
     const response = await request.get(`/api/analyses/${runId}/export?format=${format}`);
     expect(response.ok()).toBe(true);

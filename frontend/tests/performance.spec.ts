@@ -198,7 +198,7 @@ test("coaching cards, placements, candidate beta, and matched comparison", async
   await expect(page.getByTestId("compare-panel")).toContainText("Add a problem and climber name");
   await page.getByTestId("problem-label").fill("Spec Problem");
   await page.getByTestId("climber-label").fill("A");
-  await page.getByTestId("outcome-label").fill("Topped");
+  await page.getByTestId("compare-outcome-text").fill("Topped");
   await page.getByTestId("save-compare").click();
   await expect(page.getByTestId("compare-none")).toBeVisible();
   const other = await importAndAnalyze(page, "Performance spec B");

@@ -5,6 +5,7 @@ import { Attempt, BetaResult, Coaching, CoachingCard, clock, ComparisonResult, F
 
 export const LIMB_WORD: Record<string, string> = { left_foot: "Left foot", right_foot: "Right foot", left_hand: "Left hand", right_hand: "Right hand", left_wrist: "Left hand", right_wrist: "Right hand" };
 import { BetaFigure, CandidateDetail } from "./BetaView";
+import { OutcomeField } from "./Details";
 export { BetaFigure };
 export const holdName = (index: number) => `H${index + 1}`;
 
@@ -238,11 +239,11 @@ export function ComparePanel({ attempt, onSaved }: { attempt: Attempt; onSaved: 
     <section className="card" data-testid="compare-panel" aria-label="Compare attempts">
       <h2>Compare attempts on the same problem</h2>
       <p className="muted small-text">Name the problem and the climber. Attempts are matched only when both names are the same, so you decide what counts as the same problem.</p>
-      <div className="grid3">
+      <div className="grid2">
         <label>Problem name<input value={form.problem_label} data-testid="problem-label" onChange={(e) => setForm({ ...form, problem_label: e.target.value })} /></label>
         <label>Climber<input value={form.climber_label} data-testid="climber-label" onChange={(e) => setForm({ ...form, climber_label: e.target.value })} /></label>
-        <label>Outcome<input value={form.outcome} data-testid="outcome-label" placeholder="Topped, fell at move 4…" onChange={(e) => setForm({ ...form, outcome: e.target.value })} /></label>
       </div>
+      <OutcomeField value={form.outcome} onChange={(outcome) => setForm({ ...form, outcome })} testid="compare-outcome" />
       <button className="button primary" data-testid="save-compare" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save and compare"}</button>{status && <span className="muted" role="status"> {status}</span>}
       {data?.status === "needs_labels" && <p className="muted">Add a problem and climber name to compare this attempt with others.</p>}
       {!data && !status && <p className="muted" role="status">Loading…</p>}

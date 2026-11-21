@@ -107,7 +107,7 @@ def register_coaching(app: FastAPI, get_settings) -> None:
         if context and context["usable"]:        # joints may be placed on the wall plane only when the camera stayed put
             plane, perspective = planning_geometry(active_settings(), context["map"], attempt, job, context["holds"], True)
         output = coaching.build_coaching(files["result"], files["events"]["events"], files["movement"], files["overlay"]["samples"],
-                                         attempt["width"], attempt["height"], context, plane)
+                                         attempt["width"], attempt["height"], context, plane, attempt["outcome"])
         output["perspective"] = perspective
         output["hold_map"] = public_map
         output["attempt_bounds_ms"] = files["result"]["attempt_bounds_ms"]

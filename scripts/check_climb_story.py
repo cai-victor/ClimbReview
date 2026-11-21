@@ -30,7 +30,7 @@ def main() -> int:
         directory = os.path.dirname(runs[-1])
         read = lambda name: json.load(open(os.path.join(directory, name)))
         result, events, movement = read("result.json"), read("events.json")["events"], read("movement.json")
-        story = build_story(result, events, read("overlay.json")["samples"], attempt["width"], attempt["height"], movement["L_px"])
+        story = build_story(result, events, read("overlay.json")["samples"], attempt["width"], attempt["height"], movement["L_px"], attempt["outcome"])
         print(f"\n== {attempt['title']}  (your outcome: {attempt['outcome'] or 'not recorded'})")
         if not story["available"]:
             print("  unavailable:", story["reason"])

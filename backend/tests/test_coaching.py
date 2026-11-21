@@ -28,13 +28,14 @@ def series(count=80, overrides=None, runs=None):
     return {"t": [i * 100 for i in range(count)], "width": W, "height": H, "L_px": L, "limbs": limbs}
 
 
-def sample(t, side="right", straight=True, toe=True):
+def sample(t, side="right", straight=True, toe=True, straight_legs=False):
     # Shoulder above elbow above wrist: straight when collinear, bent otherwise.
     shoulder = np.array([0.5, 0.3])
     elbow = shoulder + [0, -40 / H] if straight else shoulder + [40 / W, 0]
     wrist = elbow + [0, -40 / H] if straight else elbow + [0, -40 / H]
     joints = {f"{side}_shoulder": list(shoulder), f"{side}_elbow": list(elbow), f"{side}_wrist": list(wrist), "left_hip": [0.45, 0.5], "right_hip": [0.55, 0.5],
-              "left_knee": [0.45, 0.6], "right_knee": [0.55, 0.6], "left_ankle": [0.45, 0.8], "right_ankle": [0.55, 0.8]}
+              "left_knee": [0.45, 0.65] if straight_legs else [0.3, 0.65], "right_knee": [0.55, 0.65] if straight_legs else [0.7, 0.65],
+              "left_ankle": [0.45, 0.8], "right_ankle": [0.55, 0.8]}      # knees out to the side: legs bent, unless straight_legs
     if toe:
         joints.update({"left_foot_index": [0.44, 0.82], "right_foot_index": [0.56, 0.82]})
     return {"t": t, "pose": True, "joints": joints}
@@ -166,6 +167,14 @@ def test_large_step_excludes_leaving_the_ground():
     assert "large_step" in kinds(build([event("foot_motion", "left", 3000, 4000, up=1.3)]))
     output = build([event("foot_motion", "left", 500, 1200, up=1.5)])
     assert "large_step" not in kinds(output) and "leaving the ground" in text(output["not_flagged"])
+
+
+def test_large_step_onto_an_already_straight_leg_is_not_a_stand_up():
+    # A foot that lands with the leg extended was reached out to. There is nothing left to stand up on, so no card.
+    step = [event("foot_motion", "left", 3000, 4000, up=1.3)]
+    output = build(step, samples=[sample(i * 100, straight_legs=True) for i in range(80)])
+    assert "large_step" not in kinds(output) and "already nearly straight" in text(output["not_flagged"])
+    assert "large_step" in kinds(build(step, samples=[sample(i * 100) for i in range(80)]))
 
 
 def test_long_pause_needs_tracked_feet_and_says_hands_may_be_unseen():

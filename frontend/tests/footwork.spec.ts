@@ -139,6 +139,7 @@ test("left and right feet: filtering, detail, seek, loop, persistence, exports, 
   await expect(page.getByTestId("digest")).toHaveCount(0);
   await page.getByTestId("tab-evidence").click();
   const wristCard = page.getByTestId("event-card").first();
+  await wristCard.getByTestId("event-more").click();
   const oldSaved = page.waitForResponse((r) => r.url().includes("/review") && r.request().postData()!.includes("old run note"));
   await wristCard.getByTestId("event-note").fill("old run note");
   await oldSaved;

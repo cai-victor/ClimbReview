@@ -287,3 +287,13 @@ def test_photo_wall_picture_is_the_photo_itself(env, tmp_path):
     info = client.get(f"/api/hold-maps/{mid}/wall-info").json()
     assert info["combined"] is False and info["basis"] == "reference_frame"
     assert client.get(f"/api/hold-maps/{mid}/wall-image").headers["content-type"] == "image/png"
+
+
+def test_a_scale_line_is_checked_against_the_tracked_torso():
+    from app.analysis import beta
+    line = {"x1": 0.0, "y1": 0.0, "x2": 60 / 720, "y2": 0.0, "cm": 6.0}           # 60 px said to be 6 cm: 10 px per cm
+    wrong = beta.scale_check(line, 720, 1280, 111.0)                              # an 11 cm torso cannot be right
+    assert wrong["plausible"] is False and wrong["torso_cm"] == 11.1 and "probably wrong" in wrong["message"]
+    right = beta.scale_check({**line, "cm": 30.0}, 720, 1280, 111.0)              # 2 px per cm: a 55 cm torso
+    assert right["plausible"] is True and right["message"] is None
+    assert beta.scale_check(line, 720, 1280, None) is None and beta.scale_check(None, 720, 1280, 111.0) is None
