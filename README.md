@@ -16,40 +16,40 @@ The suggestions are things to test on the wall, not verdicts. See [What it can a
 
 ## Install it
 
-You need:
+There are two ways. Both end with ClimbReview in your Applications folder.
 
-- A Mac. It has been tested on Apple Silicon Macs only. Intel Macs and Linux should work but have not been tested. On Windows, use WSL.
-- About 1.5 GB of free disk space, and an internet connection for the install.
+### If someone sent you a disk image (`ClimbReview-...-macOS.dmg`)
 
-### 1. Get the folder
+1. Double-click it, and drag **ClimbReview** onto the **Applications** folder in the window that opens.
+2. Open ClimbReview from Applications or Launchpad. The first time, macOS stops it because the app is not signed by a registered Apple developer. Click Done, open **System Settings > Privacy & Security**, scroll to Security, click **Open Anyway** next to ClimbReview, and confirm with your password. After that it opens normally.
 
-**If someone sent you a zip** (named like `ClimbReview-tester-1.zip`): unzip it somewhere you can find it, such as your Desktop.
+The disk image needs a Mac with Apple Silicon (M1 or newer) and macOS 14 Sonoma or newer. Nothing else needs to be installed.
 
-**If you are getting it from GitHub**: you also need [Node.js](https://nodejs.org) installed, because the web pages are built during the install. Then download the code:
+### Or install it from the folder, using Terminal
 
-```bash
-git clone https://github.com/cai-victor/ClimbReview.git
-```
+Use this on an Intel Mac, or when you have the code instead of a disk image. You need about 2.5 GB of free disk space and an internet connection for the install. It has been tested on Apple Silicon Macs only.
 
-### 2. Open the folder in Terminal
+1. **Get the folder.** If someone sent you a zip (named like `ClimbReview-tester-1.zip`), unzip it somewhere you can find it, such as your Desktop. From GitHub, you also need [Node.js](https://nodejs.org) installed, because the web pages are built during the install. Then download the code:
 
-Open the Terminal app, type `cd ` (with a space after it), drag the ClimbReview folder onto the Terminal window, and press Return.
+   ```bash
+   git clone https://github.com/cai-victor/ClimbReview.git
+   ```
 
-### 3. Run the installer (once, a few minutes on a fast connection)
+2. **Open the folder in Terminal.** Open the Terminal app, type `cd ` (with a space after it), drag the ClimbReview folder onto the Terminal window, and press Return.
 
-```bash
-bash install.sh
-```
+3. **Run the installer** (once, a few minutes on a fast connection):
 
-Everything is installed inside the ClimbReview folder and nothing is installed system-wide. If your computer has no conda, the installer asks before downloading a small tool called micromamba into the same folder.
+   ```bash
+   bash install.sh
+   ```
+
+   It sets up Python, FFmpeg and the pose model inside the ClimbReview folder, then builds the app, puts it in Applications and opens it. Built on your own Mac, it opens without the Privacy & Security step. If your computer has no conda, the installer asks before downloading a small tool called micromamba into the same folder.
 
 ## Start it
 
-```bash
-bash start.command
-```
+Open **ClimbReview** from Applications or Launchpad. It opens in its own window. Quit it like any app (ClimbReview > Quit, or Cmd+Q).
 
-Your browser opens the app at http://127.0.0.1:8317. Leave the Terminal window open while you use it, and press Ctrl+C in that window to stop.
+**Without the app** (on Linux, or if the app could not be built): run `bash start.command` in the ClimbReview folder. Your browser opens the app at http://127.0.0.1:8317. Leave the Terminal window open while you use it, and press Ctrl+C in that window to stop.
 
 ## Review your first climb
 
@@ -79,14 +79,16 @@ Keyboard shortcuts in the review: `N` and `P` step to the next and previous mome
 
 ## Your data
 
-Videos, analysis results, and notes are stored in the `data` folder inside the ClimbReview folder. To remove the app, delete the ClimbReview folder; copy `data` out first if you want to keep your reviews.
+The app keeps your videos, analysis results and notes in `~/Library/Application Support/ClimbReview` (in Finder: Go > Go to Folder, then paste that path). Deleting or replacing the app keeps them; delete that folder to remove them too.
+
+The browser version (`bash start.command`) keeps its own, separate data in the `data` folder inside the ClimbReview folder. The two do not share reviews.
 
 ## If something goes wrong
 
-- **"ClimbReview is not installed yet"**: run `bash install.sh` first.
+- **"ClimbReview cannot be opened" or "Apple could not verify ClimbReview"**: use Open Anyway in System Settings > Privacy & Security, as in [Install it](#install-it).
 - **The install stops**: read the last line, which says what failed. Running `bash install.sh` again is safe and continues where it left off.
-- **The browser does not open**: go to http://127.0.0.1:8317 yourself while the Terminal window is still running.
-- **Anything else**: copy the last 20 lines from the Terminal window and send them to whoever gave you the app.
+- **The app does not open, or an analysis fails**: send the files in `~/Library/Application Support/ClimbReview/logs` to whoever gave you the app.
+- **The browser version does not open**: go to http://127.0.0.1:8317 yourself while the Terminal window is still running, or copy the last 20 lines from the Terminal window and send them.
 
 ---
 
@@ -111,9 +113,10 @@ The app does not train or modify the pose model. [docs/PIPELINE_EXPLAINED.md](do
 | `frontend/` | The web interface (React and TypeScript) and browser tests |
 | `config/` | Detector thresholds and limits |
 | `scripts/` | Command-line tools for setup, analysis, evaluation, and releases |
+| `desktop/` | The Mac app: its launcher, build recipe and disk-image notes |
 | `evaluation/` | Templates for human reference labels |
 | `models/` | The pose model, downloaded during install |
-| `data/` | Your videos and results. Not tracked by git |
+| `data/` | Videos and results of the browser version. Not tracked by git |
 | `docs/` | Design, evaluation, and status documents |
 
 ## Developer setup
@@ -153,16 +156,11 @@ The app serves on this computer only (the loopback address) and needs no API key
 ## The Mac app
 
 ```bash
-bash desktop/build_macos.sh
+bash desktop/build_macos.sh             # dist/ClimbReview.app and dist/ClimbReview-macOS.dmg
+bash desktop/build_macos.sh --install   # build, then put it in Applications (what install.sh does)
 ```
 
-This builds `dist/ClimbReview.app` and `dist/ClimbReview-macOS.dmg` (about 540 MB and 245 MB) on this Mac, for its processor. The app opens ClimbReview in its own window, with the API, the worker, the pose model and FFmpeg inside it, so the person using it needs nothing else installed. It needs macOS 14 or newer. The build runs `ClimbReview --self-test` and refuses to package footage or databases.
-
-- **Where its data goes**: `~/Library/Application Support/ClimbReview` (attempts, database and a `logs` folder), separate from this folder's `data/app`. Set `CLIMBREVIEW_DATA_DIR` to use another folder.
-- **First open**: the app is not signed with an Apple Developer ID, so macOS blocks a copy downloaded from elsewhere. Right-click the app, choose Open, then Open again; on macOS 15, if that is refused, allow it under System Settings > Privacy & Security.
-- **From source**, without building: `.venv/bin/python desktop/launcher.py` (needs `pip install -r desktop/requirements-desktop.txt` for the window; without it, it opens your browser).
-
-The desktop app uses port 8327 (or any free port), so it can run beside the developer app on 8317.
+The app opens ClimbReview in its own window (pywebview), with the API, the worker, the pose model and FFmpeg inside it. It is built for the processor of the Mac that builds it and needs macOS 14 or newer. It is signed ad hoc, not with an Apple Developer ID, so a downloaded copy needs Open Anyway once. The build runs `ClimbReview --self-test` and refuses to package footage or databases. The desktop app uses port 8327 (or any free port), so it can run beside the developer app on 8317. Set `CLIMBREVIEW_DATA_DIR` to point it at another data folder. From source, without building: `.venv/bin/python desktop/launcher.py`.
 
 ## Sharing it with a tester
 
@@ -170,7 +168,10 @@ The desktop app uses port 8327 (or any free port), so it can run beside the deve
 bash scripts/make_release.sh
 ```
 
-This writes a zip to `dist/` with the web pages already built, so the tester does not need Node.js. It contains no videos or personal data. [TESTER_README.md](TESTER_README.md) is the short guide that goes with it.
+This writes two files to `dist/`, neither with videos or personal data:
+
+- `ClimbReview-<version>-macOS.dmg`, the app for Apple Silicon Macs. Send it as it is; it does not need zipping. "Read me first" and the license notes are inside.
+- `ClimbReview-<version>.zip`, the folder for `install.sh`, for Intel Macs and Linux, with the web pages already built so the tester does not need Node.js. [TESTER_README.md](TESTER_README.md) is the short guide that goes with it.
 
 ## Further reading
 

@@ -1,0 +1,23 @@
+ClimbReview for Mac
+
+Install
+  Drag ClimbReview onto the Applications folder in this window. Then open it from Applications or Launchpad.
+
+The first time you open it
+  This app is not from the App Store and is not signed by a registered Apple developer, so macOS stops it the
+  first time with a message such as "ClimbReview cannot be opened" or "Apple could not verify ClimbReview".
+  1. Click Done (or OK).
+  2. Open System Settings > Privacy & Security and scroll down to the Security section.
+  3. Next to the message about ClimbReview, click Open Anyway, then confirm with your password.
+  After that it opens normally.
+
+Needs
+  A Mac with Apple Silicon (M1 or newer) running macOS 14 Sonoma or newer.
+
+Your videos
+  Everything stays on this Mac. Videos are never uploaded and no account is needed. Your reviews are kept in
+  your home folder under Library/Application Support/ClimbReview, so replacing or deleting the app keeps them.
+  To delete them too, delete that folder.
+
+Something went wrong?
+  Send the files in Library/Application Support/ClimbReview/logs to whoever gave you the app.

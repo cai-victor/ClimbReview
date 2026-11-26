@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ClimbReview installer. Puts everything inside this folder (.venv, models, .tools) and nothing system-wide.
 #   bash install.sh
-# Tested on macOS with Apple Silicon. Needs about 1.5 GB of disk and an internet connection for the first run.
+# Tested on macOS with Apple Silicon. Needs about 2.5 GB of disk and an internet connection for the first run.
+# On a Mac it ends by building ClimbReview.app and putting it in Applications (CLIMBREVIEW_NO_APP=1 skips that).
 set -euo pipefail
 cd "$(dirname "$0")"
 STARTED=$(date +%s)
@@ -83,4 +84,17 @@ say "Checking the install"
 .venv/bin/python -c 'import cv2, fastapi, mediapipe, numpy, yaml' || fail "a Python package failed to load."
 .venv/bin/ffmpeg -hide_banner -version >/dev/null || fail "FFmpeg did not start."
 rm -rf .tools/pkgs
+
+# 7. On a Mac, the app itself: built from this folder and put in Applications. Set CLIMBREVIEW_NO_APP=1 to skip.
+if [ "$(uname -s)" = Darwin ] && [ -z "${CLIMBREVIEW_NO_APP:-}" ] && [ -f desktop/build_macos.sh ]; then
+  say "Building the ClimbReview app (a minute or two)"
+  if bash desktop/build_macos.sh --install; then
+    rm -rf build/desktop dist/ClimbReview.app     # the copy in Applications is the one that is used
+    printf '\nClimbReview is installed. Open it from your Applications folder or Launchpad.\n'
+    printf 'Your reviews are kept in ~/Library/Application Support/ClimbReview.\n\n'
+    [ -n "${CLIMBREVIEW_NO_BROWSER:-}" ] || open -a ClimbReview 2>/dev/null || true
+    exit 0
+  fi
+  echo "The app could not be built. ClimbReview still works in your browser, as below."
+fi
 printf '\nClimbReview is installed. Start it with:\n\n    bash start.command\n\n'

@@ -24,7 +24,13 @@ The local app, analysis pipeline, two detectors, review flow, exports, evaluatio
 - Quit from the menu, and a forced kill, both leave no ClimbReview process running. A job cut off this way is marked interrupted on the next start.
 - `pytest` 340 passed after the changes. Playwright was not re-run (the frontend did not change).
 
-**Not done:** no Developer ID signing or notarization (it costs money), so a copy sent to another Mac needs right-click > Open. No Intel or universal build, no Windows build, no app icon. Not tried on a second Mac.
+**Installing it (same day, after the user asked for an app instead of the browser):**
+- `bash install.sh` now ends, on a Mac, by building the app and putting it in `/Applications` (or `~/Applications` when that is not writable), then opening it. If the build fails, the install still finishes and `bash start.command` (browser) works as before. `CLIMBREVIEW_NO_APP=1` skips the app.
+- `scripts/make_release.sh` now also writes `dist/ClimbReview-<version>-macOS.dmg`: the app, an Applications shortcut to drag it onto, "Read me first.txt" (first-open steps) and "Licenses.txt" (FFmpeg is GPL; MediaPipe and OpenCV Apache 2.0). The zip now carries `desktop/` so `install.sh` can build the app from it.
+- README and the tester guide now describe the app first and the browser as the fallback.
+- `spctl` rejects the app (ad-hoc signature, not notarized), so a downloaded copy needs System Settings > Privacy & Security > Open Anyway once; on macOS 15 right-click > Open no longer bypasses this. A copy built on the same Mac by `install.sh` has no quarantine flag and opens directly.
+
+**Not done:** no Developer ID signing or notarization (it costs money). No Intel or universal build, no Windows build, no app icon. Not tried on a second Mac, and the Open Anyway steps were not walked through on a quarantined copy.
 
 ## Second whole-app pass: details, search, scale check (2026-11-21)
 

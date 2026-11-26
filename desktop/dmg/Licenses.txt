@@ -1,0 +1,8 @@
+ClimbReview bundles third-party software. Their licenses apply to those parts.
+
+FFmpeg 9.0.2 (conda-forge build, with libx264 and libx265): GNU General Public License, version 3 or later.
+  Source: https://ffmpeg.org/download.html and https://github.com/conda-forge/ffmpeg-feedstock
+MediaPipe and the Pose Landmarker model: Apache License 2.0. https://github.com/google-ai-edge/mediapipe
+OpenCV: Apache License 2.0. https://opencv.org
+Python: Python Software Foundation License. https://www.python.org
+pywebview: BSD 3-Clause. FastAPI, Starlette, Pydantic, Uvicorn: MIT or BSD licenses. NumPy: BSD 3-Clause.
