@@ -150,6 +150,20 @@ Analyze one video from the command line, without the web interface:
 
 The app serves on this computer only (the loopback address) and needs no API keys.
 
+## The Mac app
+
+```bash
+bash desktop/build_macos.sh
+```
+
+This builds `dist/ClimbReview.app` and `dist/ClimbReview-macOS.dmg` (about 540 MB and 245 MB) on this Mac, for its processor. The app opens ClimbReview in its own window, with the API, the worker, the pose model and FFmpeg inside it, so the person using it needs nothing else installed. It needs macOS 14 or newer. The build runs `ClimbReview --self-test` and refuses to package footage or databases.
+
+- **Where its data goes**: `~/Library/Application Support/ClimbReview` (attempts, database and a `logs` folder), separate from this folder's `data/app`. Set `CLIMBREVIEW_DATA_DIR` to use another folder.
+- **First open**: the app is not signed with an Apple Developer ID, so macOS blocks a copy downloaded from elsewhere. Right-click the app, choose Open, then Open again; on macOS 15, if that is refused, allow it under System Settings > Privacy & Security.
+- **From source**, without building: `.venv/bin/python desktop/launcher.py` (needs `pip install -r desktop/requirements-desktop.txt` for the window; without it, it opens your browser).
+
+The desktop app uses port 8327 (or any free port), so it can run beside the developer app on 8317.
+
 ## Sharing it with a tester
 
 ```bash

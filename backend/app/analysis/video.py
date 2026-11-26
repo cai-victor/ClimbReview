@@ -32,9 +32,12 @@ class SourceVideoError(ClimbReviewError):
 
 
 def tool_path(name: str) -> str:
-    """Prefer the project environment's FFmpeg tools over anything on PATH."""
-    local = Path(sys.prefix) / "bin" / name
-    found = str(local) if local.exists() else shutil.which(name)
+    """Prefer FFmpeg bundled with the desktop app, then the project environment's, then anything on PATH."""
+    executable = name + (".exe" if sys.platform == "win32" else "")
+    candidates = [Path(sys.prefix) / "bin" / executable, Path(sys.prefix) / "Library" / "bin" / executable]
+    if getattr(sys, "frozen", False):
+        candidates.insert(0, Path(getattr(sys, "_MEIPASS")) / "ffmpeg" / "bin" / executable)
+    found = next((str(path) for path in candidates if path.exists()), None) or shutil.which(name)
     if not found:
         raise ClimbReviewError(f"{name} is missing. Run scripts/setup_env.sh, then use .venv/bin/python.")
     return found

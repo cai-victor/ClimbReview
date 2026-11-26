@@ -1,12 +1,32 @@
 # ClimbReview status
 
-Last updated 2026-11-21 after a second pass: attempt details, search, and a scale check. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
+Last updated 2026-11-25 after packaging ClimbReview as a Mac app. Start with `docs/WALL_GEOMETRY_REPORT.md`, `docs/AUTOMATION_REPORT.md`, `docs/ROUTE_TOOLS_REPORT.md` and `docs/PERFORMANCE_REPORT.md` for the latest work, `docs/FOOTWORK_REPORT.md` for foot tracking, and `docs/MORNING_REPORT.md` for the earlier overnight run.
 
 ## Bottom line
 
 The local app, analysis pipeline, two detectors, review flow, exports, evaluation tooling, blind reference labeling, and manual reference-frame hold marking are implemented and tested. An experimental wrist-motion forecast and a camera-compensation study also exist, separately from the default analysis. **The provisional feasibility gate is not met** on the user's phone clips, because of camera motion on earlier handheld recordings and hidden wrists even on the new tripod clips. No independent human labels or user study exist, so **event accuracy is unknown**.
 
-## Second whole-app pass: details, search, scale check (latest, 2026-11-21)
+## Mac app (latest, 2026-11-25)
+
+`bash desktop/build_macos.sh` builds `dist/ClimbReview.app` and a `.dmg` with PyInstaller 6.22.3 and pywebview 6.2.1 (`desktop/requirements-desktop.txt`). The app opens in its own window and starts the same API (in a thread) and the same single worker (the app run with `--worker`). Data goes to `~/Library/Application Support/ClimbReview` (D119). macOS only for now, by the user's choice. Built on macOS 15.7.4 (Apple Silicon); the newest minimum OS inside the bundle is 14.0.
+
+**Code changes outside `desktop/`:** `settings.py` finds resources and the data folder in a packaged build; `video.tool_path` looks for the bundled FFmpeg first; the worker's single-instance lock also works on Windows (`msvcrt`), which removes the only POSIX-only import.
+
+**Problems found while building, and fixed:**
+- PyInstaller relinked FFmpeg against OpenCV's older bundled GLib, and FFmpeg failed to start (`_g_string_copy` not found). FFmpeg, FFprobe and their 75 libraries are now copied into the finished app untouched (`desktop/add_ffmpeg.py`), and the app is signed again ad hoc.
+- MediaPipe imports matplotlib at load time; excluding matplotlib made every analysis fail at pose extraction. Caught by a real import, now covered by `--self-test`, which the build runs.
+- Python's signal handlers do not run while the window's event loop runs, so a window process killed from outside could leave the worker behind. The worker now stops by itself when its parent disappears.
+
+**Checks run on the built app** (scratch data folder, not the live data):
+- `--self-test` passed: pose model with its checksum, MediaPipe, FFmpeg with libx264, FFprobe, frontend and window library.
+- IMG_7859 (a development clip already used in earlier checks) was imported and analyzed in 30 s. All 15 events match the developer app's run on the same clip exactly (same config hash, same start and end of every event). JSON, CSV and HTML exports respond.
+- In the window (computer-use, AI-assisted): the library, the review page, video playback with the pose overlay, and the More menu all work. An export opens the macOS Save dialog; the file was not saved, so the saved file's name and extension are not confirmed. Saved state survives a relaunch.
+- Quit from the menu, and a forced kill, both leave no ClimbReview process running. A job cut off this way is marked interrupted on the next start.
+- `pytest` 340 passed after the changes. Playwright was not re-run (the frontend did not change).
+
+**Not done:** no Developer ID signing or notarization (it costs money), so a copy sent to another Mac needs right-click > Open. No Intel or universal build, no Windows build, no app icon. Not tried on a second Mac.
+
+## Second whole-app pass: details, search, scale check (2026-11-21)
 
 A fresh upload was taken through import, setup, analysis and review on a separate scratch copy of the app (public clip, scratch data folder, nothing added to the live data). The live app's pages were opened again at desktop and phone widths.
 

@@ -24,3 +24,4 @@ models/
 *.webm
 .conda-pkgs/
 frontend/.playwright-browsers/
+build/

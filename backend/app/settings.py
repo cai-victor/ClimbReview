@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from .analysis.config import PipelineConfig, load_config
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# A packaged desktop build (PyInstaller) unpacks its read-only resources (config, model, frontend) here.
+FROZEN = bool(getattr(sys, "frozen", False))
+PROJECT_ROOT = Path(getattr(sys, "_MEIPASS")) if FROZEN else Path(__file__).resolve().parents[2]
 _ID = re.compile(r"^[0-9a-f]{32}$")
 
 
@@ -55,9 +58,21 @@ class Settings:
         self.attempts_dir.mkdir(parents=True, exist_ok=True)
 
 
+def user_data_dir() -> Path:
+    """Where the desktop app keeps attempts and its database: the user's own app-data folder, never the bundle."""
+    home = Path.home()
+    if sys.platform == "darwin":
+        return home / "Library" / "Application Support" / "ClimbReview"
+    if sys.platform == "win32":
+        return Path(os.environ.get("LOCALAPPDATA") or home / "AppData" / "Local") / "ClimbReview"
+    return Path(os.environ.get("XDG_DATA_HOME") or home / ".local" / "share") / "ClimbReview"
+
+
 def load_settings() -> Settings:
     configured = os.environ.get("CLIMBREVIEW_DATA_DIR")
-    return Settings(Path(configured).resolve() if configured else PROJECT_ROOT / "data" / "app")
+    if configured:
+        return Settings(Path(configured).resolve())
+    return Settings(user_data_dir() if FROZEN else PROJECT_ROOT / "data" / "app")
 
 
 def load_pipeline_config() -> PipelineConfig:

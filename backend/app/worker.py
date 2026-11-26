@@ -5,7 +5,6 @@ Partial output is written to a temporary directory and only renamed on success.
 """
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import shutil
@@ -198,13 +197,26 @@ class Worker:
         self._update(job_id, summary=db.dumps(summary))
 
 
+def _try_lock(handle: Any) -> bool:
+    """Hold an exclusive, non-blocking lock on an open file for the life of the process (POSIX and Windows)."""
+    try:
+        if os.name == "nt":
+            import msvcrt
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    return True
+
+
 def run_forever(settings: Settings, config: PipelineConfig) -> int:
     settings.prepare()
     db.initialize(settings.database)
     lock = settings.worker_lock.open("w")
-    try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
+    if not _try_lock(lock):
         print("error: another ClimbReview worker is already running.", file=sys.stderr)
         return 2
     with db.session(settings.database) as connection:
